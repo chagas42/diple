@@ -3,6 +3,7 @@ import SwiftUI
 struct TeamTab: View {
     @ObservedObject var model: AppModel
     @State private var search = ""
+    @State private var order: [String] = []
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 10), count: 6)
@@ -13,10 +14,17 @@ struct TeamTab: View {
         let matching = q.isEmpty ? model.team : model.team.filter {
             $0.login.lowercased().contains(q) || $0.name.lowercased().contains(q)
         }
-        return matching.sorted { a, b in
-            let fa = model.following.contains(a.login), fb = model.following.contains(b.login)
-            return fa == fb ? a.login < b.login : fa
-        }
+        let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        return matching.sorted { (rank[$0.login] ?? .max, $0.login) < (rank[$1.login] ?? .max, $1.login) }
+    }
+
+    private func freezeOrder() {
+        order = model.team
+            .sorted { a, b in
+                let fa = model.following.contains(a.login), fb = model.following.contains(b.login)
+                return fa == fb ? a.login < b.login : fa
+            }
+            .map(\.login)
     }
 
     var body: some View {
@@ -79,6 +87,8 @@ struct TeamTab: View {
                 .scrollIndicators(.visible)
             }
         }
+        .onAppear(perform: freezeOrder)
+        .onChange(of: model.team.count) { freezeOrder() }
     }
 }
 
