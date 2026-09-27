@@ -39,6 +39,18 @@ struct NotchView: View {
             // é disposto no tamanho final e vaza por cima do wallpaper antes
             // de a forma alcançá-lo.
             .clipShape(forma)
+            .contextMenu {
+                Button("Ajustes…") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    abrirJanela(id: Janela.ajustes)
+                }
+                Button("Janela principal") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    abrirJanela(id: Janela.principal)
+                }
+                Divider()
+                Button("Sair do Diple") { NSApplication.shared.terminate(nil) }
+            }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -149,6 +161,11 @@ struct NotchView: View {
                     ProgressView().controlSize(.small).tint(.white).frame(width: 22)
                 } else {
                     botaoIcone("arrow.clockwise") { Task { await modelo.atualizar() } }
+                }
+                botaoIcone("gearshape") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    abrirJanela(id: Janela.ajustes)
+                    aoFechar()
                 }
                 botaoIcone("xmark") { aoFechar() }
             }

@@ -24,6 +24,14 @@ final class Modelo: ObservableObject {
     @Published private(set) var ritmo: [DiaRitmo] = []
     @Published private(set) var seguindo: Set<String> = []
     @Published private(set) var carregandoAba = false
+    @Published var config = Config() {
+        didSet {
+            guard config != oldValue else { return }
+            store.guardarConfig(config)
+            notificador.config = config
+            if config.intervalo != oldValue.intervalo { religarTimer() }
+        }
+    }
 
     enum AbaNotch: String, CaseIterable, Identifiable {
         case fila, time, rank, ritmo
@@ -77,8 +85,7 @@ final class Modelo: ObservableObject {
     private let notificador = Notificador()
     private var timer: Timer?
 
-    /// Intervalo de 60s: a query custa 1 ponto de 5000/hora.
-    private let intervalo: TimeInterval = 60
+
 
     private var iniciado = false
 
@@ -89,6 +96,8 @@ final class Modelo: ObservableObject {
         notificador.aoMudar = { [weak self] in await self?.atualizar() }
         naoLidos = store.estado.naoLidos
         seguindo = store.estado.seguindo
+        config = store.estado.config
+        notificador.config = config
 
         Task {
             permissao = await notificador.autorizado()
@@ -96,14 +105,20 @@ final class Modelo: ObservableObject {
             await atualizar()
         }
 
-        timer = Timer.scheduledTimer(withTimeInterval: intervalo, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.atualizar() }
-        }
+        religarTimer()
 
         // Dormir e acordar deixa a fila velha; sincroniza ao voltar.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
+            Task { @MainActor in await self?.atualizar() }
+        }
+    }
+
+    /// Uma sincronização custa 1 ponto dos 5000 por hora, então 60s gasta 60.
+    private func religarTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: config.intervalo, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.atualizar() }
         }
     }
@@ -116,6 +131,10 @@ final class Modelo: ObservableObject {
         do {
             let nova = try await cliente.buscarFila()
             let eventos = store.diferenca(nova, meuLogin: nova.eu)
+                .filter { e in
+                    let repo = e.chave.split(separator: "#").first.map(String.init) ?? ""
+                    return !config.silenciados.contains(repo)
+                }
             fila = nova
             if let s = selecionado {
                 selecionado = nova.todos.first { $0.chave == s.chave } ?? s

@@ -53,11 +53,17 @@ struct DipleApp: App {
         }
         .defaultSize(width: 1320, height: 820)
         .windowToolbarStyle(.unified)
+
+        Window("Ajustes do Diple", id: Janela.ajustes) {
+            AjustesView(modelo: modelo)
+        }
+        .windowResizability(.contentSize)
     }
 }
 
 enum Janela {
     static let principal = "principal"
+    static let ajustes = "ajustes"
 }
 
 // MARK: - Ponto de entrada

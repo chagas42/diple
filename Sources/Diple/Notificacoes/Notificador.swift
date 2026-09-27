@@ -9,6 +9,8 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
 
     /// Chamado depois de responder ou resolver, pra fila refletir o que você fez.
     var aoMudar: (() async -> Void)?
+    /// A config viva, injetada pelo modelo a cada sincronização.
+    var config = Config()
 
     private enum Cat {
         static let thread = "THREAD"   // dá pra responder
@@ -63,11 +65,11 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
     }
 
     func postar(_ eventos: [Evento]) async {
-        for e in eventos where e.tipo.interrompe {
+        for e in eventos where config.deixaPassar(e.tipo) {
             let c = UNMutableNotificationContent()
             c.title = e.titulo
             c.body = e.corpo
-            if let som = e.tipo.som {
+            if let som = config.som(e.tipo) {
                 c.sound = UNNotificationSound(named: UNNotificationSoundName("\(som).aiff"))
             }
             // Agrupa tudo do mesmo PR num aviso só em vez de empilhar três.
