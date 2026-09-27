@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the newest Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      - name: Version from the tag
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          swift build -c release
+          make app
+
+      - name: Stamp the version into the bundle
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.v.outputs.version }}" build/Diple.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" build/Diple.app/Contents/Info.plist
+          codesign --force --sign - --identifier com.chagas42.diple build/Diple.app
+
+      - name: Zip it
+        run: |
+          cd build
+          ditto -c -k --sequesterRsrc --keepParent Diple.app "Diple-${{ steps.v.outputs.version }}.zip"
+          shasum -a 256 "Diple-${{ steps.v.outputs.version }}.zip" | tee "Diple-${{ steps.v.outputs.version }}.zip.sha256"
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/Diple-${{ steps.v.outputs.version }}.zip
+            build/Diple-${{ steps.v.outputs.version }}.zip.sha256
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ```bash
+            brew install --cask chagas42/tap/diple
+            ```
+
+            Or download the zip below, unpack it into `/Applications`, and on
+            first launch right-click → Open. The build is signed ad-hoc, so
+            macOS asks once; notarising needs a paid Apple Developer account.
+
+            Diple borrows the token `gh` already holds, so there is nothing to
+            paste after install — `gh auth login` is the only prerequisite.

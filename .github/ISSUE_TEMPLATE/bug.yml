@@ -1,0 +1,28 @@
+name: Bug
+description: Something does not work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got.
+    validations: { required: true }
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "14.6 / 15.2 / 26.5"
+    validations: { required: true }
+  - type: dropdown
+    id: notch
+    attributes:
+      label: Does this Mac have a notch?
+      options: ["Yes", "No", "Yes, but an external display was attached"]
+    validations: { required: true }
+  - type: textarea
+    id: tools
+    attributes:
+      label: make tools
+      description: Paste the output — it says where gh, claude and git were found.
+      render: shell

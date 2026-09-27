@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the newest Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Bundle and sign
+        run: make app
+
+      - name: House rules
+        run: |
+          fail=0
+
+          if grep -rn --include='*.swift' -E '^\s*//' Sources; then
+            echo "::error::comments in the code — put it in NOTES.md or name it better"
+            fail=1
+          fi
+
+          if grep -rn --include='*.swift' -iE '\b(nao|sim|entao|porque|arquivo|linha|tamanho|largura|altura|conteudo|aberto|fechado|aba|abas|fila|seguindo|revisando|esperando)\b' Sources; then
+            echo "::error::Portuguese identifier in the code"
+            fail=1
+          fi
+
+          exit $fail

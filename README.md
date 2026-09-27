@@ -17,12 +17,7 @@ answer without opening anything.
 
 <br /><br />
 
-<!-- DEMO — delete these two comment markers and paste the URL below.
-     Record it, drag the file into any GitHub issue comment box, and copy the
-     https://github.com/user-attachments/assets/… URL GitHub hands back.
-
-<img src="PASTE_URL" width="820" alt="Diple" />
--->
+<img src="docs/demo.gif" width="820" alt="Diple" />
 
 </div>
 
@@ -96,6 +91,19 @@ not here* — goes to the model.
 
 ## Install
 
+### Homebrew
+
+```bash
+brew install --cask chagas42/tap/diple
+```
+
+### Direct download
+
+Grab the latest `.zip` from [Releases](https://github.com/chagas42/diple/releases/latest),
+unpack it into `/Applications`, and on first launch right-click → Open.
+
+### From source
+
 Requires **macOS 14+**, **Xcode 16+** and the [GitHub CLI](https://cli.github.com)
 already signed in (`gh auth login`). Diple borrows that token — there is no
 setup screen and nothing to paste.
@@ -113,8 +121,6 @@ tool it needs.
 > refuse to open it the first time: right-click → Open, or
 > `xattr -dr com.apple.quarantine /Applications/Diple.app`. Notarising needs a
 > paid Apple Developer account, which this does not have.
-
----
 
 ## Development
 
@@ -163,7 +169,7 @@ being a separate channel from `comments`, `baseRefOid` versus a stale
 - [ ] Device flow, so `gh` is not required
 - [ ] Watched repositories feeding new PRs into the queue
 - [ ] Rate-limit state when your Claude plan runs out mid-review
-- [ ] A license file — pick one before this goes public
+- [ ] Notarised builds, so the first launch needs no right-click
 
 ---
 
@@ -177,3 +183,15 @@ century BC. Our quotation marks descend from it.
 
 The app does the same job: it points, in the margin, at what deserves your
 attention.
+
+---
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the house rules — no dependencies, no
+comments in the code, English in the interface, one concern per pull request.
+`main` takes pull requests only, and they need a green CI and one approval.
+
+## License
+
+[MIT](LICENSE).
