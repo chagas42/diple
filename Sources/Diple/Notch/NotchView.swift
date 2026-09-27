@@ -101,13 +101,17 @@ struct NotchView: View {
     private var wings: some View {
         HStack(spacing: 0) {
             EyeView(gaze: gaze, blinking: blinking, largura: 15)
+                .opacity(model.count > 0 ? 1 : 0.42)
+                .animation(.easeOut(duration: 0.25), value: model.count > 0)
                 .frame(maxWidth: .infinity)
             Spacer(minLength: notchWidth)
                 .frame(width: notchWidth)
             Text("\(model.count)")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.92))
+                .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
                 .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
                 .contentTransition(.numericText(value: Double(model.count)))
                 .frame(maxWidth: .infinity)
         }

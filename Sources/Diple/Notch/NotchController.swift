@@ -64,9 +64,7 @@ final class NotchController: ObservableObject {
         }
     }
 
-    private func idle() -> NotchState {
-        (model?.count ?? 0) > 0 ? .active : .hidden
-    }
+    private func idle() -> NotchState { .active }
 
     func open() {
         collapseTask?.cancel()

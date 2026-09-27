@@ -187,7 +187,7 @@ struct RankTab: View {
                 Placeholder(text: "Counting reviews…")
             } else {
                 let top = max(1, model.ranking.first?.reviews ?? 1)
-                VStack(spacing: 6) {
+                VStack(spacing: 0) {
                     ForEach(Array(model.ranking.prefix(5).enumerated()), id: \.element.id) { i, row in
                         let isMe = row.person.login == model.queue.viewer
                         HStack(spacing: 9) {
@@ -206,19 +206,36 @@ struct RankTab: View {
                                 let width = isMe ? full * progress : full
                                 ZStack(alignment: .leading) {
                                     Capsule()
-                                        .fill(isMe ? Color.orange : .white.opacity(0.22))
+                                        .fill(.white.opacity(0.06))
+                                    Capsule()
+                                        .fill(
+                                            isMe
+                                                ? AnyShapeStyle(LinearGradient(
+                                                    colors: [
+                                                        Color(red: 0.72, green: 0.13, blue: 0.03),
+                                                        Color(red: 1.0, green: 0.45, blue: 0.05),
+                                                        Color(red: 1.0, green: 0.72, blue: 0.22),
+                                                    ],
+                                                    startPoint: .leading, endPoint: .trailing
+                                                ))
+                                                : AnyShapeStyle(Color.white.opacity(0.22))
+                                        )
                                         .frame(width: max(3, width))
+                                        .shadow(
+                                            color: isMe && celebrating
+                                                ? Color.orange.opacity(0.7) : .clear,
+                                            radius: 6
+                                        )
                                     if isMe && celebrating {
-                                        Image(systemName: "flame.fill")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.orange)
-                                            .shadow(color: .orange.opacity(0.8), radius: 5)
-                                            .offset(x: max(0, width - 5))
+                                        FlameView(size: 17)
+                                            .offset(x: max(0, width - 16))
+                                            .allowsHitTesting(false)
                                     }
                                 }
+                                .frame(height: 9)
                                 .frame(maxHeight: .infinity, alignment: .center)
                             }
-                            .frame(height: 9)
+                            .frame(height: 26)
                             Text("\(row.reviews)")
                                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.white.opacity(0.7))
