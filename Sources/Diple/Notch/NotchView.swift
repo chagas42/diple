@@ -84,72 +84,161 @@ struct NotchView: View {
         .frame(height: alturaNotch)
     }
 
+    // MARK: - Aberto
+    // A faixa do topo fica na altura da barra de menu, com o vão do recorte
+    // livre no meio. O corpo são cartões, não linhas de lista.
+
     private var aberto: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 9) {
+        VStack(spacing: 0) {
+            faixaDoTopo
+            corpo
+        }
+    }
+
+    private var faixaDoTopo: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 8) {
                 OlhoView(olhar: olhar, piscando: piscando, largura: 16)
-                Text("\(modelo.contador) esperando você")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                Spacer()
+                Text("Diple")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 18)
+            .frame(maxWidth: .infinity)
+
+            Spacer(minLength: larguraNotch).frame(width: larguraNotch)
+
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
                 if modelo.carregando {
                     ProgressView().controlSize(.small).tint(.white)
                 } else {
-                    Button { Task { await modelo.atualizar() } } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.65))
+                    botaoIcone("arrow.clockwise") { Task { await modelo.atualizar() } }
+                }
+                botaoIcone("xmark") { modelo.limparTudo() }
+            }
+            .padding(.trailing, 18)
+            .frame(maxWidth: .infinity)
+        }
+        .frame(height: alturaNotch)
+    }
+
+    private func botaoIcone(_ nome: String, _ acao: @escaping () -> Void) -> some View {
+        Button(action: acao) {
+            Image(systemName: nome)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.75))
+                .frame(width: 22, height: 22)
+                .background(Color.white.opacity(0.1), in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var corpo: some View {
+        HStack(spacing: 12) {
+            cartaoResumo
+            cartaoFila
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
+    }
+
+    private var cartaoResumo: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(modelo.contador)")
+                .font(.system(size: 46, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(modelo.contador)))
+            Text(modelo.contador == 1 ? "espera por você" : "esperam por você")
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.5))
+                .padding(.top, 2)
+
+            Spacer(minLength: 10)
+
+            VStack(alignment: .leading, spacing: 5) {
+                miudo("seus PRs", modelo.fila.meus.count)
+                miudo("revisando", modelo.fila.revisar.count)
+                miudo("acompanhando", modelo.fila.envolvido.count)
+            }
+        }
+        .padding(14)
+        .frame(width: 176, alignment: .leading)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.07), lineWidth: 1)
+        )
+    }
+
+    private func miudo(_ rotulo: String, _ n: Int) -> some View {
+        HStack(spacing: 6) {
+            Text("\(n)")
+                .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.8))
+            Text(rotulo)
+                .font(.system(size: 11.5))
+                .foregroundStyle(.white.opacity(0.42))
+        }
+    }
+
+    private var cartaoFila: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if modelo.precisamDeVoce.isEmpty {
+                VStack(spacing: 7) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.white.opacity(0.4))
+                    Text("Nada esperando por você")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ForEach(Array(modelo.precisamDeVoce.prefix(3).enumerated()), id: \.element.id) { i, pr in
+                    if i > 0 {
+                        Rectangle().fill(.white.opacity(0.06)).frame(height: 1)
+                    }
+                    Button { modelo.abrir(pr) } label: {
+                        HStack(spacing: 10) {
+                            Circle()
+                                .fill(pr.ci == .falhou ? Color.red : .orange)
+                                .frame(width: 7, height: 7)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(pr.titulo)
+                                    .font(.system(size: 12.5, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                Text(meta(pr))
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.white.opacity(0.45))
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 8)
+                            Text(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.35))
+                        }
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, alturaNotch + 6)
-            .padding(.bottom, 10)
-
-            ForEach(Array(modelo.precisamDeVoce.prefix(3))) { pr in
-                Button { modelo.abrir(pr) } label: {
-                    HStack(spacing: 11) {
-                        Circle()
-                            .fill(pr.ci == .falhou ? Color.red : .orange)
-                            .frame(width: 7, height: 7)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(pr.titulo)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                            Text(meta(pr))
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.white.opacity(0.5))
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 8)
-                        Text(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.38))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 8)
-            }
-
-            Spacer(minLength: 0)
-
-            HStack {
-                Text("\(modelo.fila.meus.count) seus · \(modelo.fila.revisar.count) revisando")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.white.opacity(0.42))
-                Spacer()
-                Text("⌘0 janela")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.38))
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.07), lineWidth: 1)
+        )
     }
 
     private func meta(_ pr: PR) -> String {
@@ -189,7 +278,7 @@ struct NotchView: View {
                 .background(Color.white.opacity(0.1), in: Capsule())
         }
         .padding(.horizontal, 20)
-        .padding(.top, alturaNotch + 8)
-        .padding(.bottom, 14)
+        .padding(.top, alturaNotch + 10)
+        .padding(.bottom, 16)
     }
 }
