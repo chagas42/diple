@@ -282,7 +282,7 @@ struct ActivityTab: View {
     private static let accent = Color(red: 0.38, green: 0.93, blue: 0.73)
 
     private let gap: CGFloat = 3
-    private let linhas = 7
+    private let rows = 7
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -294,7 +294,10 @@ struct ActivityTab: View {
                 GeometryReader { g in
 
                     let n = max(1, weeks.count)
-                    let side = max(6, (g.size.width - gap * CGFloat(n - 1)) / CGFloat(n))
+                    let byWidth = (g.size.width - gap * CGFloat(n - 1)) / CGFloat(n)
+                    let forGrid = g.size.height - 16 - 18 - 13
+                    let byHeight = (forGrid - gap * CGFloat(rows - 1)) / CGFloat(rows)
+                    let side = max(6, min(byWidth, byHeight))
                     VStack(alignment: .leading, spacing: 5) {
                         monthLabels(side: side)
                         HStack(alignment: .top, spacing: gap) {
@@ -355,26 +358,26 @@ struct ActivityTab: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
-            Text("\(total) reviews · \(activeDays) days ativos · best day \(best)")
+            Text("\(total) reviews · \(activeDays) active days · best day \(best)")
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.45))
             Spacer()
             HStack(spacing: 3) {
-                Text("deletions").font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.3))
+                Text("less").font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.3))
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(Self.empty).frame(width: 9, height: 9)
                 ForEach(Array(Self.scale.enumerated()), id: \.offset) { _, c in
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(c).frame(width: 9, height: 9)
                 }
-                Text("additions").font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.3))
+                Text("more").font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.3))
             }
         }
     }
 
     private var weeks: [[ActivityDay]] {
-        stride(from: 0, to: model.activity.count, by: linhas).map {
-            Array(model.activity[$0..<min($0 + linhas, model.activity.count)])
+        stride(from: 0, to: model.activity.count, by: rows).map {
+            Array(model.activity[$0..<min($0 + rows, model.activity.count)])
         }
     }
 
@@ -395,21 +398,21 @@ struct ActivityTab: View {
     private func monthStart(_ i: Int, _ week: [ActivityDay]) -> String? {
         guard let first = week.first else { return nil }
         let cal = Calendar.current
-        let mes = cal.component(.month, from: first.date)
-        if i > 0, let anterior = weeks[i - 1].first,
-           cal.component(.month, from: anterior.date) == mes { return nil }
+        let month = cal.component(.month, from: first.date)
+        if i > 0, let previous = weeks[i - 1].first,
+           cal.component(.month, from: previous.date) == month { return nil }
         let f = DateFormatter()
-        f.locale = Locale(identifier: "pt_BR")
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "MMM"
-        return f.string(from: first.date).lowercased()
+        return f.string(from: first.date)
     }
 
     private func tooltip(_ d: ActivityDay) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "pt_BR")
-        f.dateFormat = "d 'de' MMMM"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "MMMM d"
         let day = f.string(from: d.date)
-        return d.reviews == 0 ? "\(day): nenhuma review"
+        return d.reviews == 0 ? "\(day): no reviews"
                               : "\(day): \(d.reviews) review\(d.reviews == 1 ? "" : "s")"
     }
 

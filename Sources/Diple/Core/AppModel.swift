@@ -559,7 +559,7 @@ final class AppModel: ObservableObject {
 
     func sendTestEvent(_ kind: EventKind) async {
         let pr = queue.all.first
-        let evento = Event(
+        let event = Event(
             id: "teste/\(kind.rawValue)/\(Date().timeIntervalSince1970)",
             kind: kind,
             key: pr?.key ?? "exemplo#1",
@@ -567,8 +567,8 @@ final class AppModel: ObservableObject {
             title: testText(kind).0,
             body: pr.map { "\($0.key) · \($0.title)" } ?? testText(kind).1
         )
-        onEvent?(evento)
-        await notificador.post([evento], force: true)
+        onEvent?(event)
+        await notificador.post([event], force: true)
     }
 
     var isQuietNow: Bool {

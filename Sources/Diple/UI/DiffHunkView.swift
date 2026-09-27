@@ -3,7 +3,7 @@ import SwiftUI
 struct DiffHunkView: View {
     let hunk: String
 
-    private struct Linha: Identifiable {
+    private struct Row: Identifiable {
         let id = UUID()
         let number: Int?
         let sinal: Character
@@ -12,7 +12,7 @@ struct DiffHunkView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(linhas) { l in
+            ForEach(rows) { l in
                 HStack(spacing: 0) {
                     Text(l.number.map(String.init) ?? "")
                         .frame(width: 46, alignment: .trailing)
@@ -33,8 +33,8 @@ struct DiffHunkView: View {
         .padding(.vertical, 6)
     }
 
-    private var linhas: [Linha] {
-        var out: [Linha] = []
+    private var rows: [Row] {
+        var out: [Row] = []
         var n: Int? = nil
         for bruta in hunk.split(separator: "\n", omittingEmptySubsequences: false) {
             let s = String(bruta)
@@ -43,15 +43,15 @@ struct DiffHunkView: View {
                    let num = Int(additions.prefix(while: \.isNumber)) {
                     n = num
                 }
-                out.append(Linha(number: nil, sinal: " ", text: s))
+                out.append(Row(number: nil, sinal: " ", text: s))
                 continue
             }
             let sinal = s.first ?? " "
             let text = String(s.dropFirst())
             if sinal == "-" {
-                out.append(Linha(number: nil, sinal: sinal, text: text))
+                out.append(Row(number: nil, sinal: sinal, text: text))
             } else {
-                out.append(Linha(number: n, sinal: sinal, text: text))
+                out.append(Row(number: n, sinal: sinal, text: text))
                 if let current = n { n = current + 1 }
             }
         }

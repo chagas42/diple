@@ -50,3 +50,8 @@ clean:
 gifmaker:
 	@swiftc -O tools/gifmaker.swift -o build/gifmaker
 	@echo "  build/gifmaker in.mp4 out.gif <fps> <width> [cropX cropY cropW cropH]"
+
+film:
+	@rm -rf build/film && mkdir -p build/film
+	@./build/Diple.app/Contents/MacOS/Diple --demo --film build/film | tail -1
+	@echo "  python3 tools/seq2gif.py build/film out.gif <from> <to> [width] [step]"

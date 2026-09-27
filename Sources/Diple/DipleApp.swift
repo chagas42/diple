@@ -9,7 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = AppModel.shared
-        model.onEvent = { [weak self] evento in self?.notch.alertar(evento) }
+        model.onEvent = { [weak self] event in self?.notch.alert(event) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
         notch.mount(model: model)
         model.start()
@@ -18,6 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         if CommandLine.arguments.contains("--windowFrame") {
             Windows.shared.openMain(model)
+        }
+
+        if Film.isOn {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(900))
+                await Film.roll(notch: notch, model: model)
+            }
         }
 
         NotificationCenter.default.addObserver(

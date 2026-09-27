@@ -11,6 +11,8 @@ final class NotchController: ObservableObject {
     @Published private(set) var blinking = false
 
     private let panel = NotchPanel()
+
+    var panelContentView: NSView? { panel.contentView }
     private weak var model: AppModel?
     private var collapseTask: Task<Void, Never>?
 
@@ -22,7 +24,7 @@ final class NotchController: ObservableObject {
 
     func mount(model: AppModel) {
         self.model = model
-        panel.contentView = NSHostingView(rootView: Hospedeiro(notch: self, model: model))
+        panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
         measure()
         panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
         panel.orderFrontRegardless()
@@ -82,7 +84,7 @@ final class NotchController: ObservableObject {
         apply()
     }
 
-    func alertar(_ e: Event) {
+    func alert(_ e: Event) {
         guard e.kind.interrupts else { return }
         collapseTask?.cancel()
         pointerAnchor = NSEvent.mouseLocation
@@ -103,6 +105,7 @@ final class NotchController: ObservableObject {
     }
 
     private func trackPointer() {
+        if Film.isOn { return }
         pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -113,6 +116,7 @@ final class NotchController: ObservableObject {
     }
 
     private func checkPointer() {
+        if Film.isOn { return }
         let g = NotchGeometry.current()
         let shape = g.rect(size)
 
@@ -167,7 +171,7 @@ final class NotchController: ObservableObject {
         }
     }
 
-    private struct Hospedeiro: View {
+    private struct Host: View {
         @ObservedObject var notch: NotchController
         @ObservedObject var model: AppModel
 

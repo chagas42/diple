@@ -55,8 +55,8 @@ enum NotchProbe {
             print("screen \(i): \(Int(t.frame.width))x\(Int(t.frame.height)) scale \(t.backingScaleFactor)")
             print("  safeAreaInsets.top: \(t.safeAreaInsets.top)")
             print("  has notch: \(g.hasNotch)")
-            print("  altura do topo: \(g.topInset)")
-            print("  largura do recorte: \(g.notchWidth)")
+            print("  top inset: \(g.topInset)")
+            print("  width do recorte: \(g.notchWidth)")
             if let e = t.auxiliaryTopLeftArea, let d = t.auxiliaryTopRightArea {
                 print("  left area: \(Int(e.width))  right area: \(Int(d.width))")
             } else {

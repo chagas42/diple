@@ -25,12 +25,12 @@ struct EyeShape: Shape {
 struct EyeView: View {
     var gaze: CGPoint
     var blinking: Bool
-    var largura: CGFloat = 15
+    var width: CGFloat = 15
 
     private var openness: CGFloat { blinking ? 0.05 : 1 }
     private var shape: EyeShape { EyeShape(openness: openness) }
-    private var pupil: CGFloat { largura * 0.30 }
-    private var range: CGFloat { largura * 0.17 }
+    private var pupil: CGFloat { width * 0.30 }
+    private var range: CGFloat { width * 0.17 }
 
     var body: some View {
         ZStack {
@@ -47,7 +47,7 @@ struct EyeView: View {
                                 y: gaze.y * range * 0.55 - pupil * 0.22)
                 )
         }
-        .frame(width: largura, height: largura * 0.62)
+        .frame(width: width, height: width * 0.62)
         .clipShape(shape)
         .animation(.easeInOut(duration: 0.085), value: openness)
         .animation(.spring(response: 0.24, dampingFraction: 0.6), value: gaze)

@@ -56,10 +56,7 @@ When someone replies to you on a line of code, the banner carries the reply box
 and a Resolve button. You answer from the notification; the thread updates on
 GitHub.
 
-<!-- notification arriving → typing a reply → thread resolved
-
-<img src="PASTE_URL" width="640" alt="Replying from the banner" />
--->
+<img src="docs/alert.gif" width="700" alt="Replying from the banner" />
 
 ### A different sound per kind of event
 
@@ -67,10 +64,7 @@ Glass when someone replied to you. Pop for a comment. Purr for a review
 request. Basso when a check breaks. Approvals arrive silently. You learn what
 happened before you look.
 
-<!-- settings screen, pressing the test buttons
-
-<img src="PASTE_URL" width="640" alt="Sound per event type" />
--->
+<img src="docs/queue.gif" width="760" alt="The queue and its tabs" />
 
 ### Review with your own Claude
 
@@ -113,10 +107,7 @@ and the file opens in your editor at the PR head; ⌥-click opens it on GitHub.
 Grouped by organisation, searchable, each one opening its own list of open pull
 requests split into Ready and Draft. Star any of them to watch it.
 
-<!-- sidebar, picking a repo, ready/draft tabs
-
-<img src="PASTE_URL" width="640" alt="Browsing repositories" />
--->
+<img src="docs/team.gif" width="760" alt="Picking your teammates" />
 
 ### Your rhythm
 
@@ -124,7 +115,9 @@ A ranking over the last week, month or quarter — you and the people you follow
 not the whole company. A contribution grid of the days you reviewed, and the
 streak, with your own bar catching fire when it fills.
 
-<img src="docs/ranking.gif" width="640" alt="Ranking and streak" />
+<img src="docs/rank.gif" width="760" alt="Ranking" />
+
+<img src="docs/activity.gif" width="760" alt="Your review streak" />
 
 ---
 
