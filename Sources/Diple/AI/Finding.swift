@@ -1,60 +1,35 @@
 import Foundation
 
 enum Category: String, Codable, Sendable {
-    case correcao, simplificacao, eficiencia, teste, outro
+    case correctness, simplification, efficiency, test, note
 
-    var label: String {
-        switch self {
-        case .correcao:      "correctness"
-        case .simplificacao: "simplification"
-        case .eficiencia:    "efficiency"
-        case .teste:         "test"
-        case .outro:         "note"
-        }
-    }
+    var label: String { rawValue }
 
     init(from decoder: Decoder) throws {
         let raw = (try? decoder.singleValueContainer().decode(String.self))?.lowercased() ?? ""
-        self = switch raw {
-        case "correcao", "correctness", "correção":      .correcao
-        case "simplificacao", "simplification":          .simplificacao
-        case "eficiencia", "efficiency", "eficiência":   .eficiencia
-        case "teste", "test", "tests":                   .teste
-        default:                                          .outro
-        }
+        self = Category(rawValue: raw) ?? .note
     }
 }
 
 enum Verdict: String, Codable, Sendable {
-    case confirmado, plausivel
-    var label: String { self == .confirmado ? "confirmed" : "plausible" }
+    case confirmed, plausible
+
+    var label: String { rawValue }
 
     init(from decoder: Decoder) throws {
         let raw = (try? decoder.singleValueContainer().decode(String.self))?.lowercased() ?? ""
-        self = ["confirmado", "confirmed"].contains(raw) ? .confirmado : .plausivel
+        self = raw == "confirmed" ? .confirmed : .plausible
     }
 }
 
 enum Severity: String, Codable, Sendable, CaseIterable {
-    case alta, media, baixa, pedido
+    case high, medium, low, request
 
-    var label: String {
-        switch self {
-        case .alta:   "high"
-        case .media:  "medium"
-        case .baixa:  "low"
-        case .pedido: "request"
-        }
-    }
+    var label: String { rawValue }
 
     init(from decoder: Decoder) throws {
         let raw = (try? decoder.singleValueContainer().decode(String.self))?.lowercased() ?? ""
-        self = switch raw {
-        case "alta", "high":                 .alta
-        case "media", "média", "medium":     .media
-        case "pedido", "request", "ask":     .pedido
-        default:                             .baixa
-        }
+        self = Severity(rawValue: raw) ?? .low
     }
 }
 
@@ -96,8 +71,8 @@ struct Finding: Identifiable, Codable, Sendable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         path = (try? c.decode(String.self, forKey: .path)) ?? ""
         line = try? c.decodeIfPresent(Int.self, forKey: .line)
-        category = (try? c.decode(Category.self, forKey: .category)) ?? .outro
-        verdict = (try? c.decode(Verdict.self, forKey: .verdict)) ?? .plausivel
+        category = (try? c.decode(Category.self, forKey: .category)) ?? .note
+        verdict = (try? c.decode(Verdict.self, forKey: .verdict)) ?? .plausible
         summary = (try? c.decode(String.self, forKey: .summary)) ?? ""
         detail = (try? c.decodeIfPresent(String.self, forKey: .detail))
             ?? (try? c.decodeIfPresent(String.self, forKey: .why)) ?? ""
@@ -130,15 +105,15 @@ struct Finding: Identifiable, Codable, Sendable, Equatable {
 
 struct ThreadVerdict: Codable, Sendable, Equatable, Identifiable {
     enum Kind: String, Sendable, CaseIterable {
-        case procede, naoProcede = "nao-procede", parcial, resolvido, desatualizado
+        case holds, doesNotHold = "does-not-hold", partly, solved, outdated
 
         var label: String {
             switch self {
-            case .procede:       "holds"
-            case .naoProcede:    "does not hold"
-            case .parcial:       "partly holds"
-            case .resolvido:     "already solved"
-            case .desatualizado: "outdated"
+            case .holds:       "holds"
+            case .doesNotHold: "does not hold"
+            case .partly:      "partly holds"
+            case .solved:      "already solved"
+            case .outdated:    "outdated"
             }
         }
     }
@@ -149,8 +124,7 @@ struct ThreadVerdict: Codable, Sendable, Equatable, Identifiable {
     let reply: String?
 
     var kind: Kind {
-        Kind(rawValue: verdict.lowercased().replacingOccurrences(of: "ã", with: "a").replacingOccurrences(of: " ", with: "-"))
-            ?? .parcial
+        Kind(rawValue: verdict.lowercased().replacingOccurrences(of: " ", with: "-")) ?? .partly
     }
 }
 

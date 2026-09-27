@@ -14,7 +14,7 @@ struct AIReviewView: View {
             header
 
             if running || !model.reviewProgress.isEmpty {
-                progresso
+                progress
             }
 
             if let r = result, !running {
@@ -69,7 +69,7 @@ struct AIReviewView: View {
 
     private func sorted(_ list: [Finding]) -> [Finding] {
         let order = Dictionary(uniqueKeysWithValues: Severity.allCases.enumerated().map { ($1, $0) })
-        return list.sorted { (order[$0.severity ?? .baixa] ?? 9) < (order[$1.severity ?? .baixa] ?? 9) }
+        return list.sorted { (order[$0.severity ?? .low] ?? 9) < (order[$1.severity ?? .low] ?? 9) }
     }
 
     private func section(_ title: String, count: Int) -> some View {
@@ -105,7 +105,7 @@ struct AIReviewView: View {
         }
     }
 
-    private var progresso: some View {
+    private var progress: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 if running {
@@ -214,16 +214,16 @@ struct SummaryCard: View {
 struct FindingCard: View {
     let finding: Finding
     let stacked: Bool
-    let aoDescartar: () -> Void
+    let onDiscard: () -> Void
     @State private var showWhy = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
-                if let s = finding.severity { selo(s.label, color: color(s)) }
-                selo(finding.axis ?? finding.category.label, color: .secondary)
-                selo(finding.verdict.label, color: finding.verdict == .confirmado ? .green : .secondary)
-                if finding.inline == false { selo("PR conversation", color: .teal) }
+                if let s = finding.severity { badge(s.label, color: color(s)) }
+                badge(finding.axis ?? finding.category.label, color: .secondary)
+                badge(finding.verdict.label, color: finding.verdict == .confirmed ? .green : .secondary)
+                if finding.inline == false { badge("PR conversation", color: .teal) }
                 Spacer()
                 if let n = finding.pr {
                     Text("#\(n)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
@@ -258,7 +258,7 @@ struct FindingCard: View {
                 HStack(spacing: 8) {
                     CopyButton(text: finding.markdown)
                     Spacer()
-                    Button("Discard", action: aoDescartar)
+                    Button("Discard", action: onDiscard)
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
                 }
@@ -299,14 +299,14 @@ struct FindingCard: View {
 
     private func color(_ s: Severity) -> Color {
         switch s {
-        case .alta:   .red
-        case .media:  .orange
-        case .baixa:  .secondary
-        case .pedido: .purple
+        case .high:    .red
+        case .medium:  .orange
+        case .low:     .secondary
+        case .request: .purple
         }
     }
 
-    private func selo(_ t: String, color: Color) -> some View {
+    private func badge(_ t: String, color: Color) -> some View {
         Text(t.uppercased())
             .font(.system(size: 9.5, weight: .bold))
             .padding(.horizontal, 6).padding(.vertical, 2)
@@ -374,11 +374,11 @@ struct ThreadVerdictCard: View {
 
     private var tint: Color {
         switch verdict.kind {
-        case .procede:       .green
-        case .naoProcede:    .red
-        case .parcial:       .orange
-        case .resolvido:     .blue
-        case .desatualizado: .secondary
+        case .holds:       .green
+        case .doesNotHold: .red
+        case .partly:      .orange
+        case .solved:      .blue
+        case .outdated:    .secondary
         }
     }
 

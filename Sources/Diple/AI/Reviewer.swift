@@ -78,8 +78,8 @@ struct Reviewer: Sendable {
                         while let newline = buffer.firstIndex(of: 0x0A) {
                             let line = buffer[..<newline]
                             buffer = buffer[buffer.index(after: newline)...]
-                            if let passo = parse(line, result: &result) {
-                                cont.yield(passo)
+                            if let step = parse(line, result: &result) {
+                                cont.yield(step)
                             }
                         }
                     }
@@ -123,13 +123,13 @@ struct Reviewer: Sendable {
             for c in parts where (c["type"] as? String) == "tool_use" {
                 let name = (c["name"] as? String) ?? "?"
                 let input = c["input"] as? [String: Any]
-                let alvo = (input?["file_path"] as? String)
+                let target = (input?["file_path"] as? String)
                     ?? (input?["pattern"] as? String)
                     ?? (input?["command"] as? String)
                     ?? (input?["skill"] as? String)
                     ?? (input?["description"] as? String)
-                let curto = alvo.map { String($0.split(separator: "/").last ?? "").prefix(40) }
-                return .tool(curto.map { "\(name) \($0)" } ?? name)
+                let short = target.map { String($0.split(separator: "/").last ?? "").prefix(40) }
+                return .tool(short.map { "\(name) \($0)" } ?? name)
             }
             return .thinking
 

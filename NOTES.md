@@ -150,10 +150,10 @@ disallowed list still applies to them, so they stay read-only.
 
 **A bad entry never sinks the answer.** Findings and verdicts are decoded one
 by one, so a single malformed item is dropped instead of failing the whole
-review into an empty list. Category, verdict and severity accept both the
-Portuguese and the English spelling, because the old prompt asked for
-`correctness`/`confirmed` while the enums only knew `correcao`/`confirmado`,
-and every review decoded to nothing.
+review into an empty list. The enums read the exact values the prompts ask
+for and fall back to a neutral case on anything else. Before, the prompt asked
+for `correctness`/`confirmed` while the enums held other raw values, and every
+review decoded to nothing.
 
 ## Signing
 

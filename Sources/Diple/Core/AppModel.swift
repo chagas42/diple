@@ -403,12 +403,12 @@ final class AppModel: ObservableObject {
             note(DeepReview.available
                  ? "deep review: two axes, the value pass, then \(context.openThreads) open thread\(context.openThreads == 1 ? "" : "s")"
                  : "Claude is reading the code")
-            for await passo in Reviewer().review(
+            for await step in Reviewer().review(
                 pr: pr, context: context, viewer: queue.viewer,
                 in: w, model: settings.aiModel, language: settings.reviewLanguage
             ) {
-                reviewStep = passo
-                switch passo {
+                reviewStep = step
+                switch step {
                 case .preparing(let t), .tool(let t): note(t)
                 case .thinking: note("thinking")
                 case .done(let r):
