@@ -25,6 +25,7 @@ struct NotchView: View {
     let alturaNotch: CGFloat
     let olhar: CGPoint
     let piscando: Bool
+    let aoFechar: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -116,7 +117,7 @@ struct NotchView: View {
                 } else {
                     botaoIcone("arrow.clockwise") { Task { await modelo.atualizar() } }
                 }
-                botaoIcone("xmark") { modelo.limparTudo() }
+                botaoIcone("xmark") { aoFechar() }
             }
             .padding(.trailing, 18)
             .frame(maxWidth: .infinity)
