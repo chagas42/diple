@@ -117,7 +117,6 @@ struct PopoverView: View {
         }
         .padding(12)
         .frame(width: 340)
-        .onAppear { modelo.iniciar() }
     }
 
     private var cabecalho: some View {

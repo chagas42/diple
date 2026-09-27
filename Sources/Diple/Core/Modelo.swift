@@ -4,6 +4,12 @@ import AppKit
 
 @MainActor
 final class Modelo: ObservableObject {
+    static let compartilhado = Modelo()
+
+    /// A notch se pendura aqui pra abrir sozinha quando algo chega.
+    var aoEvento: ((Evento) -> Void)?
+    var aoContadorMudar: (() -> Void)?
+
     @Published private(set) var fila = Fila()
     @Published private(set) var carregando = false
     @Published private(set) var erro: String?
@@ -19,7 +25,11 @@ final class Modelo: ObservableObject {
     /// Intervalo de 60s: a query custa 1 ponto de 5000/hora.
     private let intervalo: TimeInterval = 60
 
+    private var iniciado = false
+
     func iniciar() {
+        guard !iniciado else { return }
+        iniciado = true
         notificador.instalar()
         notificador.aoMudar = { [weak self] in await self?.atualizar() }
         naoLidos = store.estado.naoLidos
@@ -55,6 +65,10 @@ final class Modelo: ObservableObject {
             ultimaSync = Date()
             erro = nil
             await notificador.postar(eventos)
+            aoContadorMudar?()
+            if let primeiro = eventos.first(where: { $0.tipo.interrompe }) {
+                aoEvento?(primeiro)
+            }
         } catch {
             erro = error.localizedDescription
         }

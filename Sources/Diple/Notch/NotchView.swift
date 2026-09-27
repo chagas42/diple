@@ -1,0 +1,205 @@
+import SwiftUI
+
+enum EstadoNotch: Equatable {
+    case repouso
+    case aberto
+    case alerta(Evento)
+
+    static func == (a: EstadoNotch, b: EstadoNotch) -> Bool {
+        switch (a, b) {
+        case (.repouso, .repouso), (.aberto, .aberto): true
+        case let (.alerta(x), .alerta(y)): x.id == y.id
+        default: false
+        }
+    }
+}
+
+/// O painel é preto puro de propósito: é o preto que casa com o bezel e faz
+/// parecer que a própria notch cresceu. Por isso os cantos de cima ficam retos.
+struct NotchView: View {
+    @ObservedObject var modelo: Modelo
+    let estado: EstadoNotch
+    let colado: Bool
+    let aoEntrar: () -> Void
+    let aoSair: () -> Void
+
+    var body: some View {
+        conteudo
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color.black)
+            .clipShape(forma)
+            .overlay(borda)
+            .shadow(color: .black.opacity(colado ? 0.45 : 0.5),
+                    radius: colado ? 18 : 12, y: colado ? 10 : 6)
+            .contentShape(Rectangle())
+            .onHover { $0 ? aoEntrar() : aoSair() }
+    }
+
+    private var forma: AnyShape {
+        colado
+            ? AnyShape(UnevenRoundedRectangle(
+                bottomLeadingRadius: raio, bottomTrailingRadius: raio))
+            : AnyShape(RoundedRectangle(cornerRadius: raio, style: .continuous))
+    }
+
+    private var raio: CGFloat {
+        switch estado {
+        case .repouso: colado ? 14 : 15
+        case .aberto, .alerta: colado ? 28 : 20
+        }
+    }
+
+    @ViewBuilder private var borda: some View {
+        if !colado {
+            forma.stroke(Color.white.opacity(0.13), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder private var conteudo: some View {
+        switch estado {
+        case .repouso: repouso
+        case .aberto:  aberto
+        case .alerta(let e): alerta(e)
+        }
+    }
+
+    // MARK: - Repouso
+
+    @ViewBuilder private var repouso: some View {
+        if modelo.contador > 0 {
+            HStack(spacing: 7) {
+                Text("⟩")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.orange)
+                Text("\(modelo.contador)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                Rectangle().fill(.white.opacity(0.22)).frame(width: 1, height: 10)
+                Text("esperando")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .padding(.bottom, colado ? 6 : 0)
+        } else {
+            Color.clear
+        }
+    }
+
+    // MARK: - Aberto
+
+    private var aberto: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 9) {
+                Text("⟩").font(.system(size: 13, design: .monospaced)).foregroundStyle(.orange)
+                Text("\(modelo.contador) esperando você")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                if modelo.carregando {
+                    ProgressView().controlSize(.small).tint(.white)
+                } else {
+                    Button { Task { await modelo.atualizar() } } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.65))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            ForEach(Array(modelo.precisamDeVoce.prefix(3))) { pr in
+                Button { modelo.abrir(pr) } label: {
+                    HStack(spacing: 11) {
+                        Circle()
+                            .fill(pr.ci == .falhou ? Color.red : .orange)
+                            .frame(width: 8, height: 8)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(pr.titulo)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            Text(linhaMeta(pr))
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(.white.opacity(0.52))
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        Text(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.001))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 8)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 12) {
+                Text("\(modelo.fila.meus.count) seus · \(modelo.fila.revisar.count) revisando")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.white.opacity(0.45))
+                Spacer()
+                Text("⌘0 janela")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+        }
+    }
+
+    private func linhaMeta(_ pr: PR) -> String {
+        let base = "\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.numero)"
+        if let c = pr.ultimoComentario {
+            return "\(base) · \(c.autor)\(c.onde.map { " em \($0)" } ?? "")"
+        }
+        return base
+    }
+
+    // MARK: - Alerta
+
+    private func alerta(_ e: Evento) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 10) {
+                Circle().fill(.orange).frame(width: 8, height: 8)
+                Text(e.titulo)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer()
+                if let som = e.tipo.som {
+                    Text(som)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+            }
+            Text(e.corpo)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            HStack(spacing: 8) {
+                Button("Abrir o PR") { NSWorkspace.shared.open(e.url) }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(Color.white.opacity(0.09), in: Capsule())
+                Spacer()
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 14)
+    }
+}
