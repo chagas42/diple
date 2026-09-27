@@ -1,90 +1,64 @@
 import AppKit
 
-/// Onde o painel encosta, e de que forma.
-/// Com notch o painel cola no topo e só arredonda embaixo, pra o preto dele
-/// virar continuação do bezel. Sem notch vira pílula solta, com borda e sombra
-/// — deliberadamente diferente, porque ali não há bezel pra fingir.
+/// A janela é fixa, do tamanho aberto, e nunca redimensiona. O que muda de
+/// tamanho é a forma preta desenhada dentro dela. É assim que os apps de notch
+/// fazem: sem resize de janela não existe laço de hover nem animação travada.
 @MainActor
 struct Geometria {
     let tela: NSScreen
 
-    var temNotch: Bool { tela.safeAreaInsets.top > 0 }
+    var temNotch: Bool { tela.auxiliaryTopLeftArea != nil }
 
-    /// Altura do recorte (ou da barra de menu, quando não há recorte).
+    /// Altura do recorte, ou da barra de menu quando não há recorte.
     var alturaTopo: CGFloat {
-        temNotch ? tela.safeAreaInsets.top : (NSApp.mainMenu?.menuBarHeight ?? 24)
+        temNotch ? tela.safeAreaInsets.top : 32
     }
 
     /// Largura física do recorte, medida pelo que sobra dos dois lados.
     var larguraNotch: CGFloat {
-        guard temNotch,
-              let esq = tela.auxiliaryTopLeftArea,
-              let dir = tela.auxiliaryTopRightArea else { return 180 }
+        guard let esq = tela.auxiliaryTopLeftArea,
+              let dir = tela.auxiliaryTopRightArea else { return 185 }
         return max(0, tela.frame.width - esq.width - dir.width)
     }
 
-    // MARK: - Molduras, em coordenadas de tela (origem embaixo à esquerda)
+    // MARK: - Tamanhos da forma
 
-    /// Zerado, o painel some mas continua existindo: um alvo invisível do
-    /// tamanho do recorte, só pra o hover ter onde acontecer.
-    func repouso(pendencias: Int) -> NSRect {
-        guard pendencias > 0 else { return alvoInvisivel() }
-        // Largura exata do recorte: o flare fica zero e não sobra degrau
-        // nenhum nas laterais. Parece só que a notch ficou um pouco mais alta.
-        // Estreito de propósito: mais largo que isso vira aba, e o contador
-        // já existe na barra de menu. Aqui o olho é o que importa.
-        return temNotch ? pendurado(largura: 58, visivel: 15)
-                        : solto(largura: 74, altura: 20)
+    /// Exatamente o recorte: indistinguível da notch de verdade.
+    var fechado: CGSize { CGSize(width: larguraNotch, height: alturaTopo) }
+
+    /// O recorte com duas asas, pra caber o olho de um lado e o número do
+    /// outro. Mesma altura — nada desce abaixo da barra de menu.
+    var atividade: CGSize {
+        CGSize(width: larguraNotch + asa * 2, height: alturaTopo)
     }
 
-    func aberto() -> NSRect {
-        temNotch ? pendurado(largura: 620, visivel: 296)
-                 : solto(largura: 620, altura: 300)
-    }
+    var aberto: CGSize { CGSize(width: 620, height: 296) }
 
-    func alerta() -> NSRect {
-        temNotch ? pendurado(largura: 580, visivel: 186)
-                 : solto(largura: 580, altura: 190)
-    }
+    var alerta: CGSize { CGSize(width: 560, height: 176) }
 
-    /// Começa no topo da tela: os primeiros `alturaTopo` pontos ficam atrás do
-    /// recorte, onde não existe display, e o corpo aparece abaixo dele. É isso
-    /// que faz a forma sair de dentro da notch em vez de pendurar nela.
-    /// `visivel` é a altura do que de fato se vê.
-    private func pendurado(largura: CGFloat, visivel: CGFloat) -> NSRect {
-        NSRect(x: tela.frame.midX - largura / 2,
-               y: tela.frame.maxY - alturaTopo - visivel,
-               width: largura, height: alturaTopo + visivel)
-    }
+    var asa: CGFloat { 42 }
 
-    /// Cobre exatamente o recorte (ou o centro da barra, sem recorte).
-    /// Nada é desenhado aqui — essa área não é clicável de todo jeito.
-    /// A faixa do recorte em si. O ponteiro passando aqui já conta como hover,
-    /// senão você teria que mirar os 17pt do repouso.
-    func zonaNotch() -> NSRect {
-        let l = temNotch ? larguraNotch : 180
+    // MARK: - A janela
+
+    /// Sempre do tamanho do maior estado, colada no topo e centrada.
+    func janela() -> NSRect {
+        let l = max(aberto.width, alerta.width)
+        let a = max(aberto.height, alerta.height)
         return NSRect(x: tela.frame.midX - l / 2,
-                      y: tela.frame.maxY - alturaTopo,
-                      width: l, height: alturaTopo)
+                      y: tela.frame.maxY - a,
+                      width: l, height: a)
     }
 
-    private func alvoInvisivel() -> NSRect {
-        let l = temNotch ? larguraNotch : 180
-        return NSRect(x: tela.frame.midX - l / 2,
-                      y: tela.frame.maxY - alturaTopo,
-                      width: l, height: alturaTopo)
+    /// Onde a forma de fato está, em coordenadas de tela. É contra isto que o
+    /// ponteiro é testado — não contra a janela, que é muito maior.
+    func retangulo(_ tamanho: CGSize) -> NSRect {
+        NSRect(x: tela.frame.midX - tamanho.width / 2,
+               y: tela.frame.maxY - tamanho.height,
+               width: tamanho.width, height: tamanho.height)
     }
 
-    /// Solto abaixo da barra de menu.
-    private func solto(largura: CGFloat, altura: CGFloat) -> NSRect {
-        NSRect(x: tela.frame.midX - largura / 2,
-               y: tela.frame.maxY - alturaTopo - 8 - altura,
-               width: largura, height: altura)
-    }
-
-    /// A tela que tem notch, se houver; senão a que tem a barra de menu.
     static func atual() -> Geometria {
-        let comNotch = NSScreen.screens.first { $0.safeAreaInsets.top > 0 }
+        let comNotch = NSScreen.screens.first { $0.auxiliaryTopLeftArea != nil }
         return Geometria(tela: comNotch ?? NSScreen.main ?? NSScreen.screens[0])
     }
 }
