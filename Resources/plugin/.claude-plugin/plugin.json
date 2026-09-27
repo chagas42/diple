@@ -1,0 +1,5 @@
+{
+  "name": "diple",
+  "version": "0.2.0",
+  "description": "Skills Diple injects into the claude it runs. Loaded with --plugin-dir, never installed."
+}

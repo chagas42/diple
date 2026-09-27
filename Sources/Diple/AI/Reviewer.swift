@@ -32,7 +32,7 @@ struct Reviewer: Sendable {
 
                 let out = Pipe()
                 p.standardOutput = out
-                p.standardError = Pipe()
+                p.standardError = FileHandle.nullDevice
 
                 do { try p.run() } catch {
                     cont.yield(.failed("could not run claude: \(error.localizedDescription)"))
@@ -150,7 +150,7 @@ struct Reviewer: Sendable {
     }
 }
 
-private extension FileHandle.AsyncBytes {
+extension FileHandle.AsyncBytes {
     func chunks() -> AsyncStream<Data> {
         AsyncStream { cont in
             Task {

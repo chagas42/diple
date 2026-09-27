@@ -7,9 +7,10 @@ final class Windows: NSObject, NSWindowDelegate {
 
     private var main: NSWindow?
     private var settings: NSWindow?
+    private var map: NSWindow?
 
     private func syncDockPolicy() {
-        let anyOpen = [main, settings].contains { $0?.isVisible == true }
+        let anyOpen = [main, settings, map].contains { $0?.isVisible == true }
         NSApp.setActivationPolicy(anyOpen ? .regular : .accessory)
         if anyOpen { NSApp.activate(ignoringOtherApps: true) }
     }
@@ -55,6 +56,24 @@ final class Windows: NSObject, NSWindowDelegate {
         )
         j.delegate = self
         settings = j
+        j.makeKeyAndOrderFront(nil)
+        syncDockPolicy()
+    }
+
+    func openMap(_ model: AppModel, _ pr: PR) {
+        NSApp.activate(ignoringOtherApps: true)
+        let content = MapWindowView(model: model, pr: pr)
+        if let j = map {
+            j.title = "Map · \(pr.key)"
+            j.contentView = NSHostingView(rootView: content)
+            j.makeKeyAndOrderFront(nil)
+            syncDockPolicy()
+            return
+        }
+        let j = make(title: "Map · \(pr.key)", size: NSSize(width: 1280, height: 820), content: content)
+        j.setFrameAutosaveName("diple.map")
+        j.delegate = self
+        map = j
         j.makeKeyAndOrderFront(nil)
         syncDockPolicy()
     }
