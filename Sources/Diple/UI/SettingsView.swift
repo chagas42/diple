@@ -277,6 +277,10 @@ struct ClaudePane: View {
                     Text("Sonnet").tag("sonnet")
                     Text("Haiku").tag("haiku")
                 }
+                LabeledContent(
+                    "Deep review",
+                    value: DeepReview.available ? "on · ~/.claude/skills/diple-review" : "off"
+                )
                 Text("Diple has no AI of its own. It runs the claude on your machine, "
                      + "with your account and your skills. Tokens count against your plan.")
                     .font(.system(size: 10.5))

@@ -33,8 +33,10 @@ struct GHActor: Decodable, Sendable {
     let __typename: String
     let avatarUrl: URL?
 
-    var isBot: Bool {
-        __typename == "Bot" || login.hasSuffix("[bot]") || GHActor.knownBots.contains(login)
+    var isBot: Bool { GHActor.isBot(login: login, typename: __typename) }
+
+    static func isBot(login: String, typename: String) -> Bool {
+        typename == "Bot" || login.hasSuffix("[bot]") || knownBots.contains(login)
     }
 
     private static let knownBots: Set<String> = [

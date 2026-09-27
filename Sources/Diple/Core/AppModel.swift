@@ -23,7 +23,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var following: Set<String> = []
     @Published private(set) var refreshingTab: NotchTab?
 
-    @Published private(set) var findings: [String: [Finding]] = [:]
+    @Published private(set) var reviewResults: [String: ReviewResult] = [:]
+    @Published private(set) var reviewContexts: [String: ReviewContext] = [:]
     @Published private(set) var reviewStep: ReviewStep?
     @Published private(set) var reviewProgress: [ProgressLine] = []
     @Published private(set) var reviewStartedAt: Date?
@@ -390,28 +391,31 @@ final class AppModel: ObservableObject {
 
         var target: URL?
         do {
-            note("fetching the diff base from GitHub")
-            let base = try await client.changedFiles(repo: pr.repo, pr: pr.number).base
+            note("reading the PR, its threads and comments from GitHub")
+            let context = try await client.reviewContext(repo: pr.repo, pr: pr.number)
 
             note("preparing the worktree")
             let w = try await Worktree.prepare(
-                origin: origin, repo: pr.repo, pr: pr.number, base: base
+                origin: origin, repo: pr.repo, pr: pr.number, base: context.base
             )
             target = w
 
-            note("Claude is reading the code")
+            note(DeepReview.available
+                 ? "deep review: two axes, the value pass, then \(context.openThreads) open thread\(context.openThreads == 1 ? "" : "s")"
+                 : "Claude is reading the code")
             for await passo in Reviewer().review(
-                pr: pr, base: base, in: w, model: settings.aiModel,
-                language: settings.reviewLanguage
+                pr: pr, context: context, viewer: queue.viewer,
+                in: w, model: settings.aiModel, language: settings.reviewLanguage
             ) {
                 reviewStep = passo
                 switch passo {
                 case .preparing(let t), .tool(let t): note(t)
                 case .thinking: note("thinking")
-                case .done(let list):
-                    findings[pr.key] = list
-                    note("\(list.count) apontamento\(list.count == 1 ? "" : "s")",
-                           fechando: true)
+                case .done(let r):
+                    reviewContexts[pr.key] = context
+                    reviewResults[pr.key] = r
+                    let judged = r.threads.isEmpty ? "" : " · \(r.threads.count) thread\(r.threads.count == 1 ? "" : "s") judged"
+                    note("\(r.novel.count) finding\(r.novel.count == 1 ? "" : "s")\(judged)", fechando: true)
                 case .failed(let m): note(m, fechando: true)
                 }
             }
@@ -587,7 +591,7 @@ final class AppModel: ObservableObject {
     }
 
     func discardFinding(_ pr: PR, _ a: Finding) {
-        findings[pr.key]?.removeAll { $0.id == a.id }
+        reviewResults[pr.key]?.findings.removeAll { $0.id == a.id }
     }
 
     func open(_ pr: PR) {
