@@ -58,7 +58,11 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
     }
 
     func isAuthorized() async -> Bool {
-        await center.notificationSettings().authorizationStatus == .authorized
+        await withCheckedContinuation { cont in
+            center.getNotificationSettings { settings in
+                cont.resume(returning: settings.authorizationStatus == .authorized)
+            }
+        }
     }
 
     func post(_ events: [Event], force: Bool = false) async {

@@ -17,7 +17,7 @@ answer without opening anything.
 
 <br /><br />
 
-<img src="docs/demo.gif" width="820" alt="Diple" />
+<img src="docs/demo.gif" width="760" alt="Diple" />
 
 </div>
 
