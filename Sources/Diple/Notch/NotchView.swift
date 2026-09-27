@@ -28,6 +28,8 @@ struct NotchView: View {
     /// Verdadeiro quando pendura no recorte físico.
     let pendurado: Bool
     let larguraNotch: CGFloat
+    let olhar: CGPoint
+    let piscando: Bool
     let aoEntrar: () -> Void
     let aoSair: () -> Void
 
@@ -44,6 +46,8 @@ struct NotchView: View {
                     y: pendurado ? 8 : 6)
             .contentShape(Rectangle())
             .onHover { $0 ? aoEntrar() : aoSair() }
+            .animation(.spring(response: 0.42, dampingFraction: 0.72), value: raio)
+            .animation(.bouncy(duration: 0.45), value: modelo.contador)
     }
 
     private var forma: AnyShape {
@@ -79,19 +83,16 @@ struct NotchView: View {
 
     @ViewBuilder private var repouso: some View {
         if modelo.contador > 0 {
-            HStack(spacing: 7) {
-                Text("⟩")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(.orange)
+            HStack(spacing: 8) {
+                OlhoView(olhar: olhar, piscando: piscando)
                 Text("\(modelo.contador)")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-                Rectangle().fill(.white.opacity(0.22)).frame(width: 1, height: 10)
-                Text("esperando")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(modelo.contador)))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.bottom, pendurado ? 3 : 0)
         } else {
             Color.clear
         }

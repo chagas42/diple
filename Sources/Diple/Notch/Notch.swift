@@ -6,17 +6,23 @@ final class Notch: ObservableObject {
     @Published private(set) var estado: EstadoNotch = .repouso
     @Published private(set) var pendurado = true
     @Published private(set) var larguraNotch: CGFloat = 209
+    @Published private(set) var olhar: CGPoint = .zero
+    @Published private(set) var piscando = false
 
     private let painel = NotchPanel()
     private weak var modelo: Modelo?
     private var recolher: Task<Void, Never>?
     private var hover = false
+    private var olhos: Timer?
+    private var piscada: Task<Void, Never>?
 
     func montar(modelo: Modelo) {
         self.modelo = modelo
         painel.contentView = NSHostingView(rootView: Hospedeiro(notch: self, modelo: modelo))
         aplicar(animado: false)
         painel.orderFrontRegardless()
+        seguirPonteiro()
+        piscarDeVezEmQuando()
 
         // Plugar ou desplugar monitor muda tudo: qual tela, se tem notch, onde é o centro.
         NotificationCenter.default.addObserver(
@@ -69,6 +75,40 @@ final class Notch: ObservableObject {
         aplicar(animado: true)
     }
 
+    // MARK: - O olho
+
+    /// Ler NSEvent.mouseLocation num timer evita monitor global de eventos,
+    /// que em alguns sistemas pede permissão. 30 Hz é imperceptível e basta.
+    private func seguirPonteiro() {
+        olhos = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.estado == .repouso else { return }
+                let centro = CGPoint(x: self.painel.frame.midX, y: self.painel.frame.midY)
+                let m = NSEvent.mouseLocation
+                let alcance: CGFloat = 320
+                let dx = max(-1, min(1, (m.x - centro.x) / alcance))
+                // Coordenada de tela cresce pra cima; a da view, pra baixo.
+                let dy = max(-1, min(1, (centro.y - m.y) / alcance))
+                let novo = CGPoint(x: dx, y: dy)
+                if abs(novo.x - self.olhar.x) > 0.01 || abs(novo.y - self.olhar.y) > 0.01 {
+                    self.olhar = novo
+                }
+            }
+        }
+    }
+
+    private func piscarDeVezEmQuando() {
+        piscada = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Double.random(in: 4...9)))
+                guard let self, !Task.isCancelled else { return }
+                self.piscando = true
+                try? await Task.sleep(for: .milliseconds(110))
+                self.piscando = false
+            }
+        }
+    }
+
     // MARK: - Geometria
 
     private func aplicar(animado: Bool) {
@@ -84,8 +124,12 @@ final class Notch: ObservableObject {
 
         guard animado else { painel.setFrame(alvo, display: true); return }
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.26
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ctx.duration = 0.42
+            // O segundo ponto de controle passa de 1: a curva ultrapassa o
+            // destino e volta. É o que dá o peso de líquido em vez de slide.
+            ctx.timingFunction = CAMediaTimingFunction(
+                controlPoints: 0.30, 1.42, 0.50, 1.0
+            )
             painel.animator().setFrame(alvo, display: true)
         }
     }
@@ -100,6 +144,8 @@ final class Notch: ObservableObject {
                 estado: notch.estado,
                 pendurado: notch.pendurado,
                 larguraNotch: notch.larguraNotch,
+                olhar: notch.olhar,
+                piscando: notch.piscando,
                 aoEntrar: { notch.abrir() },
                 aoSair: { notch.fechar() }
             )

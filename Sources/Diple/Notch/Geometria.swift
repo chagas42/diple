@@ -29,8 +29,10 @@ struct Geometria {
     /// tamanho do recorte, só pra o hover ter onde acontecer.
     func repouso(pendencias: Int) -> NSRect {
         guard pendencias > 0 else { return alvoInvisivel() }
-        return temNotch ? pendurado(largura: larguraNotch + 56, altura: 26)
-                        : solto(largura: 248, altura: 30)
+        // Largura exata do recorte: o flare fica zero e não sobra degrau
+        // nenhum nas laterais. Parece só que a notch ficou um pouco mais alta.
+        return temNotch ? pendurado(largura: larguraNotch, altura: 30)
+                        : solto(largura: 150, altura: 30)
     }
 
     func aberto() -> NSRect {
