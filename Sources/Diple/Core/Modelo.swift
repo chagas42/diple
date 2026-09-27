@@ -272,6 +272,33 @@ final class Modelo: ObservableObject {
         if let d = destino { await Worktree.descartar(origem: origem, destino: d) }
     }
 
+    /// Dispara um aviso de mentira do tipo pedido, pra você ver a animação da
+    /// notch e ouvir o som sem esperar alguém comentar. Usa um PR de verdade
+    /// da sua fila quando existe, pra o texto sair realista.
+    func testar(_ tipo: TipoEvento) async {
+        let pr = fila.todos.first
+        let evento = Evento(
+            id: "teste/\(tipo.rawValue)/\(Date().timeIntervalSince1970)",
+            tipo: tipo,
+            chave: pr?.chave ?? "exemplo#1",
+            url: pr?.url ?? URL(string: "https://github.com")!,
+            titulo: textoTeste(tipo).0,
+            corpo: pr.map { "\($0.chave) · \($0.titulo)" } ?? textoTeste(tipo).1
+        )
+        aoEvento?(evento)
+        await notificador.postar([evento])
+    }
+
+    private func textoTeste(_ t: TipoEvento) -> (String, String) {
+        switch t {
+        case .responderamVoce: ("Marina respondeu você", "resend.ts:214 · e se o bilhete já expirou?")
+        case .comentaram:      ("Ana comentou no seu PR", "send.ts:58 · isso engole o 429 em silêncio")
+        case .pediramReview:   ("Rafael pediu sua review", "4 arquivos · +94 −12")
+        case .checkFalhou:     ("Um check falhou no seu PR", "ci / test · 1 de 5 falhou")
+        case .aprovaram:       ("Seu PR foi aprovado", "pronto pra merge")
+        }
+    }
+
     func descartarAchado(_ pr: PR, _ a: Achado) {
         achados[pr.chave]?.removeAll { $0.id == a.id }
     }
