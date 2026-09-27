@@ -31,6 +31,20 @@ jobs:
       - name: Bundle and sign
         run: make app
 
+      - name: It has to actually launch
+        run: |
+          ./build/Diple.app/Contents/MacOS/Diple > /tmp/launch.log 2>&1 &
+          pid=$!
+          sleep 15
+          if ! kill -0 $pid 2>/dev/null; then
+            echo "::error::the app did not survive 15 seconds"
+            cat /tmp/launch.log
+            ls ~/Library/Logs/DiagnosticReports/Diple*.ips 2>/dev/null | head -1 | xargs -r cat | head -60
+            exit 1
+          fi
+          kill $pid
+          echo "still up after 15s"
+
       - name: House rules
         run: |
           fail=0
