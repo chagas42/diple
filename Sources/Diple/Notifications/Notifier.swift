@@ -57,9 +57,9 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
         (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
     }
 
-    func isAuthorized() async -> Bool {
+    nonisolated func isAuthorized() async -> Bool {
         await withCheckedContinuation { cont in
-            center.getNotificationSettings { settings in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
                 cont.resume(returning: settings.authorizationStatus == .authorized)
             }
         }
