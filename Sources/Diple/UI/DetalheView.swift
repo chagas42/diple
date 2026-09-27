@@ -4,25 +4,46 @@ struct DetalheView: View {
     @ObservedObject var modelo: Modelo
     let pr: PR
 
+    enum Secao: String, CaseIterable, Identifiable {
+        case conversa = "Conversa"
+        case mapa = "Visão geral"
+        case ia = "Review da IA"
+        var id: String { rawValue }
+    }
+    @State private var secao: Secao = .conversa
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 cabecalho
                 Divider()
                 estatisticas
-                if pr.threads.isEmpty {
-                    semThreads
-                } else {
-                    ForEach(pr.threads) { t in
-                        ThreadView(modelo: modelo, thread: t)
-                    }
+
+                Picker("", selection: $secao) {
+                    ForEach(Secao.allCases) { Text($0.rawValue).tag($0) }
                 }
-                Divider()
-                RevisaoIAView(modelo: modelo, pr: pr)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                switch secao {
+                case .conversa:
+                    if pr.threads.isEmpty {
+                        semThreads
+                    } else {
+                        ForEach(pr.threads) { t in
+                            ThreadView(modelo: modelo, thread: t)
+                        }
+                    }
+                case .mapa:
+                    MapaView(modelo: modelo, pr: pr)
+                case .ia:
+                    RevisaoIAView(modelo: modelo, pr: pr)
+                }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .onChange(of: pr.chave) { secao = .conversa }
         .toolbar {
             ToolbarItem {
                 Button {

@@ -28,6 +28,8 @@ final class Modelo: ObservableObject {
     @Published private(set) var achados: [String: [Achado]] = [:]
     @Published private(set) var passoIA: PassoIA?
     @Published private(set) var revisandoIA: String?
+    @Published private(set) var mapas: [String: Mapa] = [:]
+    @Published private(set) var desenhandoMapa: String?
 
     @Published var config = Config() {
         didSet {
@@ -225,6 +227,46 @@ final class Modelo: ObservableObject {
             }
         } catch {
             passoIA = .falhou(error.localizedDescription)
+        }
+
+        if let d = destino { await Worktree.descartar(origem: origem, destino: d) }
+    }
+
+    /// O que muda sai do diff, sem IA. Só a pergunta que exige julgamento —
+    /// o que sente a mudança e o que você precisa conhecer — vai pro Claude.
+    func desenharMapa(_ pr: PR) async {
+        guard desenhandoMapa == nil else { return }
+        desenhandoMapa = pr.chave
+        defer { desenhandoMapa = nil }
+
+        guard let origem = Worktree.localDe(pr.repo, configurados: config.caminhos) else {
+            erro = "não achei \(pr.repo) na sua máquina. Aponte a pasta em Ajustes."
+            return
+        }
+
+        var destino: URL?
+        do {
+            let alterados = try await cliente.modulosAlterados(repo: pr.repo, pr: pr.numero)
+            let w = try await Worktree.preparar(origem: origem, repo: pr.repo, pr: pr.numero)
+            destino = w
+
+            if let m = await MapaIA().desenhar(
+                pr: pr, alterados: alterados, em: w, modelo: config.modeloIA
+            ) {
+                mapas[pr.chave] = m
+            } else {
+                // Sem julgamento a gente ainda mostra o que o diff dá.
+                mapas[pr.chave] = Mapa(
+                    proposta: pr.titulo,
+                    deltas: [],
+                    alterados: alterados,
+                    impactados: [],
+                    contexto: []
+                )
+                erro = "o mapa saiu só com o que o diff dá; a sessão não respondeu em JSON"
+            }
+        } catch {
+            erro = error.localizedDescription
         }
 
         if let d = destino { await Worktree.descartar(origem: origem, destino: d) }
