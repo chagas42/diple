@@ -286,7 +286,14 @@ final class Modelo: ObservableObject {
             corpo: pr.map { "\($0.chave) · \($0.titulo)" } ?? textoTeste(tipo).1
         )
         aoEvento?(evento)
-        await notificador.postar([evento])
+        await notificador.postar([evento], forcando: true)
+    }
+
+    /// Verdadeiro quando o silêncio está valendo agora. A tela de ajustes
+    /// mostra isso, pra o comportamento não parecer defeito.
+    var silenciandoAgora: Bool {
+        guard config.silencioLigado else { return false }
+        return !config.deixaPassar(.comentaram)
     }
 
     private func textoTeste(_ t: TipoEvento) -> (String, String) {
