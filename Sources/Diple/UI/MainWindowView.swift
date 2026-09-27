@@ -114,8 +114,25 @@ struct MainWindowView: View {
             }
         }
         .navigationTitle(model.tab.title)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let problem = model.errorMessage {
+                HStack(alignment: .top, spacing: 9) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(problem)
+                        .font(.system(size: 11.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button("Retry") { Task { await model.refresh() } }
+                        .buttonStyle(.link)
+                        .font(.system(size: 11.5))
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(.orange.opacity(0.12))
+            }
+        }
         .overlay {
-            if model.prs(model.tab).isEmpty && !model.loading {
+            if model.prs(model.tab).isEmpty && !model.loading && model.errorMessage == nil {
                 ContentUnavailableView("Nothing here", systemImage: "checkmark.circle")
             }
         }

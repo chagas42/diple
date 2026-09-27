@@ -6,16 +6,16 @@ DEST   := build/$(APP).app
 .PHONY: build app run install stop clean
 
 build:
-	swift build -c release
+	@swift build -c release 2>&1 | grep -vE "^\\[|warning:|^ *[0-9]+ \\||^ *\\||^$$" || true
 
 app: build
-	rm -rf $(DEST)
-	mkdir -p $(DEST)/Contents/MacOS $(DEST)/Contents/Resources
-	cp $(BUILD)/$(APP) $(DEST)/Contents/MacOS/$(APP)
-	cp Resources/Info.plist $(DEST)/Contents/Info.plist
-	cp Resources/Diple.icns $(DEST)/Contents/Resources/Diple.icns
-	codesign --force --sign - --identifier $(BUNDLE) $(DEST)
-	@codesign -dv $(DEST) 2>&1 | sed -n '1,4p'
+	@rm -rf $(DEST)
+	@mkdir -p $(DEST)/Contents/MacOS $(DEST)/Contents/Resources
+	@cp $(BUILD)/$(APP) $(DEST)/Contents/MacOS/$(APP)
+	@cp Resources/Info.plist $(DEST)/Contents/Info.plist
+	@cp Resources/Diple.icns $(DEST)/Contents/Resources/Diple.icns
+	@codesign --force --sign - --identifier $(BUNDLE) $(DEST) 2>/dev/null
+	@echo "bundled  $(DEST)"
 
 run: app stop
 	@# LaunchServices guarda o ícone em cache; sem isto o Dock mostra o antigo.
@@ -26,16 +26,15 @@ run: app stop
 	open $(DEST)
 
 install: app
-	@# O Notification Center resolve o ícone por bundle id e guarda o caminho.
-	@# Em build/ o bundle é apagado e recriado a cada compilação, então o
-	@# registro aponta para um inode morto e o banner vem sem ícone.
-	rm -rf /Applications/$(APP).app
-	cp -R $(DEST) /Applications/$(APP).app
-	-@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+	@rm -rf /Applications/$(APP).app
+	@cp -R $(DEST) /Applications/$(APP).app
+	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
 		-f /Applications/$(APP).app 2>/dev/null || true
-	-@killall usernoted 2>/dev/null || true
-	-@killall Dock 2>/dev/null || true
-	@echo "instalado em /Applications/$(APP).app"
+	@killall usernoted 2>/dev/null || true
+	@killall Dock 2>/dev/null || true
+	@echo "installed  /Applications/$(APP).app"
+	@echo
+	@./.build/release/$(APP) --tools
 
 icone:
 	swift Resources/icone-fonte/gerar-icns.swift

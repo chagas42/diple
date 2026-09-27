@@ -2,6 +2,12 @@ import Foundation
 import AppKit
 
 enum Probe {
+    static func tools() {
+        for name in ["gh", "claude", "git"] {
+            print("  \(name): \(Tools.find(name) ?? "NOT FOUND")")
+        }
+    }
+
     static func run() async {
         do {
             let queue = try await GitHubClient().fetchQueue()

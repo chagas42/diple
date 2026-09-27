@@ -2,16 +2,14 @@ import Foundation
 
 struct MapBuilder: Sendable {
     func build(pr: PR, base: String, changed: [Module], in folder: URL, model: String, language: String) async -> PRMap? {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = [
-            "claude", "-p", prompt(pr: pr, base: base, changed: changed, language: language),
+        guard let p = try? Tools.process("claude", [
+            "-p", prompt(pr: pr, base: base, changed: changed, language: language),
             "--output-format", "json",
             "--permission-mode", "dontAsk",
             "--allowed-tools", "Read Grep Glob Bash(git diff:*) Bash(git log:*)",
             "--disallowed-tools", "Write Edit Bash(gh:*) Bash(git push:*) WebFetch",
             "--model", model,
-        ]
+        ]) else { return nil }
         p.currentDirectoryURL = folder
         let out = Pipe()
         p.standardOutput = out

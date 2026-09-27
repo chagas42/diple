@@ -21,7 +21,7 @@ struct AIReviewView: View {
                 ForEach(findings) { a in
                     FindingCard(finding: a) { model.discardFinding(pr, a) }
                 }
-            } else if !running, case .pronto = model.reviewStep {
+            } else if !running, case .done = model.reviewStep {
                 Label("The AI found nothing worth flagging.",
                       systemImage: "checkmark.circle")
                     .font(.system(size: 12.5))
