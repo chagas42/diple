@@ -8,16 +8,34 @@ import AppKit
 /// botão de janela não fazia nada. Com NSWindow a abertura é uma chamada de
 /// método, e funciona de qualquer lugar.
 @MainActor
-final class Janelas {
+final class Janelas: NSObject, NSWindowDelegate {
     static let compartilhado = Janelas()
 
     private var principal: NSWindow?
     private var ajustes: NSWindow?
 
+    /// O app vive na notch, então normalmente não ocupa lugar no Dock. Com
+    /// janela aberta ele vira app normal — e some de novo quando a última
+    /// fecha. É o que faz o ⌘Tab e o Dock se comportarem como você espera.
+    private func ajustarDock() {
+        let abertas = [principal, ajustes].contains { $0?.isVisible == true }
+        NSApp.setActivationPolicy(abertas ? .regular : .accessory)
+        if abertas { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        // isVisible ainda é true durante o willClose; decide no próximo ciclo.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60))
+            self.ajustarDock()
+        }
+    }
+
     func abrirPrincipal(_ modelo: Modelo) {
         NSApp.activate(ignoringOtherApps: true)
         if let j = principal {
             j.makeKeyAndOrderFront(nil)
+            ajustarDock()
             return
         }
         let j = criar(
@@ -26,14 +44,17 @@ final class Janelas {
             conteudo: JanelaView(modelo: modelo)
         )
         j.setFrameAutosaveName("diple.principal")
+        j.delegate = self
         principal = j
         j.makeKeyAndOrderFront(nil)
+        ajustarDock()
     }
 
     func abrirAjustes(_ modelo: Modelo) {
         NSApp.activate(ignoringOtherApps: true)
         if let j = ajustes {
             j.makeKeyAndOrderFront(nil)
+            ajustarDock()
             return
         }
         let j = criar(
@@ -42,8 +63,10 @@ final class Janelas {
             conteudo: AjustesView(modelo: modelo),
             redimensionavel: false
         )
+        j.delegate = self
         ajustes = j
         j.makeKeyAndOrderFront(nil)
+        ajustarDock()
     }
 
     private func criar<C: View>(
