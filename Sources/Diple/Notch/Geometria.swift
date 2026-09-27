@@ -34,7 +34,7 @@ struct Geometria {
 
     var aberto: CGSize { CGSize(width: 680, height: 330) }
 
-    var alerta: CGSize { CGSize(width: 560, height: 186) }
+    var alerta: CGSize { CGSize(width: 580, height: 196) }
 
     var asa: CGFloat { 42 }
 

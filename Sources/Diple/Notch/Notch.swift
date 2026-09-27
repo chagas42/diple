@@ -15,6 +15,10 @@ final class Notch: ObservableObject {
     private var recolher: Task<Void, Never>?
     /// Desde quando o ponteiro está fora. Nil = está dentro.
     private var foraDesde: Date?
+    /// Onde o ponteiro estava quando o aviso chegou. Enquanto ele não se
+    /// mexer, o hover não abre — senão um aviso que aparece embaixo do mouse
+    /// parado é engolido na mesma hora.
+    private var ancora: CGPoint?
     private var olhos: Timer?
     private var piscada: Task<Void, Never>?
 
@@ -83,6 +87,7 @@ final class Notch: ObservableObject {
         recolher?.cancel()
         recolher = nil
         foraDesde = nil
+        ancora = nil
         estado = repouso()
         aplicar()
     }
@@ -90,6 +95,7 @@ final class Notch: ObservableObject {
     func alertar(_ e: Evento) {
         guard e.tipo.interrompe else { return }
         recolher?.cancel()
+        ancora = NSEvent.mouseLocation
         estado = .alerta(e)
         aplicar()
         // Só o alerta usa timer: ele recolhe sozinho sem depender do ponteiro.
@@ -135,6 +141,11 @@ final class Notch: ObservableObject {
 
         if dentro {
             foraDesde = nil
+            if case .alerta = estado, let a = ancora {
+                let andou = hypot(m.x - a.x, m.y - a.y) > 8
+                guard andou else { return }
+            }
+            ancora = nil
             abrir()
             return
         }

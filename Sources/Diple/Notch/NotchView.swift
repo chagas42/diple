@@ -336,36 +336,118 @@ struct NotchView: View {
         return base
     }
 
+    // MARK: - Alerta
+    // Mesma estrutura do aberto: faixa na altura da barra de menu com o vão
+    // do recorte livre, e o corpo embaixo. Sem isso o texto começava colado
+    // no recorte e encostava na curva côncava.
+
     private func alerta(_ e: Evento) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 9) {
-                Circle().fill(.orange).frame(width: 7, height: 7)
+        VStack(spacing: 0) {
+            faixaAlerta(e)
+            corpoAlerta(e)
+        }
+    }
+
+    private func faixaAlerta(_ e: Evento) -> some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 7) {
+                Image(systemName: e.tipo.glifo)
+                    .font(.system(size: 11))
+                    .foregroundStyle(corDoTipo(e.tipo))
+                Text(e.tipo.rotulo)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 14 + flare)
+            .frame(maxWidth: .infinity)
+
+            Spacer(minLength: larguraNotch).frame(width: larguraNotch)
+
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                if let som = e.tipo.som {
+                    HStack(spacing: 4) {
+                        Image(systemName: "speaker.wave.2.fill").font(.system(size: 8.5))
+                        Text(som).font(.system(size: 10))
+                    }
+                    .foregroundStyle(.white.opacity(0.4))
+                }
+                botaoIcone("xmark") { aoFechar() }
+            }
+            .padding(.trailing, 14 + flare)
+            .frame(maxWidth: .infinity)
+        }
+        .frame(height: alturaNotch)
+    }
+
+    private func corpoAlerta(_ e: Evento) -> some View {
+        HStack(alignment: .top, spacing: 13) {
+            Circle()
+                .fill(corDoTipo(e.tipo).opacity(0.16))
+                .overlay(
+                    Image(systemName: e.tipo.glifo)
+                        .font(.system(size: 15))
+                        .foregroundStyle(corDoTipo(e.tipo))
+                )
+                .frame(width: 38, height: 38)
+
+            VStack(alignment: .leading, spacing: 5) {
                 Text(e.titulo)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                Spacer()
-                if let som = e.tipo.som {
-                    Text(som)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.white.opacity(0.42))
+
+                Text(e.corpo)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 6)
+
+                HStack(spacing: 8) {
+                    Button {
+                        NSWorkspace.shared.open(e.url)
+                        aoFechar()
+                    } label: {
+                        Text("Abrir o PR")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 15).padding(.vertical, 7)
+                            .background(.white, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        aoFechar()
+                    } label: {
+                        Text("Depois")
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(Color.white.opacity(0.1), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer(minLength: 0)
                 }
             }
-            Text(e.corpo)
-                .font(.system(size: 12.5))
-                .foregroundStyle(.white.opacity(0.85))
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Button("Abrir o PR") { NSWorkspace.shared.open(e.url) }
-                .buttonStyle(.plain)
-                .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14).padding(.vertical, 7)
-                .background(Color.white.opacity(0.1), in: Capsule())
         }
-        .padding(.horizontal, 20)
-        .padding(.top, alturaNotch + 10)
+        .padding(.horizontal, 18 + flare)
+        .padding(.top, 12)
         .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func corDoTipo(_ t: TipoEvento) -> Color {
+        switch t {
+        case .responderamVoce: .orange
+        case .comentaram:      .purple
+        case .pediramReview:   .blue
+        case .checkFalhou:     .red
+        case .aprovaram:       .green
+        }
     }
 }
