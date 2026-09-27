@@ -268,38 +268,57 @@ struct NotchView: View {
                 }
                 .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.needsYou.isEmpty {
+            } else if model.prs(model.tab).isEmpty {
                 VStack(spacing: 7) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 20))
                         .foregroundStyle(.white.opacity(0.4))
-                    Text("Nothing waiting on you")
+                    Text(model.tab == .esperando ? "Nothing waiting on you" : "Nothing in \(model.tab.title)")
                         .font(.system(size: 12.5))
                         .foregroundStyle(.white.opacity(0.45))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                HStack(spacing: 6) {
-                    Text("Needs you")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.4))
-                    Spacer()
-                    Text("\(model.needsYou.count)")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.orange)
-                    if model.needsYou.count > 4 {
+                HStack(spacing: 4) {
+                    ForEach(AppModel.Tab.allCases) { t in
+                        let on = model.tab == t
+                        Button { model.tab = t } label: {
+                            HStack(spacing: 4) {
+                                Text(t.title)
+                                    .font(.system(size: 10, weight: on ? .semibold : .regular))
+                                Text("\(model.count(t))")
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(
+                                        t == .esperando && model.count(t) > 0
+                                            ? .orange : .white.opacity(on ? 0.5 : 0.3)
+                                    )
+                            }
+                            .foregroundStyle(.white.opacity(on ? 0.95 : 0.42))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(.white.opacity(on ? 0.14 : 0))
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Spacer(minLength: 0)
+                    if model.prs(model.tab).count > 4 {
                         Image(systemName: "arrow.up.and.down")
                             .font(.system(size: 8.5))
                             .foregroundStyle(.white.opacity(0.3))
                     }
                 }
+                .animation(.easeOut(duration: 0.15), value: model.tab)
                 .padding(.horizontal, 13)
                 .padding(.top, 10)
                 .padding(.bottom, 6)
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(Array(model.needsYou.enumerated()), id: \.element.id) { i, pr in
+                        ForEach(Array(model.prs(model.tab).enumerated()), id: \.element.id) { i, pr in
                             if i > 0 {
                                 Rectangle().fill(.white.opacity(0.06)).frame(height: 1)
                                     .padding(.horizontal, 13)

@@ -1,7 +1,13 @@
 import SwiftUI
 
+enum SidebarItem: Hashable {
+    case queue(AppModel.Tab)
+    case repo(String)
+}
+
 struct MainWindowView: View {
     @ObservedObject var model: AppModel
+    @State private var repoSearch = ""
 
     var body: some View {
         NavigationSplitView {
@@ -35,8 +41,28 @@ struct MainWindowView: View {
         }
     }
 
+    private var sidebarSelection: Binding<SidebarItem?> {
+        Binding(
+            get: {
+                if let r = model.selectedRepo { return .repo(r) }
+                return .queue(model.tab)
+            },
+            set: { item in
+                switch item {
+                case .queue(let t):
+                    model.selectRepo(nil)
+                    model.tab = t
+                case .repo(let r):
+                    model.selectRepo(r)
+                case nil:
+                    break
+                }
+            }
+        )
+    }
+
     private var barraLateral: some View {
-        List(selection: Binding(get: { model.tab }, set: { model.tab = $0 ?? .esperando })) {
+        List(selection: sidebarSelection) {
             Section("Queue") {
                 ForEach(AppModel.Tab.allCases) { tab in
                     HStack {
@@ -46,36 +72,122 @@ struct MainWindowView: View {
                             .font(.system(size: 11.5, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
-                    .tag(tab)
+                    .tag(SidebarItem.queue(tab))
                 }
             }
-            Section("Repositories") {
-                ForEach(repos, id: \.0) { name, quantos in
+
+            if !model.watching.isEmpty {
+                Section("Watching") {
+                    ForEach(model.watching.sorted(), id: \.self) { full in
+                        repoRow(full, starred: true)
+                            .tag(SidebarItem.repo(full))
+                    }
+                }
+            }
+
+            ForEach(filteredGroups) { group in
+                Section {
+                    ForEach(group.items) { repo in
+                        repoRow(repo.nameWithOwner, starred: model.watching.contains(repo.nameWithOwner))
+                            .tag(SidebarItem.repo(repo.nameWithOwner))
+                    }
+                } header: {
                     HStack {
-                        Text(name)
-                            .font(.system(size: 12, design: .monospaced))
-                            .lineLimit(1)
-                            .truncationMode(.head)
+                        Text(group.title)
                         Spacer()
-                        Text("\(quantos)")
-                            .font(.system(size: 11.5, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                        Text("\(group.items.count)")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
         }
         .listStyle(.sidebar)
+        .searchable(text: $repoSearch, placement: .sidebar, prompt: "Find a repository")
+        .task { model.loadRepos() }
     }
 
-    private var repos: [(String, Int)] {
-        Dictionary(grouping: model.queue.all, by: \.repo)
-            .map { ($0.key, $0.value.count) }
-            .sorted { $0.1 > $1.1 }
-            .prefix(8)
-            .map { $0 }
+    private var filteredGroups: [AppModel.RepoGroup] {
+        let q = repoSearch.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return model.repoGroups }
+        return model.repoGroups.compactMap { g in
+            let hits = g.items.filter { $0.nameWithOwner.lowercased().contains(q) }
+            guard !hits.isEmpty else { return nil }
+            switch g {
+            case .personal:      return .personal(hits)
+            case .org(let o, _): return .org(o, hits)
+            }
+        }
+    }
+
+    private func repoRow(_ full: String, starred: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: starred ? "star.fill" : "book.closed")
+                .font(.system(size: 10))
+                .foregroundStyle(starred ? .orange : .secondary)
+            Text(full.split(separator: "/").last.map(String.init) ?? full)
+                .font(.system(size: 12))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            Button {
+                model.toggleWatch(full)
+            } label: {
+                Image(systemName: starred ? "star.slash" : "star")
+                    .font(.system(size: 10))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tertiary)
+            .help(starred ? "Stop watching" : "Watch this repository")
+        }
     }
 
     private var list: some View {
+        Group {
+            if model.selectedRepo != nil { repoList } else { queueList }
+        }
+    }
+
+    private var repoList: some View {
+        List(selection: Binding(
+            get: { model.selected?.key },
+            set: { key in model.selected = model.repoPRs.first { $0.key == key } }
+        )) {
+            if model.loadingRepo && model.repoPRs.isEmpty {
+                HStack { ProgressView().controlSize(.small); Text("Loading pull requests…") }
+                    .foregroundStyle(.secondary)
+            } else if model.repoPRsShown.isEmpty {
+                Text(model.repoShowsDraft ? "No drafts open." : "No pull requests ready for review.")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+            } else {
+                ForEach(model.repoPRsShown, id: \.key) { pr in
+                    PRRow(pr: pr, naoLido: model.unread.contains(pr.key))
+                        .tag(pr.key)
+                }
+            }
+        }
+        .navigationTitle(model.selectedRepo ?? "")
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                Picker("", selection: Binding(
+                    get: { model.repoShowsDraft },
+                    set: { model.repoShowsDraft = $0 }
+                )) {
+                    Text("Ready \(model.repoPRs.filter { !$0.draft }.count)").tag(false)
+                    Text("Draft \(model.repoPRs.filter(\.draft).count)").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                Divider()
+            }
+            .background(.bar)
+        }
+    }
+
+    private var queueList: some View {
         List(selection: Binding(
             get: { model.selected?.key },
             set: { key in model.selected = model.prs(model.tab).first { $0.key == key } }

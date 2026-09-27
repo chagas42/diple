@@ -17,6 +17,28 @@ enum ClientError: LocalizedError {
 struct GitHubClient: Sendable {
     private let endpoint = URL(string: "https://api.github.com/graphql")!
 
+    func send<T: Decodable & Sendable>(_ query: String) async throws -> T {
+        let token = try await Task.detached(priority: .utility) {
+            try Token.current()
+        }.value
+
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
+        req.httpBody = try JSONEncoder().encode(["query": query])
+        req.timeoutInterval = 20
+
+        let (payload, response) = try await URLSession.shared.data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ClientError.http(http.statusCode)
+        }
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        return try dec.decode(T.self, from: payload)
+    }
+
     func fetchQueue() async throws -> Queue {
         let token = try await Task.detached(priority: .utility) {
             try Token.current()
