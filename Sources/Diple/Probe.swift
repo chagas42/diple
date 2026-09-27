@@ -5,9 +5,9 @@ enum Probe {
     static func run() async {
         do {
             let queue = try await GitHubClient().fetchQueue()
-            dump("MEUS PRS", queue.mine)
-            dump("PRA REVISAR", queue.toReview)
-            dump("ENVOLVIDO", queue.following)
+            dump("YOUR PRS", queue.mine)
+            dump("TO REVIEW", queue.toReview)
+            dump("FOLLOWING", queue.following)
             print("\nrate limit left: \(queue.rateLimitLeft)")
         } catch {
             FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
