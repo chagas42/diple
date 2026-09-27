@@ -13,43 +13,61 @@ struct Person: Identifiable, Sendable, Equatable, Codable {
     }
 }
 
-struct RankRow: Identifiable, Sendable, Equatable {
-    let pessoa: Person
+struct RankRow: Identifiable, Sendable, Equatable, Codable {
+    let person: Person
     let reviews: Int
-    var id: String { pessoa.login }
+    var id: String { person.login }
 }
 
-struct ActivityDay: Identifiable, Sendable, Equatable {
+struct ActivityDay: Identifiable, Sendable, Equatable, Codable {
     let date: Date
     let reviews: Int
     var id: TimeInterval { date.timeIntervalSince1970 }
+
+    enum CodingKeys: String, CodingKey { case date, reviews }
 }
 
 extension GitHubClient {
     func fetchTeam(org: String) async throws -> [Person] {
-        let json = try await raw("""
-        { organization(login: "\(org)") {
-            membersWithRole(first: 50) {
-              nodes { login name avatarUrl(size: 96) }
+        var people: [Person] = []
+        var cursor: String?
+
+        for _ in 0..<4 {
+            let after = cursor.map { ", after: \"\($0)\"" } ?? ""
+            let json = try await raw("""
+            { organization(login: "\(org)") {
+                membersWithRole(first: 100\(after)) {
+                  pageInfo { hasNextPage endCursor }
+                  nodes { login name avatarUrl(size: 96) }
+                }
+            } }
+            """)
+
+            let org = (json["data"] as? [String: Any])?["organization"] as? [String: Any]
+            let members = org?["membersWithRole"] as? [String: Any]
+            let nodes = members?["nodes"] as? [[String: Any]] ?? []
+
+            people += nodes.compactMap { n in
+                guard let login = n["login"] as? String,
+                      let url = (n["avatarUrl"] as? String).flatMap(URL.init) else { return nil }
+                return Person(login: login, name: (n["name"] as? String) ?? login, avatar: url)
             }
-        } }
-        """)
-        let nos = ((json["data"] as? [String: Any])?["organization"] as? [String: Any])
-            .flatMap { ($0["membersWithRole"] as? [String: Any])?["nodes"] as? [[String: Any]] } ?? []
-        return nos.compactMap { n in
-            guard let login = n["login"] as? String,
-                  let url = (n["avatarUrl"] as? String).flatMap(URL.init) else { return nil }
-            return Person(login: login, name: (n["name"] as? String) ?? login, avatar: url)
+
+            let page = members?["pageInfo"] as? [String: Any]
+            guard (page?["hasNextPage"] as? Bool) == true,
+                  let next = page?["endCursor"] as? String else { break }
+            cursor = next
         }
+        return people
     }
 
-    func fetchRanking(org: String, pessoas: [Person], desde: Date) async throws -> [RankRow] {
-        guard !pessoas.isEmpty else { return [] }
+    func fetchRanking(org: String, people: [Person], from: Date) async throws -> [RankRow] {
+        guard !people.isEmpty else { return [] }
         let fmt = ISO8601DateFormatter()
         fmt.formatOptions = [.withFullDate]
-        let cutoff = fmt.string(from: desde)
+        let cutoff = fmt.string(from: from)
 
-        let targets = Array(pessoas.prefix(30))
+        let targets = Array(people.prefix(30))
         let searches = targets.enumerated().map { i, p in
             """
               u\(i): search(query: "is:pr org:\(org) reviewed-by:\(p.login) created:>\(cutoff)", \
@@ -61,7 +79,7 @@ extension GitHubClient {
         let data = json["data"] as? [String: Any] ?? [:]
         return targets.enumerated().compactMap { i, p in
             guard let n = (data["u\(i)"] as? [String: Any])?["issueCount"] as? Int else { return nil }
-            return RankRow(pessoa: p, reviews: n)
+            return RankRow(person: p, reviews: n)
         }
         .sorted { $0.reviews > $1.reviews }
     }

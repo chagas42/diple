@@ -5,7 +5,7 @@ import AppKit
 @MainActor
 final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate {
     private let center = UNUserNotificationCenter.current()
-    private let cliente = GitHubClient()
+    private let client = GitHubClient()
 
     var onChange: (() async -> Void)?
 
@@ -113,7 +113,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                   !text.isEmpty, let thread else { return }
             do {
-                try await cliente.reply(threadId: thread, body: text)
+                try await client.reply(threadId: thread, body: text)
                 await onChange?()
             } catch {
                 await reportFailure("Your comment", error)
@@ -122,7 +122,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
         case Acao.resolve:
             guard let thread else { return }
             do {
-                try await cliente.resolve(threadId: thread)
+                try await client.resolve(threadId: thread)
                 await onChange?()
             } catch {
                 await reportFailure("Resolving the thread", error)
