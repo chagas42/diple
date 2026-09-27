@@ -57,6 +57,10 @@ struct Main {
             await MainActor.run { NotchProbe.run() }
             exit(0)
         }
+        if CommandLine.arguments.contains("--tools") {
+            Probe.tools()
+            exit(0)
+        }
         if CommandLine.arguments.contains("--probe") {
             await Probe.run()
             exit(0)

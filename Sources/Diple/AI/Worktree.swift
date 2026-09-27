@@ -76,9 +76,7 @@ enum Worktree {
     @discardableResult
     static func git(_ args: [String], in folder: URL) async throws -> String {
         try await Task.detached(priority: .utility) {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            p.arguments = ["git"] + args
+            let p = try Tools.process("git", args)
             p.currentDirectoryURL = folder
             let out = Pipe(), error = Pipe()
             p.standardOutput = out

@@ -55,9 +55,9 @@ struct ProgressLine: Identifiable, Sendable, Equatable {
 }
 
 enum ReviewStep: Sendable, Equatable {
-    case preparando(String)
-    case pensando
-    case ferramenta(String)
-    case pronto([Finding])
-    case failing(String)
+    case preparing(String)
+    case thinking
+    case tool(String)
+    case done([Finding])
+    case failed(String)
 }

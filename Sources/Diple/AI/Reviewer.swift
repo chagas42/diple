@@ -15,17 +15,19 @@ struct Reviewer: Sendable {
     func review(pr: PR, base: String, in folder: URL, model: String, language: String) -> AsyncStream<ReviewStep> {
         AsyncStream { cont in
             let task = Task {
-                let p = Process()
-                p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                p.arguments = [
-                    "claude", "-p", prompt(pr: pr, base: base, language: language),
+                guard let p = try? Tools.process("claude", [
+                    "-p", prompt(pr: pr, base: base, language: language),
                     "--output-format", "stream-json",
                     "--verbose",
                     "--permission-mode", "dontAsk",
                     "--allowed-tools", Self.allowedTools,
                     "--disallowed-tools", Self.deniedTools,
                     "--model", model,
-                ]
+                ]) else {
+                    cont.yield(.failed(MissingTool(name: "claude").localizedDescription))
+                    cont.finish()
+                    return
+                }
                 p.currentDirectoryURL = folder
 
                 let out = Pipe()
@@ -33,7 +35,7 @@ struct Reviewer: Sendable {
                 p.standardError = Pipe()
 
                 do { try p.run() } catch {
-                    cont.yield(.failing("could not run claude: \(error.localizedDescription)"))
+                    cont.yield(.failed("could not run claude: \(error.localizedDescription)"))
                     cont.finish()
                     return
                 }
@@ -56,11 +58,11 @@ struct Reviewer: Sendable {
                 p.waitUntilExit()
 
                 guard let text = result else {
-                    cont.yield(.failing("the session ended with no answer"))
+                    cont.yield(.failed("the session ended with no answer"))
                     cont.finish()
                     return
                 }
-                cont.yield(.pronto(Self.extract(text)))
+                cont.yield(.done(Self.extract(text)))
                 cont.finish()
             }
             cont.onTermination = { _ in task.cancel() }
@@ -76,7 +78,7 @@ struct Reviewer: Sendable {
         case "system":
             guard (o["subtype"] as? String) == "init" else { return nil }
             let m = (o["model"] as? String) ?? "?"
-            return .preparando("session ready · \(m)")
+            return .preparing("session ready · \(m)")
 
         case "assistant":
             let parts = ((o["message"] as? [String: Any])?["content"] as? [[String: Any]]) ?? []
@@ -86,9 +88,9 @@ struct Reviewer: Sendable {
                     ?? ((c["input"] as? [String: Any])?["pattern"] as? String)
                     ?? ((c["input"] as? [String: Any])?["command"] as? String)
                 let curto = alvo.map { String($0.split(separator: "/").last ?? "").prefix(40) }
-                return .ferramenta(curto.map { "\(name) \($0)" } ?? name)
+                return .tool(curto.map { "\(name) \($0)" } ?? name)
             }
-            return .pensando
+            return .thinking
 
         case "result":
             result = o["result"] as? String

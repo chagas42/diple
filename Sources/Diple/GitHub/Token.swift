@@ -1,44 +1,43 @@
 import Foundation
 
 enum TokenError: LocalizedError {
-    case ghAusente
-    case ghFalhou(String)
+    case ghMissing
+    case ghFailed(String)
 
     var errorDescription: String? {
         switch self {
-        case .ghAusente:
-            "gh is not installed. Install it with: brew install gh"
-        case .ghFalhou(let out):
-            "gh auth token failing: \(out)"
+        case .ghMissing:
+            "gh was not found. Install it with `brew install gh`, then run `gh auth login`."
+        case .ghFailed(let output):
+            output.isEmpty
+                ? "gh auth token returned nothing. Run `gh auth login` in a terminal."
+                : "gh auth token failed: \(output)"
         }
     }
 }
 
 enum Token {
     static func current() throws -> String {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["gh", "auth", "token"]
+        let p: Process
+        do { p = try Tools.process("gh", ["auth", "token"]) }
+        catch { throw TokenError.ghMissing }
 
-        let out = Pipe()
-        let error = Pipe()
+        let out = Pipe(), err = Pipe()
         p.standardOutput = out
-        p.standardError = error
+        p.standardError = err
 
-        do { try p.run() } catch { throw TokenError.ghAusente }
+        do { try p.run() } catch { throw TokenError.ghMissing }
         p.waitUntilExit()
 
         let text = String(
-            data: out.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8
-        )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard p.terminationStatus == 0, !text.isEmpty else {
-            let e = String(
-                data: error.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? ""
-            throw TokenError.ghFalhou(e.trimmingCharacters(in: .whitespacesAndNewlines))
+            let failure = String(
+                decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw TokenError.ghFailed(failure)
         }
         return text
     }

@@ -16,7 +16,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
 
-    @Published var abaNotch: NotchTab = .queue
+    @Published var notchTab: NotchTab = .queue
     @Published private(set) var team: [Person] = []
     @Published private(set) var ranking: [RankRow] = []
     @Published private(set) var activity: [ActivityDay] = []
@@ -252,7 +252,7 @@ final class AppModel: ObservableObject {
         defer { reviewingKey = nil }
 
         guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
-            reviewStep = .failing("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
+            reviewStep = .failed("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
             note("repository not found", fechando: true)
             return
         }
@@ -275,17 +275,17 @@ final class AppModel: ObservableObject {
             ) {
                 reviewStep = passo
                 switch passo {
-                case .preparando(let t), .ferramenta(let t): note(t)
-                case .pensando: note("thinking")
-                case .pronto(let list):
+                case .preparing(let t), .tool(let t): note(t)
+                case .thinking: note("thinking")
+                case .done(let list):
                     findings[pr.key] = list
                     note("\(list.count) apontamento\(list.count == 1 ? "" : "s")",
                            fechando: true)
-                case .failing(let m): note(m, fechando: true)
+                case .failed(let m): note(m, fechando: true)
                 }
             }
         } catch {
-            reviewStep = .failing(error.localizedDescription)
+            reviewStep = .failed(error.localizedDescription)
             note(error.localizedDescription, fechando: true)
         }
 

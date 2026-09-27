@@ -127,14 +127,14 @@ struct NotchView: View {
                 EyeView(gaze: gaze, blinking: blinking, largura: 15)
                     .padding(.trailing, 2)
                 ForEach(AppModel.NotchTab.allCases) { tab in
-                    Button { model.abaNotch = tab } label: {
+                    Button { model.notchTab = tab } label: {
                         Image(systemName: tab.icon)
                             .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(.white.opacity(model.abaNotch == tab ? 0.95 : 0.42))
+                            .foregroundStyle(.white.opacity(model.notchTab == tab ? 0.95 : 0.42))
                             .frame(width: 30, height: 26)
                             .background(
                                 Capsule().fill(
-                                    model.abaNotch == tab
+                                    model.notchTab == tab
                                         ? Color.white.opacity(0.15) : .white.opacity(0.001)
                                 )
                             )
@@ -188,7 +188,7 @@ struct NotchView: View {
 
     private var openBody: some View {
         Group {
-            switch model.abaNotch {
+            switch model.notchTab {
             case .queue:
                 HStack(spacing: 12) { summaryCard; queueCard }
             case .team:
@@ -203,7 +203,7 @@ struct NotchView: View {
         .padding(.top, 10)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onChange(of: model.abaNotch, initial: true) { model.loadTab(model.abaNotch) }
+        .onChange(of: model.notchTab, initial: true) { model.loadTab(model.notchTab) }
     }
 
     private var summaryCard: some View {
@@ -249,7 +249,20 @@ struct NotchView: View {
 
     private var queueCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.needsYou.isEmpty {
+            if let problem = model.errorMessage {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.orange)
+                    Text(problem)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.needsYou.isEmpty {
                 VStack(spacing: 7) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 20))
