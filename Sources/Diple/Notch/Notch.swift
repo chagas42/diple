@@ -13,6 +13,8 @@ final class Notch: ObservableObject {
     private let painel = NotchPanel()
     private weak var modelo: Modelo?
     private var recolher: Task<Void, Never>?
+    /// Desde quando o ponteiro está fora. Nil = está dentro.
+    private var foraDesde: Date?
     private var olhos: Timer?
     private var piscada: Task<Void, Never>?
 
@@ -77,14 +79,12 @@ final class Notch: ObservableObject {
         aplicar()
     }
 
-    func fechar(depois: Duration = .milliseconds(240)) {
+    func fecharAgora() {
         recolher?.cancel()
-        recolher = Task { [weak self] in
-            try? await Task.sleep(for: depois)
-            guard !Task.isCancelled, let self else { return }
-            self.estado = self.repouso()
-            self.aplicar()
-        }
+        recolher = nil
+        foraDesde = nil
+        estado = repouso()
+        aplicar()
     }
 
     func alertar(_ e: Evento) {
@@ -92,7 +92,12 @@ final class Notch: ObservableObject {
         recolher?.cancel()
         estado = .alerta(e)
         aplicar()
-        fechar(depois: .seconds(6))
+        // Só o alerta usa timer: ele recolhe sozinho sem depender do ponteiro.
+        recolher = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled, let self, self.estado != .aberto else { return }
+            self.fecharAgora()
+        }
     }
 
     /// Chamado quando o contador muda: some ou aparece sem passar pelo hover.
@@ -129,9 +134,20 @@ final class Notch: ObservableObject {
                             : sensivel.contains(m)
 
         if dentro {
+            foraDesde = nil
             abrir()
-        } else if aberto {
-            fechar()
+            return
+        }
+
+        guard aberto else { foraDesde = nil; return }
+
+        // Nada de agendar tarefa aqui: o tick roda 30x por segundo e cancelaria
+        // o próprio agendamento a cada passada, então o fechamento nunca vinha.
+        // A carência é medida, não agendada.
+        let agora = Date()
+        if foraDesde == nil { foraDesde = agora }
+        if agora.timeIntervalSince(foraDesde!) >= 0.25 {
+            fecharAgora()
         }
     }
 
@@ -171,7 +187,8 @@ final class Notch: ObservableObject {
                 larguraNotch: notch.larguraNotch,
                 alturaNotch: notch.alturaNotch,
                 olhar: notch.olhar,
-                piscando: notch.piscando
+                piscando: notch.piscando,
+                aoFechar: { notch.fecharAgora() }
             )
         }
     }
