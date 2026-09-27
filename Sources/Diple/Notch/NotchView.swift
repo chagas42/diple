@@ -60,7 +60,7 @@ struct NotchView: View {
 
     private var raio: CGFloat {
         switch estado {
-        case .repouso: 15
+        case .repouso: 7
         case .aberto, .alerta: 20
         }
     }
@@ -85,11 +85,11 @@ struct NotchView: View {
 
     @ViewBuilder private var repouso: some View {
         if modelo.contador > 0 {
-            HStack(spacing: 6) {
-                OlhoView(olhar: olhar, piscando: piscando, largura: 14)
+            HStack(spacing: 4) {
+                OlhoView(olhar: olhar, piscando: piscando, largura: 11)
                 Text("\(modelo.contador)")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
                     .monospacedDigit()
                     .contentTransition(.numericText(value: Double(modelo.contador)))
             }

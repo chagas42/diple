@@ -31,8 +31,10 @@ struct Geometria {
         guard pendencias > 0 else { return alvoInvisivel() }
         // Largura exata do recorte: o flare fica zero e não sobra degrau
         // nenhum nas laterais. Parece só que a notch ficou um pouco mais alta.
-        return temNotch ? pendurado(largura: larguraNotch, visivel: 17)
-                        : solto(largura: 110, altura: 22)
+        // Estreito de propósito: mais largo que isso vira aba, e o contador
+        // já existe na barra de menu. Aqui o olho é o que importa.
+        return temNotch ? pendurado(largura: 58, visivel: 15)
+                        : solto(largura: 74, altura: 20)
     }
 
     func aberto() -> NSRect {
