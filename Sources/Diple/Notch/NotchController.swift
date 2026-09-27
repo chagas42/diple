@@ -140,7 +140,7 @@ final class NotchController: ObservableObject {
 
         let now = Date()
         if outsideSince == nil { outsideSince = now }
-        if now.timeIntervalSince(outsideSince!) >= 0.25 {
+        if now.timeIntervalSince(outsideSince!) >= 0.18 {
             closeNow()
         }
     }

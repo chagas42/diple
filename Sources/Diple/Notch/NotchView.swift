@@ -7,6 +7,15 @@ enum NotchState: Equatable {
     case open
     case alert(Event)
 
+    var kind: String {
+        switch self {
+        case .hidden: "hidden"
+        case .active: "active"
+        case .open: "open"
+        case .alert(let e): "alert-\(e.id)"
+        }
+    }
+
     static func == (a: NotchState, b: NotchState) -> Bool {
         switch (a, b) {
         case (.hidden, .hidden), (.active, .active), (.open, .open): true
@@ -31,6 +40,14 @@ struct NotchView: View {
             ZStack(alignment: .top) {
                 shape.fill(.black)
                 content
+                    .id(state.kind)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: -10))
+                                .animation(.easeOut(duration: 0.2).delay(0.08)),
+                            removal: .opacity.animation(.easeIn(duration: 0.08))
+                        )
+                    )
             }
             .frame(width: size.width, height: size.height)
 
@@ -45,8 +62,9 @@ struct NotchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-        .animation(.spring(response: 0.38, dampingFraction: 0.74), value: size)
-        .animation(.bouncy(duration: 0.4), value: model.count)
+        .animation(.spring(response: 0.3, dampingFraction: 0.72), value: size)
+        .animation(.easeOut(duration: 0.22), value: state.kind)
+        .animation(.bouncy(duration: 0.35), value: model.count)
     }
 
     private var shape: PanelShape {

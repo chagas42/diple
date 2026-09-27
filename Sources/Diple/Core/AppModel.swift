@@ -189,6 +189,7 @@ final class AppModel: ObservableObject {
 
         refreshingTab = tab
         refreshTask?.cancel()
+        _ = ()
         refreshTask = Task { [weak self] in
             guard let self else { return }
             defer { self.refreshingTab = nil }
