@@ -105,7 +105,8 @@ final class Store {
                     tipo: citou ? .responderamVoce : .comentaram,
                     chave: pr.chave, url: pr.url,
                     titulo: citou ? "\(c.autor) respondeu você" : "\(c.autor) comentou no seu PR",
-                    corpo: c.trecho
+                    corpo: c.onde.map { "\($0) — \(c.trecho)" } ?? c.trecho,
+                    threadId: c.threadId
                 ))
             }
 

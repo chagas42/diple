@@ -68,6 +68,8 @@ struct PRCru: Decodable, Sendable {
     }
     struct Threads: Decodable, Sendable { let nodes: [Thread?] }
     struct Thread: Decodable, Sendable {
+        let id: String
+        let isResolved: Bool
         let path: String?
         let line: Int?
         let comments: Comentarios
@@ -114,6 +116,8 @@ struct PR: Identifiable, Sendable, Equatable {
         let trecho: String
         /// Preenchido quando veio de uma thread inline: "resend.ts:214".
         let onde: String?
+        /// Só existe em comentário inline — é o que permite responder de dentro do app.
+        let threadId: String?
     }
 
     var chave: String { "\(repo)#\(numero)" }
@@ -146,9 +150,9 @@ struct PR: Identifiable, Sendable, Equatable {
             .compactMap { $0 }
             .filter(humano)
             .map { .init(autor: $0.author?.login ?? "?", quando: $0.createdAt,
-                         trecho: limpar($0.bodyText), onde: nil) }
+                         trecho: limpar($0.bodyText), onde: nil, threadId: nil) }
 
-        for t in c.reviewThreads.nodes.compactMap({ $0 }) {
+        for t in c.reviewThreads.nodes.compactMap({ $0 }) where !t.isResolved {
             let onde = t.path.map { p in
                 let arquivo = p.split(separator: "/").last.map(String.init) ?? p
                 return t.line.map { "\(arquivo):\($0)" } ?? arquivo
@@ -157,7 +161,7 @@ struct PR: Identifiable, Sendable, Equatable {
                 .compactMap { $0 }
                 .filter(humano)
                 .map { .init(autor: $0.author?.login ?? "?", quando: $0.createdAt,
-                             trecho: limpar($0.bodyText), onde: onde) }
+                             trecho: limpar($0.bodyText), onde: onde, threadId: t.id) }
         }
 
         ultimoComentario = candidatos.max { $0.quando < $1.quando }

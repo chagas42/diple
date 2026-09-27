@@ -21,6 +21,7 @@ final class Modelo: ObservableObject {
 
     func iniciar() {
         notificador.instalar()
+        notificador.aoMudar = { [weak self] in await self?.atualizar() }
         naoLidos = store.estado.naoLidos
 
         Task {

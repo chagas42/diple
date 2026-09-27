@@ -18,6 +18,8 @@ enum Query {
       }
       reviewThreads(last: 20) {
         nodes {
+          id
+          isResolved
           path
           line
           comments(last: 10) {

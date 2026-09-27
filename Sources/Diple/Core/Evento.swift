@@ -41,4 +41,6 @@ struct Evento: Identifiable, Sendable {
     let url: URL
     let titulo: String
     let corpo: String
+    /// Presente quando dá pra responder sem sair do banner.
+    var threadId: String? = nil
 }
