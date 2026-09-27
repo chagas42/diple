@@ -2,63 +2,111 @@ import SwiftUI
 
 struct TeamTab: View {
     @ObservedObject var model: AppModel
+    @State private var search = ""
 
-    private let colunas = Array(repeating: GridItem(.flexible(), spacing: 10), count: 6)
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 10), count: 6)
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text("Who you follow closely")
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.45))
-
-            if model.team.isEmpty {
-                loading
-            } else {
-                LazyVGrid(columns: colunas, spacing: 11) {
-                    ForEach(model.team.prefix(18)) { p in
-                        Button { model.toggleFollow(p.login) } label: {
-                            VStack(spacing: 5) {
-                                AvatarView(pessoa: p, side: 34)
-                                    .overlay(
-                                        Circle().stroke(
-                                            model.following.contains(p.login) ? Color.orange : .clear,
-                                            lineWidth: 2
-                                        )
-                                    )
-                                    .opacity(model.following.contains(p.login) ? 1 : 0.55)
-                                Text(p.login)
-                                    .font(.system(size: 9.5))
-                                    .foregroundStyle(.white.opacity(
-                                        model.following.contains(p.login) ? 0.85 : 0.4))
-                                    .lineLimit(1)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            Spacer(minLength: 0)
+    private var people: [Person] {
+        let q = search.trimmingCharacters(in: .whitespaces).lowercased()
+        let matching = q.isEmpty ? model.team : model.team.filter {
+            $0.login.lowercased().contains(q) || $0.name.lowercased().contains(q)
+        }
+        return matching.sorted { a, b in
+            let fa = model.following.contains(a.login), fb = model.following.contains(b.login)
+            return fa == fb ? a.login < b.login : fa
         }
     }
 
-    private var loading: some View {
-        HStack { Spacer(); ProgressView().controlSize(.small).tint(.white); Spacer() }
-            .frame(maxHeight: .infinity)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pick your teammates")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text("Your squad, or whoever you want to prioritise reviewing for.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                Spacer()
+                if model.team.count > 18 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white.opacity(0.4))
+                        TextField("Search", text: $search)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.white)
+                            .frame(width: 96)
+                    }
+                    .padding(.horizontal, 9).padding(.vertical, 5)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+                }
+                Text("\(model.following.count) picked")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(model.following.isEmpty ? .white.opacity(0.4) : .orange)
+            }
+
+            if model.team.isEmpty {
+                Placeholder(text: "Loading your organisation…")
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 11) {
+                        ForEach(people.prefix(60)) { p in
+                            let picked = model.following.contains(p.login)
+                            Button { model.toggleFollow(p.login) } label: {
+                                VStack(spacing: 5) {
+                                    AvatarView(person: p, side: 34)
+                                        .overlay(
+                                            Circle().stroke(picked ? Color.orange : .clear, lineWidth: 2)
+                                        )
+                                        .opacity(picked ? 1 : 0.5)
+                                    Text(p.login)
+                                        .font(.system(size: 9.5))
+                                        .foregroundStyle(.white.opacity(picked ? 0.85 : 0.4))
+                                        .lineLimit(1)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .help(p.name)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+                .scrollIndicators(.visible)
+            }
+        }
+    }
+}
+
+struct Placeholder: View {
+    let text: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Spacer()
+            ProgressView().controlSize(.small).tint(.white)
+            Text(text).font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.45))
+            Spacer()
+        }
+        .frame(maxHeight: .infinity)
     }
 }
 
 struct AvatarView: View {
-    let pessoa: Person
+    let person: Person
     var side: CGFloat = 32
 
     var body: some View {
-        AsyncImage(url: pessoa.avatar) { fase in
+        AsyncImage(url: person.avatar) { fase in
             switch fase {
             case .success(let img): img.resizable().scaledToFill()
             default:
                 ZStack {
                     Color.white.opacity(0.1)
-                    Text(pessoa.initials)
+                    Text(person.initials)
                         .font(.system(size: side * 0.34, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.7))
                 }
@@ -71,39 +119,67 @@ struct AvatarView: View {
 
 struct RankTab: View {
     @ObservedObject var model: AppModel
+    @State private var progress: CGFloat = 0
+    @State private var celebrating = false
+
+    private var scope: String {
+        model.following.count >= 2 ? "you and who you follow" : "your organisation"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Reviews in the last 3 months")
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.45))
+            HStack(spacing: 8) {
+                Text("Reviews in the last 3 months")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+                Text("· \(scope)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.28))
+                Spacer()
+                if model.refreshingTab == .ranking && !model.ranking.isEmpty {
+                    Text("updating")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.3))
+                }
+            }
 
             if model.ranking.isEmpty {
-                HStack { Spacer(); ProgressView().controlSize(.small).tint(.white); Spacer() }
-                    .frame(maxHeight: .infinity)
+                Placeholder(text: "Counting reviews…")
             } else {
-                let maximo = max(1, model.ranking.first?.reviews ?? 1)
+                let top = max(1, model.ranking.first?.reviews ?? 1)
                 VStack(spacing: 6) {
-                    ForEach(Array(model.ranking.prefix(5).enumerated()), id: \.element.id) { i, l in
+                    ForEach(Array(model.ranking.prefix(5).enumerated()), id: \.element.id) { i, row in
+                        let isMe = row.person.login == model.queue.viewer
                         HStack(spacing: 9) {
                             Text("\(i + 1)")
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                                 .foregroundStyle(.white.opacity(0.35))
                                 .frame(width: 12, alignment: .trailing)
-                            AvatarView(pessoa: l.pessoa, side: 22)
-                            Text(l.pessoa.login)
-                                .font(.system(size: 11.5, weight: viewer(l) ? .semibold : .regular))
-                                .foregroundStyle(.white.opacity(viewer(l) ? 1 : 0.75))
+                            AvatarView(person: row.person, side: 22)
+                            Text(row.person.login)
+                                .font(.system(size: 11.5, weight: isMe ? .semibold : .regular))
+                                .foregroundStyle(.white.opacity(isMe ? 1 : 0.75))
                                 .frame(width: 104, alignment: .leading)
                                 .lineLimit(1)
                             GeometryReader { g in
-                                Capsule()
-                                    .fill(viewer(l) ? Color.orange : .white.opacity(0.22))
-                                    .frame(width: max(3, g.size.width * CGFloat(l.reviews) / CGFloat(maximo)))
-                                    .frame(maxHeight: .infinity, alignment: .center)
+                                let full = g.size.width * CGFloat(row.reviews) / CGFloat(top)
+                                let width = isMe ? full * progress : full
+                                ZStack(alignment: .leading) {
+                                    Capsule()
+                                        .fill(isMe ? Color.orange : .white.opacity(0.22))
+                                        .frame(width: max(3, width))
+                                    if isMe && celebrating {
+                                        Image(systemName: "flame.fill")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.orange)
+                                            .shadow(color: .orange.opacity(0.8), radius: 5)
+                                            .offset(x: max(0, width - 5))
+                                    }
+                                }
+                                .frame(maxHeight: .infinity, alignment: .center)
                             }
-                            .frame(height: 7)
-                            Text("\(l.reviews)")
+                            .frame(height: 9)
+                            Text("\(row.reviews)")
                                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.white.opacity(0.7))
                                 .frame(width: 38, alignment: .trailing)
@@ -113,9 +189,21 @@ struct RankTab: View {
             }
             Spacer(minLength: 0)
         }
+        .onAppear(perform: runOnce)
     }
 
-    private func viewer(_ l: RankRow) -> Bool { l.pessoa.login == model.queue.viewer }
+    private func runOnce() {
+        guard !model.ranking.isEmpty else { return }
+        guard model.shouldAnimateScore else { progress = 1; return }
+        model.markScoreShown()
+        progress = 0
+        celebrating = true
+        withAnimation(.easeOut(duration: 1.5)) { progress = 1 }
+        Task {
+            try? await Task.sleep(for: .milliseconds(1700))
+            withAnimation(.easeOut(duration: 0.35)) { celebrating = false }
+        }
+    }
 }
 
 struct ActivityTab: View {
@@ -138,8 +226,7 @@ struct ActivityTab: View {
             header
 
             if model.activity.isEmpty {
-                HStack { Spacer(); ProgressView().controlSize(.small).tint(.white); Spacer() }
-                    .frame(maxHeight: .infinity)
+                Placeholder(text: "Reading your review history…")
             } else {
                 GeometryReader { g in
 

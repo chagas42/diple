@@ -139,7 +139,7 @@ struct NotchView: View {
                     Windows.compartilhado.openMain(model)
                     onClose()
                 }
-                if model.loading || model.loadingTab {
+                if model.loading || model.refreshingTab != nil {
                     ProgressView().controlSize(.small).tint(.white).frame(width: 22)
                 } else {
                     iconButton("arrow.clockwise") { Task { await model.refresh() } }
@@ -173,7 +173,7 @@ struct NotchView: View {
             switch model.abaNotch {
             case .queue:
                 HStack(spacing: 12) { summaryCard; queueCard }
-            case .time:
+            case .team:
                 TeamTab(model: model)
             case .ranking:
                 RankTab(model: model)
@@ -185,7 +185,7 @@ struct NotchView: View {
         .padding(.top, 10)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .task(id: model.abaNotch) { await model.loadTab(model.abaNotch) }
+        .onChange(of: model.abaNotch, initial: true) { model.loadTab(model.abaNotch) }
     }
 
     private var summaryCard: some View {

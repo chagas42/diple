@@ -21,7 +21,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var ranking: [RankRow] = []
     @Published private(set) var activity: [ActivityDay] = []
     @Published private(set) var following: Set<String> = []
-    @Published private(set) var loadingTab = false
+    @Published private(set) var refreshingTab: NotchTab?
 
     @Published private(set) var findings: [String: [Finding]] = [:]
     @Published private(set) var reviewStep: ReviewStep?
@@ -41,12 +41,12 @@ final class AppModel: ObservableObject {
     }
 
     enum NotchTab: String, CaseIterable, Identifiable {
-        case queue, time, ranking, activity
+        case queue, team, ranking, activity
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .queue:  "tray.full"
-            case .time:  "person.2"
+            case .team: "person.2"
             case .ranking:  "trophy"
             case .activity: "square.grid.3x3"
             }
@@ -54,7 +54,7 @@ final class AppModel: ObservableObject {
         var title: String {
             switch self {
             case .queue:  "Queue"
-            case .time:  "Time"
+            case .team:  "Team"
             case .ranking:  "Rank"
             case .activity: "Ritmo"
             }
@@ -86,10 +86,11 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private let cliente = GitHubClient()
+    private let client = GitHubClient()
     private let store = Store()
     private let notificador = Notifier()
     private var timer: Timer?
+    private var refreshTask: Task<Void, Never>?
 
     private var started = false
 
@@ -100,6 +101,10 @@ final class AppModel: ObservableObject {
         notificador.onChange = { [weak self] in await self?.refresh() }
         unread = store.state.unread
         following = store.state.following
+        let cache = store.state.cache
+        team = cache.team
+        ranking = cache.ranking
+        activity = cache.activity
         settings = store.state.settings
         notificador.settings = settings
 
@@ -131,7 +136,7 @@ final class AppModel: ObservableObject {
         defer { loading = false }
 
         do {
-            let nova = try await cliente.fetchQueue()
+            let nova = try await client.fetchQueue()
             let events = store.diff(nova, meuLogin: nova.viewer)
                 .filter { e in
                     let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
@@ -163,33 +168,78 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
+        let cache = store.state.cache
+        team = cache.team
+        ranking = cache.ranking
+        activity = cache.activity
     }
 
-    func loadTab(_ tab: NotchTab) async {
-        guard !org.isEmpty, !loadingTab else { return }
-        switch tab {
-        case .queue: return
-        case .time where !team.isEmpty: return
-        case .ranking where !ranking.isEmpty: return
-        case .activity where !activity.isEmpty: return
-        default: break
-        }
+    func loadTab(_ tab: NotchTab) {
+        guard !org.isEmpty, refreshingTab == nil else { return }
 
-        loadingTab = true
-        defer { loadingTab = false }
+        guard tab != .queue else { return }
+        let cache = store.state.cache
+        let stale: Bool = switch tab {
+        case .queue:    false
+        case .team:     cache.isStale(cache.teamAt, after: 24 * 3600)
+        case .ranking:  cache.isStale(cache.rankingAt, after: 6 * 3600)
+        case .activity: cache.isStale(cache.activityAt, after: 3600)
+        }
+        guard stale else { return }
+
+        refreshingTab = tab
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.refreshingTab = nil }
+            await self.fetchTab(tab)
+        }
+    }
+
+    private func fetchTab(_ tab: NotchTab) async {
+        var cache = store.state.cache
         do {
-            if team.isEmpty { team = try await cliente.fetchTeam(org: org) }
+            if cache.team.isEmpty || cache.isStale(cache.teamAt, after: 24 * 3600) {
+                cache.team = try await client.fetchTeam(org: org)
+                cache.teamAt = Date()
+                team = cache.team
+            }
             switch tab {
             case .ranking:
-                let desde = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
-                ranking = try await cliente.fetchRanking(org: org, pessoas: team, desde: desde)
+                let from = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                cache.ranking = try await client.fetchRanking(
+                    org: org, people: rankingScope(cache.team), from: from
+                )
+                cache.rankingAt = Date()
+                ranking = cache.ranking
             case .activity:
-                activity = try await cliente.fetchActivity(org: org, login: queue.viewer)
+                cache.activity = try await client.fetchActivity(org: org, login: queue.viewer)
+                cache.activityAt = Date()
+                activity = cache.activity
             default: break
             }
+            store.saveCache(cache)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    var shouldAnimateScore: Bool {
+        guard let shown = store.state.cache.scoreShownOn else { return true }
+        return !Calendar.current.isDateInToday(shown)
+    }
+
+    func markScoreShown() {
+        var cache = store.state.cache
+        cache.scoreShownOn = Date()
+        store.saveCache(cache)
+    }
+
+    var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
+
+    private func rankingScope(_ all: [Person]) -> [Person] {
+        let picked = all.filter { following.contains($0.login) || $0.login == queue.viewer }
+        return picked.count >= 2 ? picked : Array(all.prefix(20))
     }
 
     func runAIReview(_ pr: PR) async {
@@ -209,7 +259,7 @@ final class AppModel: ObservableObject {
         var target: URL?
         do {
             note("fetching the diff base from GitHub")
-            let (base, _) = try await cliente.baseAndModules(repo: pr.repo, pr: pr.number)
+            let (base, _) = try await client.baseAndModules(repo: pr.repo, pr: pr.number)
 
             note("preparing the worktree")
             let w = try await Worktree.prepare(
@@ -264,7 +314,7 @@ final class AppModel: ObservableObject {
 
         var target: URL?
         do {
-            let (base, changed) = try await cliente.baseAndModules(repo: pr.repo, pr: pr.number)
+            let (base, changed) = try await client.baseAndModules(repo: pr.repo, pr: pr.number)
             let w = try await Worktree.prepare(
                 origin: origin, repo: pr.repo, pr: pr.number, base: base
             )
@@ -365,7 +415,7 @@ final class AppModel: ObservableObject {
         sending = true
         defer { sending = false }
         do {
-            try await cliente.reply(threadId: thread, body: t)
+            try await client.reply(threadId: thread, body: t)
             await refresh()
             return nil
         } catch {
@@ -377,7 +427,7 @@ final class AppModel: ObservableObject {
         sending = true
         defer { sending = false }
         do {
-            try await cliente.resolve(threadId: thread)
+            try await client.resolve(threadId: thread)
             await refresh()
             return nil
         } catch {

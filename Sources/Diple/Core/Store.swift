@@ -9,6 +9,7 @@ struct Snapshot: Codable, Sendable, Equatable {
 }
 
 struct StoredState: Codable, Sendable {
+    var version = 1
     var prs: [String: Snapshot] = [:]
     var unread: Set<String> = []
 
@@ -16,6 +17,22 @@ struct StoredState: Codable, Sendable {
 
     var following: Set<String> = []
     var settings = Settings()
+    var cache = Cache()
+}
+
+struct Cache: Codable, Sendable {
+    var team: [Person] = []
+    var ranking: [RankRow] = []
+    var activity: [ActivityDay] = []
+    var teamAt: Date?
+    var rankingAt: Date?
+    var activityAt: Date?
+    var scoreShownOn: Date?
+
+    func isStale(_ at: Date?, after seconds: TimeInterval) -> Bool {
+        guard let at else { return true }
+        return Date().timeIntervalSince(at) > seconds
+    }
 }
 
 @MainActor
@@ -33,9 +50,17 @@ final class Store {
     init() { load() }
 
     private func load() {
-        guard let d = try? Data(contentsOf: path),
-              let e = try? JSONDecoder().decode(StoredState.self, from: d) else { return }
-        state = e
+        guard let bytes = try? Data(contentsOf: path) else { return }
+        if let decoded = try? JSONDecoder().decode(StoredState.self, from: bytes) {
+            state = decoded
+            return
+        }
+        let backup = path.deletingLastPathComponent()
+            .appendingPathComponent("state-unreadable-\(Int(Date().timeIntervalSince1970)).json")
+        try? FileManager.default.moveItem(at: path, to: backup)
+        FileHandle.standardError.write(Data(
+            "diple: could not read \(path.lastPathComponent), kept a copy at \(backup.lastPathComponent)\n".utf8
+        ))
     }
 
     private func save() {
@@ -46,6 +71,11 @@ final class Store {
 
     func markRead(_ key: String) {
         state.unread.remove(key)
+        save()
+    }
+
+    func saveCache(_ c: Cache) {
+        state.cache = c
         save()
     }
 
