@@ -31,16 +31,14 @@ struct NotchView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                UnevenRoundedRectangle(
-                    bottomLeadingRadius: raio,
-                    bottomTrailingRadius: raio,
-                    style: .continuous
-                )
-                .fill(.black)
-
+                forma.fill(.black)
                 conteudo
             }
             .frame(width: tamanho.width, height: tamanho.height)
+            // Recorta o conteúdo na forma que está animando. Sem isto o texto
+            // é disposto no tamanho final e vaza por cima do wallpaper antes
+            // de a forma alcançá-lo.
+            .clipShape(forma)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -49,10 +47,29 @@ struct NotchView: View {
         .animation(.bouncy(duration: 0.4), value: modelo.contador)
     }
 
+    private var forma: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: raioTopo,
+            bottomLeadingRadius: raio,
+            bottomTrailingRadius: raio,
+            topTrailingRadius: raioTopo,
+            style: .continuous
+        )
+    }
+
     private var raio: CGFloat {
         switch estado {
         case .oculto, .atividade: 10
         case .aberto, .alerta: 22
+        }
+    }
+
+    /// Fechado os cantos de cima são retos, pra casar com o recorte. Aberto
+    /// eles curvam, e o painel lê como objeto solto em vez de bloco colado.
+    private var raioTopo: CGFloat {
+        switch estado {
+        case .oculto, .atividade: 0
+        case .aberto, .alerta: 14
         }
     }
 
@@ -105,15 +122,17 @@ struct NotchView: View {
                 ForEach(Modelo.AbaNotch.allCases) { aba in
                     Button { modelo.abaNotch = aba } label: {
                         Image(systemName: aba.icone)
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundStyle(.white.opacity(modelo.abaNotch == aba ? 0.95 : 0.4))
-                            .frame(width: 24, height: 22)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(modelo.abaNotch == aba ? 0.95 : 0.42))
+                            .frame(width: 30, height: 26)
                             .background(
                                 Capsule().fill(
                                     modelo.abaNotch == aba
-                                        ? Color.white.opacity(0.14) : .clear
+                                        ? Color.white.opacity(0.15) : .white.opacity(0.001)
                                 )
                             )
+                            // A área de toque é o retângulo inteiro, não o glifo.
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help(aba.titulo)
@@ -148,10 +167,11 @@ struct NotchView: View {
     private func botaoIcone(_ nome: String, _ acao: @escaping () -> Void) -> some View {
         Button(action: acao) {
             Image(systemName: nome)
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.75))
-                .frame(width: 22, height: 22)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.78))
+                .frame(width: 26, height: 26)
                 .background(Color.white.opacity(0.1), in: Circle())
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

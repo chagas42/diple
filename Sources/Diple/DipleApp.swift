@@ -7,12 +7,28 @@ import AppKit
 final class Delegate: NSObject, NSApplicationDelegate, ObservableObject {
     let notch = Notch()
 
+    /// Com recorte, o app já aparece dentro dele — dois ícones dizendo a mesma
+    /// coisa na mesma faixa é ruído.
+    @Published var naBarraDeMenu = true
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let modelo = Modelo.compartilhado
         modelo.aoEvento = { [weak self] evento in self?.notch.alertar(evento) }
         modelo.aoContadorMudar = { [weak self] in self?.notch.revisarRepouso() }
         notch.montar(modelo: modelo)
         modelo.iniciar()
+        conferirTela()
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.conferirTela() }
+        }
+    }
+
+    private func conferirTela() {
+        naBarraDeMenu = !Geometria.atual().temNotch
     }
 }
 
@@ -21,7 +37,10 @@ struct DipleApp: App {
     @ObservedObject private var modelo = Modelo.compartilhado
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: Binding(
+            get: { delegate.naBarraDeMenu },
+            set: { _ in }
+        )) {
             PopoverView(modelo: modelo)
         } label: {
             // O diple ⟩ com o contador: a marca de margem que dá nome ao app.
