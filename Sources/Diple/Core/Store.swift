@@ -163,10 +163,10 @@ final class Store {
         save()
     }
 
-    func diff(_ queue: Queue, meuLogin: String) -> [Event] {
+    func diff(_ queue: Queue, viewerLogin: String) -> [Event] {
         var events: [Event] = []
         var next: [String: Snapshot] = [:]
-        let estreia = !state.hasRunBefore
+        let firstRun = !state.hasRunBefore
 
         let reviewRequested = Set(queue.toReview.map(\.key))
 
@@ -180,7 +180,7 @@ final class Store {
             )
             next[pr.key] = now
 
-            guard !estreia else { continue }
+            guard !firstRun else { continue }
             let before = state.prs[pr.key]
 
             if now.reviewRequested, before?.reviewRequested != true {
@@ -205,7 +205,7 @@ final class Store {
             if let c = pr.lastComment,
                before?.lastCommentAt != c.at,
                before != nil {
-                let mentionsYou = c.excerpt.localizedCaseInsensitiveContains("@\(meuLogin)")
+                let mentionsYou = c.excerpt.localizedCaseInsensitiveContains("@\(viewerLogin)")
                 events.append(Event(
                     id: "\(pr.key)/message/\(c.at.timeIntervalSince1970)",
                     kind: mentionsYou ? .repliedToYou : .commented,

@@ -11,7 +11,7 @@ struct MainWindowView: View {
 
     var body: some View {
         NavigationSplitView {
-            barraLateral
+            sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 280)
         } content: {
             list
@@ -36,7 +36,7 @@ struct MainWindowView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(model.loading)
-                .help("Sincronizar now")
+                .help("Sync now")
             }
         }
     }
@@ -61,7 +61,7 @@ struct MainWindowView: View {
         )
     }
 
-    private var barraLateral: some View {
+    private var sidebar: some View {
         List(selection: sidebarSelection) {
             Section("Queue") {
                 ForEach(AppModel.Tab.allCases) { tab in
@@ -208,7 +208,7 @@ struct MainWindowView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "square.3.layers.3d.down.right")
                                 .font(.system(size: 10))
-                            Text("PRStack de \(stack.prs.count)")
+                            Text("Stack of \(stack.prs.count)")
                                 .font(.system(size: 10.5, weight: .semibold))
                             Text(stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
                                 .font(.system(size: 10.5, design: .monospaced))
@@ -326,8 +326,8 @@ struct PRAvatar: View {
     var side: CGFloat = 24
 
     var body: some View {
-        AsyncImage(url: url) { fase in
-            switch fase {
+        AsyncImage(url: url) { phase in
+            switch phase {
             case .success(let img): img.resizable().scaledToFill()
             default:
                 ZStack {

@@ -41,7 +41,7 @@ final class AppModel: ObservableObject {
         didSet {
             guard settings != oldValue else { return }
             store.saveSettings(settings)
-            notificador.settings = settings
+            notifier.settings = settings
             if settings.interval != oldValue.interval { restartTimer() }
         }
     }
@@ -62,7 +62,7 @@ final class AppModel: ObservableObject {
             case .queue:  "Queue"
             case .team:  "Team"
             case .ranking:  "Rank"
-            case .activity: "Ritmo"
+            case .activity: "Rhythm"
             }
         }
     }
@@ -207,7 +207,7 @@ final class AppModel: ObservableObject {
 
     private let client = GitHubClient()
     private let store = Store()
-    private let notificador = Notifier()
+    private let notifier = Notifier()
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
 
@@ -216,8 +216,8 @@ final class AppModel: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
-        notificador.install()
-        notificador.onChange = { [weak self] in await self?.refresh() }
+        notifier.install()
+        notifier.onChange = { [weak self] in await self?.refresh() }
         defer { loadRepos() }
         unread = store.state.unread
         following = store.state.following
@@ -228,11 +228,11 @@ final class AppModel: ObservableObject {
         ranking = cache.rank(rankPeriod)
         activity = cache.activity
         settings = store.state.settings
-        notificador.settings = settings
+        notifier.settings = settings
 
         Task {
-            hasPermission = await notificador.isAuthorized()
-            if !hasPermission { hasPermission = await notificador.requestPermission() }
+            hasPermission = await notifier.isAuthorized()
+            if !hasPermission { hasPermission = await notifier.requestPermission() }
             await refresh()
         }
 
@@ -269,20 +269,20 @@ final class AppModel: ObservableObject {
         defer { loading = false }
 
         do {
-            let nova = try await client.fetchQueue()
-            let events = store.diff(nova, meuLogin: nova.viewer)
+            let latest = try await client.fetchQueue()
+            let events = store.diff(latest, viewerLogin: latest.viewer)
                 .filter { e in
                     let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
                     return !settings.mutedRepos.contains(repo)
                 }
-            queue = nova
+            queue = latest
             if let s = selected {
-                selected = nova.all.first { $0.key == s.key } ?? s
+                selected = latest.all.first { $0.key == s.key } ?? s
             }
             unread = store.state.unread
             lastSync = Date()
             errorMessage = nil
-            await notificador.post(events)
+            await notifier.post(events)
             onCountChange?()
             if let first = events.first(where: { $0.kind.interrupts }) {
                 onEvent?(first)
@@ -293,8 +293,8 @@ final class AppModel: ObservableObject {
     }
 
     var org: String {
-        let donos = queue.all.compactMap { $0.repo.split(separator: "/").first.map(String.init) }
-        let count = Dictionary(grouping: donos, by: { $0 }).mapValues(\.count)
+        let owners = queue.all.compactMap { $0.repo.split(separator: "/").first.map(String.init) }
+        let count = Dictionary(grouping: owners, by: { $0 }).mapValues(\.count)
         return count.max { $0.value < $1.value }?.key ?? ""
     }
 
@@ -385,7 +385,7 @@ final class AppModel: ObservableObject {
 
         guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
             reviewStep = .failed("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
-            note("repository not found", fechando: true)
+            note("repository not found", closing: true)
             return
         }
 
@@ -415,26 +415,26 @@ final class AppModel: ObservableObject {
                     reviewContexts[pr.key] = context
                     reviewResults[pr.key] = r
                     let judged = r.threads.isEmpty ? "" : " · \(r.threads.count) thread\(r.threads.count == 1 ? "" : "s") judged"
-                    note("\(r.novel.count) finding\(r.novel.count == 1 ? "" : "s")\(judged)", fechando: true)
-                case .failed(let m): note(m, fechando: true)
+                    note("\(r.novel.count) finding\(r.novel.count == 1 ? "" : "s")\(judged)", closing: true)
+                case .failed(let m): note(m, closing: true)
                 }
             }
         } catch {
             reviewStep = .failed(error.localizedDescription)
-            note(error.localizedDescription, fechando: true)
+            note(error.localizedDescription, closing: true)
         }
 
         _ = target
     }
 
-    private func note(_ text: String, fechando: Bool = false) {
+    private func note(_ text: String, closing: Bool = false) {
         if var last = reviewProgress.last, last.text == text {
             last.repeats += 1
             reviewProgress[reviewProgress.count - 1] = last
             return
         }
         if !reviewProgress.isEmpty { reviewProgress[reviewProgress.count - 1].done = true }
-        reviewProgress.append(ProgressLine(text: text, done: fechando))
+        reviewProgress.append(ProgressLine(text: text, done: closing))
         if reviewProgress.count > 14 { reviewProgress.removeFirst() }
     }
 
@@ -564,15 +564,15 @@ final class AppModel: ObservableObject {
     func sendTestEvent(_ kind: EventKind) async {
         let pr = queue.all.first
         let event = Event(
-            id: "teste/\(kind.rawValue)/\(Date().timeIntervalSince1970)",
+            id: "test/\(kind.rawValue)/\(Date().timeIntervalSince1970)",
             kind: kind,
-            key: pr?.key ?? "exemplo#1",
+            key: pr?.key ?? "example#1",
             url: pr?.url ?? URL(string: "https://github.com")!,
             title: testText(kind).0,
             body: pr.map { "\($0.key) · \($0.title)" } ?? testText(kind).1
         )
         onEvent?(event)
-        await notificador.post([event], force: true)
+        await notifier.post([event], force: true)
     }
 
     var isQuietNow: Bool {
@@ -585,7 +585,7 @@ final class AppModel: ObservableObject {
         case .repliedToYou: ("Marina replied to you", "resend.ts:214 · what if the ticket already expired?")
         case .commented:      ("Ana commented on your PR", "send.ts:58 · this swallows the 429 silently")
         case .reviewRequested:   ("Rafael requested your review", "4 files · +94 −12")
-        case .checkFailed:     ("A check failed on your PR", "checks / test · 1 de 5 failing")
+        case .checkFailed:     ("A check failed on your PR", "ci / test · 1 of 5 failing")
         case .approved:       ("Your PR was approved", "ready to merge")
         }
     }
@@ -675,7 +675,7 @@ final class AppModel: ObservableObject {
     }
 
     var rest: [PR] {
-        let urgentes = Set(needsYou.map(\.key))
-        return queue.mine.filter { !urgentes.contains($0.key) }
+        let urgent = Set(needsYou.map(\.key))
+        return queue.mine.filter { !urgent.contains($0.key) }
     }
 }

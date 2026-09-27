@@ -6,7 +6,7 @@ struct DiffHunkView: View {
     private struct Row: Identifiable {
         let id = UUID()
         let number: Int?
-        let sinal: Character
+        let sign: Character
         let text: String
     }
 
@@ -18,16 +18,16 @@ struct DiffHunkView: View {
                         .frame(width: 46, alignment: .trailing)
                         .padding(.trailing, 12)
                         .foregroundStyle(.tertiary)
-                    Text(String(l.sinal))
+                    Text(String(l.sign))
                         .frame(width: 12, alignment: .leading)
-                        .foregroundStyle(color(l.sinal))
+                        .foregroundStyle(color(l.sign))
                     Text(l.text)
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .font(.system(size: 11.5, design: .monospaced))
                 .padding(.vertical, 1.5)
-                .background(fundo(l.sinal))
+                .background(rowFill(l.sign))
             }
         }
         .padding(.vertical, 6)
@@ -36,22 +36,22 @@ struct DiffHunkView: View {
     private var rows: [Row] {
         var out: [Row] = []
         var n: Int? = nil
-        for bruta in hunk.split(separator: "\n", omittingEmptySubsequences: false) {
-            let s = String(bruta)
+        for raw in hunk.split(separator: "\n", omittingEmptySubsequences: false) {
+            let s = String(raw)
             if s.hasPrefix("@@") {
                 if let additions = s.split(separator: "+").dropFirst().first,
                    let num = Int(additions.prefix(while: \.isNumber)) {
                     n = num
                 }
-                out.append(Row(number: nil, sinal: " ", text: s))
+                out.append(Row(number: nil, sign: " ", text: s))
                 continue
             }
-            let sinal = s.first ?? " "
+            let sign = s.first ?? " "
             let text = String(s.dropFirst())
-            if sinal == "-" {
-                out.append(Row(number: nil, sinal: sinal, text: text))
+            if sign == "-" {
+                out.append(Row(number: nil, sign: sign, text: text))
             } else {
-                out.append(Row(number: n, sinal: sinal, text: text))
+                out.append(Row(number: n, sign: sign, text: text))
                 if let current = n { n = current + 1 }
             }
         }
@@ -62,7 +62,7 @@ struct DiffHunkView: View {
         switch s { case "+": .green; case "-": .red; default: .secondary.opacity(0.55) }
     }
 
-    private func fundo(_ s: Character) -> Color {
+    private func rowFill(_ s: Character) -> Color {
         switch s {
         case "+": .green.opacity(0.10)
         case "-": .red.opacity(0.09)

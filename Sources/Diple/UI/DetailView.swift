@@ -17,7 +17,7 @@ struct DetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 Divider()
-                estatisticas
+                stats
 
                 Picker("", selection: $section) {
                     ForEach(Section.allCases) { Text($0.rawValue).tag($0) }
@@ -28,14 +28,14 @@ struct DetailView: View {
                 switch section {
                 case .conversation:
                     if pr.threads.isEmpty {
-                        semThreads
+                        noThreads
                     } else {
                         ForEach(pr.threads) { t in
                             ThreadView(model: model, thread: t)
                         }
                     }
                 case .map:
-                    MapaView(model: model, pr: pr)
+                    PRMapView(model: model, pr: pr)
                 case .ai:
                     AIReviewView(model: model, pr: pr)
                 }
@@ -59,7 +59,7 @@ struct DetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                selo
+                badge
                 Text("\(pr.repo) #\(pr.number)")
                     .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -74,7 +74,7 @@ struct DetailView: View {
         }
     }
 
-    @ViewBuilder private var selo: some View {
+    @ViewBuilder private var badge: some View {
         let (text, color): (String, Color) =
             if pr.checks == .failing { ("Check failing", .red) }
             else if pr.approved { ("Approved", .green) }
@@ -88,7 +88,7 @@ struct DetailView: View {
             .foregroundStyle(color)
     }
 
-    private var estatisticas: some View {
+    private var stats: some View {
         HStack(spacing: 8) {
             label(pr.checks == .failing ? "checks failing" : pr.checks == .passing ? "checks passing" : "checks running")
             Text("·").foregroundStyle(.tertiary)
@@ -100,7 +100,7 @@ struct DetailView: View {
 
     private func label(_ t: String) -> some View { Text(t) }
 
-    private var semThreads: some View {
+    private var noThreads: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle").foregroundStyle(.green)
             Text("No open human threads on this PR.")
@@ -148,30 +148,30 @@ struct ThreadView: View {
                 Divider()
             }
 
-            ForEach(thread.comments) { fala in
+            ForEach(thread.comments) { comment in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 7) {
-                        Text(fala.author)
+                        Text(comment.author)
                             .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundStyle(fala.isBot ? .secondary : .primary)
-                        if fala.isBot {
+                            .foregroundStyle(comment.isBot ? .secondary : .primary)
+                        if comment.isBot {
                             Text("bot")
                                 .font(.system(size: 9.5, weight: .bold))
                                 .padding(.horizontal, 5).padding(.vertical, 1)
                                 .background(.quaternary, in: Capsule())
                         }
-                        Text(fala.at.formatted(.relative(presentation: .numeric)))
+                        Text(comment.at.formatted(.relative(presentation: .numeric)))
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                     }
-                    Text(fala.text)
+                    Text(comment.text)
                         .font(.system(size: 13))
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .opacity(fala.isBot ? 0.55 : 1)
+                .opacity(comment.isBot ? 0.55 : 1)
                 Divider()
             }
 

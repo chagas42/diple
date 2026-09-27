@@ -92,11 +92,11 @@ extension GitHubClient {
             } }
         } }
         """)
-        let nos = ((json["data"] as? [String: Any])?["search"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
+        let nodes = ((json["data"] as? [String: Any])?["search"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
 
         let iso = ISO8601DateFormatter()
         var perDay: [String: Int] = [:]
-        for pr in nos {
+        for pr in nodes {
             let rs = (pr["reviews"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
             for r in rs {
                 guard let s = r["submittedAt"] as? String, iso.date(from: s) != nil else { continue }
@@ -105,13 +105,13 @@ extension GitHubClient {
         }
 
         let cal = Calendar.current
-        let hoje = cal.startOfDay(for: Date())
+        let today = cal.startOfDay(for: Date())
         let day = DateFormatter()
         day.dateFormat = "yyyy-MM-dd"
         day.timeZone = .current
 
-        return (0..<days).reversed().compactMap { atras in
-            guard let d = cal.date(byAdding: .day, value: -atras, to: hoje) else { return nil }
+        return (0..<days).reversed().compactMap { daysAgo in
+            guard let d = cal.date(byAdding: .day, value: -daysAgo, to: today) else { return nil }
             return ActivityDay(date: d, reviews: perDay[day.string(from: d)] ?? 0)
         }
     }
@@ -126,13 +126,13 @@ extension GitHubClient {
         req.httpBody = try JSONEncoder().encode(["query": query])
         req.timeoutInterval = 20
 
-        let (date, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ClientError.http(http.statusCode)
         }
-        let obj = try JSONSerialization.jsonObject(with: date) as? [String: Any] ?? [:]
-        if let erros = obj["errors"] as? [[String: Any]], !erros.isEmpty {
-            throw ClientError.graphql(erros.compactMap { $0["message"] as? String })
+        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        if let errors = obj["errors"] as? [[String: Any]], !errors.isEmpty {
+            throw ClientError.graphql(errors.compactMap { $0["message"] as? String })
         }
         return obj
     }

@@ -7,7 +7,7 @@ enum ClientError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .http(let c):      "GitHub respondeu HTTP \(c)"
+        case .http(let c):      "GitHub answered HTTP \(c)"
         case .graphql(let m):   m.joined(separator: " · ")
         case .empty:            "GitHub answered with no data"
         }
@@ -52,7 +52,7 @@ struct GitHubClient: Sendable {
         req.httpBody = try JSONEncoder().encode(["query": Query.queue])
         req.timeoutInterval = 20
 
-        let (date, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ClientError.http(http.statusCode)
@@ -60,19 +60,19 @@ struct GitHubClient: Sendable {
 
         let dec = JSONDecoder()
         dec.dateDecodingStrategy = .iso8601
-        let body = try dec.decode(RawResponse.self, from: date)
+        let body = try dec.decode(RawResponse.self, from: data)
 
-        if let erros = body.errors, !erros.isEmpty {
-            throw ClientError.graphql(erros.map(\.message))
+        if let errors = body.errors, !errors.isEmpty {
+            throw ClientError.graphql(errors.map(\.message))
         }
         guard let d = body.data else { throw ClientError.empty }
 
         let viewer = d.viewer.login
         return Queue(
             viewer: viewer,
-            mine: d.mine.nodes.compactMap { PR($0, meuLogin: viewer) },
-            toReview: d.toReview.nodes.compactMap { PR($0, meuLogin: viewer) },
-            following: d.following.nodes.compactMap { PR($0, meuLogin: viewer) },
+            mine: d.mine.nodes.compactMap { PR($0, viewerLogin: viewer) },
+            toReview: d.toReview.nodes.compactMap { PR($0, viewerLogin: viewer) },
+            following: d.following.nodes.compactMap { PR($0, viewerLogin: viewer) },
             rateLimitLeft: d.rateLimit?.remaining ?? 0
         )
     }
@@ -116,15 +116,15 @@ extension GitHubClient {
         )
         req.timeoutInterval = 20
 
-        let (date, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ClientError.http(http.statusCode)
         }
 
-        if let obj = try? JSONSerialization.jsonObject(with: date) as? [String: Any],
-           let erros = obj["errors"] as? [[String: Any]], !erros.isEmpty {
-            throw ClientError.graphql(erros.compactMap { $0["message"] as? String })
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let errors = obj["errors"] as? [[String: Any]], !errors.isEmpty {
+            throw ClientError.graphql(errors.compactMap { $0["message"] as? String })
         }
-        return date
+        return data
     }
 }
