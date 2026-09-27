@@ -97,9 +97,14 @@ It does not choose not to publish. It cannot.
 
 ### A map before you start reading
 
-What the PR changes comes from the diff. What it does not change but will feel
-comes from reference search. Only the expensive question — *what would someone
-need to know to judge this, that is not here* — goes to the model.
+What the PR changes comes from the diff and is on screen at once. What it does
+not change but will feel, and what you need to know to judge it that is not in
+the diff at all, come from your Claude while a timer shows how long a PR this
+size should take and why.
+
+It draws as a canvas: drag the boxes, pinch to zoom, open it in its own window.
+A stack is one map, each box tagged with the PRs that touched it. Click a box
+and the file opens in your editor at the PR head; ⌥-click opens it on GitHub.
 
 <!-- the PR map, connected boxes
 
@@ -173,6 +178,7 @@ that assembles and signs the bundle, so everything is plain text.
 | Storage | A versioned JSON file in Application Support |
 | Auth | The token `gh` already holds |
 | AI | Your `claude` binary, `--output-format stream-json` |
+| PR map | A skill in `Resources/plugin`, injected with `--plugin-dir`; yours at `~/.claude/skills/diple-map` wins |
 | Dependencies | None |
 
 `NOTES.md` carries the API traps this cost real time to find — `reviewThreads`

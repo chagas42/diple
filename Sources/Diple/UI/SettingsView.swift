@@ -264,7 +264,15 @@ struct ClaudePane: View {
                                    : "claude is not on PATH")
                     Spacer()
                 }
-                Picker("AppModel", selection: $model.settings.aiModel) {
+                Picker("Review model", selection: $model.settings.aiModel) {
+                    Text("Opus").tag("opus")
+                    Text("Sonnet").tag("sonnet")
+                    Text("Haiku").tag("haiku")
+                }
+                Picker("Map model", selection: Binding(
+                    get: { model.settings.mapAIModel },
+                    set: { model.settings.mapModel = $0 }
+                )) {
                     Text("Opus").tag("opus")
                     Text("Sonnet").tag("sonnet")
                     Text("Haiku").tag("haiku")
@@ -283,7 +291,7 @@ struct ClaudePane: View {
                         Text("ALLOWED")
                             .font(.system(size: 9.5, weight: .bold))
                             .foregroundStyle(.green)
-                        Text("Read · Grep · Glob\nBash(git diff/log/show/status)")
+                        Text("Read · Grep · Glob · Skill\nBash(git diff/log/show/status)")
                             .font(.system(size: 10.5, design: .monospaced))
                     }
                     VStack(alignment: .leading, spacing: 4) {
@@ -300,6 +308,24 @@ struct ClaudePane: View {
             } footer: {
                 Text("Cannot be turned off: the session starts without write tools, "
                      + "so the AI has no way to publish anything.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Picker("Open files in", selection: Binding(
+                    get: { model.settings.openIn },
+                    set: { model.settings.editor = $0.rawValue }
+                )) {
+                    ForEach(Editor.allCases) { Text($0.label).tag($0) }
+                }
+                LabeledContent("Map skill", value: MapSkill.resolve().source)
+            } header: {
+                Text("PR map")
+            } footer: {
+                Text("A click opens the file at the PR head while its worktree is still around, "
+                     + "then in your clone, then on GitHub. ⌥-click always opens GitHub. "
+                     + "To change how the map is drawn, put your own skill at ~/.claude/skills/diple-map.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }

@@ -17,6 +17,12 @@ struct Settings: Codable, Sendable, Equatable {
 
     var repoPaths: [String: String] = [:]
 
+    var editor: String? = nil
+    var mapModel: String? = nil
+
+    var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
+    var mapAIModel: String { mapModel ?? "sonnet" }
+
     static let reviewLanguages = ["Brazilian Portuguese", "English", "Spanish"]
 
     static let availableSounds = [
