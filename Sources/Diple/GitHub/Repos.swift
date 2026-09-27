@@ -101,6 +101,6 @@ extension GitHubClient {
         if let e = body.errors, !e.isEmpty { throw ClientError.graphql(e.map(\.message)) }
         guard let d = body.data else { throw ClientError.empty }
         let viewer = d.viewer.login
-        return (d.repository?.pullRequests.nodes ?? []).compactMap { PR($0, meuLogin: viewer) }
+        return (d.repository?.pullRequests.nodes ?? []).compactMap { PR($0, viewerLogin: viewer) }
     }
 }

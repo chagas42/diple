@@ -1,12 +1,12 @@
 import SwiftUI
 
-struct LinhaPR: View {
+struct PopoverRow: View {
     let pr: PR
     let unread: Bool
-    let acao: () -> Void
+    let action: () -> Void
 
     var body: some View {
-        Button(action: acao) {
+        Button(action: action) {
             HStack(alignment: .top, spacing: 9) {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(color)
@@ -58,7 +58,7 @@ struct LinhaPR: View {
     }
 }
 
-struct Secao: View {
+struct QueueSection: View {
     let title: String
     let prs: [PR]
     let unread: Set<String>
@@ -72,7 +72,7 @@ struct Secao: View {
                     .foregroundStyle(.tertiary)
                     .padding(.top, 4)
                 ForEach(prs) { pr in
-                    LinhaPR(pr: pr, unread: unread.contains(pr.key)) { open(pr) }
+                    PopoverRow(pr: pr, unread: unread.contains(pr.key)) { open(pr) }
                 }
             }
         }
@@ -97,13 +97,13 @@ struct PopoverView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    Secao(title: "Needs you", prs: model.needsYou,
+                    QueueSection(title: "Needs you", prs: model.needsYou,
                           unread: model.unread, open: model.open)
-                    Secao(title: "Your PRs", prs: Array(model.rest.prefix(8)),
+                    QueueSection(title: "Your PRs", prs: Array(model.rest.prefix(8)),
                           unread: model.unread, open: model.open)
 
                     if model.queue.all.isEmpty && !model.loading {
-                        Text("Nada na queue.")
+                        Text("Nothing in the queue.")
                             .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 8)
@@ -126,7 +126,7 @@ struct PopoverView: View {
                 .foregroundStyle(model.count > 0 ? .orange : .secondary)
             Text("\(model.count)")
                 .font(.system(size: 26, weight: .semibold))
-            Text(model.count == 1 ? "waiting on you" : "waiting on you")
+            Text("waiting on you")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             Spacer()
@@ -137,7 +137,7 @@ struct PopoverView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Sincronizar now")
+                .help("Sync now")
             }
         }
     }

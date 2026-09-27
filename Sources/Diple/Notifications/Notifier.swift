@@ -13,26 +13,26 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
 
     private enum Cat {
         static let thread = "THREAD"
-        static let simples = "SIMPLES"
+        static let plain = "PLAIN"
     }
-    private enum Acao {
-        static let reply = "RESPONDER"
-        static let resolve  = "RESOLVER"
+    private enum ActionID {
+        static let reply = "REPLY"
+        static let resolve  = "RESOLVE"
     }
 
     func install() {
         center.delegate = self
 
         let reply = UNTextInputNotificationAction(
-            identifier: Acao.reply,
-            title: "Responder",
+            identifier: ActionID.reply,
+            title: "Reply",
             options: [],
-            textInputButtonTitle: "Enviar",
+            textInputButtonTitle: "Send",
             textInputPlaceholder: "Write your reply…"
         )
         let resolve = UNNotificationAction(
-            identifier: Acao.resolve,
-            title: "Resolver thread",
+            identifier: ActionID.resolve,
+            title: "Resolve thread",
             options: []
         )
 
@@ -44,7 +44,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
                 options: []
             ),
             UNNotificationCategory(
-                identifier: Cat.simples,
+                identifier: Cat.plain,
                 actions: [],
                 intentIdentifiers: [],
                 options: []
@@ -76,7 +76,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
             }
 
             c.threadIdentifier = e.key
-            c.categoryIdentifier = e.threadId == nil ? Cat.simples : Cat.thread
+            c.categoryIdentifier = e.threadId == nil ? Cat.plain : Cat.thread
             c.userInfo = [
                 "url": e.url.absoluteString,
                 "threadId": e.threadId ?? "",
@@ -112,7 +112,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
         let thread = (info["threadId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
 
         switch response.actionIdentifier {
-        case Acao.reply:
+        case ActionID.reply:
             guard let text = (response as? UNTextInputNotificationResponse)?.userText
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                   !text.isEmpty, let thread else { return }
@@ -123,7 +123,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
                 await reportFailure("Your comment", error)
             }
 
-        case Acao.resolve:
+        case ActionID.resolve:
             guard let thread else { return }
             do {
                 try await client.resolve(threadId: thread)

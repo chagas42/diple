@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct MapaView: View {
+struct PRMapView: View {
     @ObservedObject var model: AppModel
     let pr: PR
 

@@ -175,7 +175,7 @@ struct PR: Identifiable, Sendable, Equatable {
 
     var key: String { "\(repo)#\(number)" }
 
-    init?(_ c: RawPR?, meuLogin: String) {
+    init?(_ c: RawPR?, viewerLogin: String) {
         guard let c else { return nil }
         id = c.id
         repo = c.repository.nameWithOwner
@@ -186,23 +186,23 @@ struct PR: Identifiable, Sendable, Equatable {
         draft = c.isDraft
         author = c.author?.login ?? "?"
         authorAvatar = c.author?.avatarUrl
-        isMine = c.author?.login == meuLogin
+        isMine = c.author?.login == viewerLogin
         headRef = c.headRefName
         baseRef = c.baseRefName
         checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         approved = c.reviewDecision == "APPROVED"
 
-        func humano(_ com: RawPR.RawComment) -> Bool {
+        func isHuman(_ com: RawPR.RawComment) -> Bool {
             guard let a = com.author else { return false }
-            return !a.isBot && a.login != meuLogin
+            return !a.isBot && a.login != viewerLogin
         }
         func clear(_ t: String) -> String {
             String(t.prefix(180)).replacingOccurrences(of: "\n", with: " ")
         }
 
-        var candidatos: [HumanComment] = c.comments.nodes
+        var candidates: [HumanComment] = c.comments.nodes
             .compactMap { $0 }
-            .filter(humano)
+            .filter(isHuman)
             .map { .init(author: $0.author?.login ?? "?", at: $0.createdAt,
                          excerpt: clear($0.bodyText), location: nil, threadId: nil) }
 
@@ -211,19 +211,19 @@ struct PR: Identifiable, Sendable, Equatable {
                 let path = p.split(separator: "/").last.map(String.init) ?? p
                 return t.line.map { "\(path):\($0)" } ?? path
             }
-            candidatos += t.comments.nodes
+            candidates += t.comments.nodes
                 .compactMap { $0 }
-                .filter(humano)
+                .filter(isHuman)
                 .map { .init(author: $0.author?.login ?? "?", at: $0.createdAt,
                              excerpt: clear($0.bodyText), location: location, threadId: t.id) }
         }
 
-        lastComment = candidatos.max { $0.at < $1.at }
+        lastComment = candidates.max { $0.at < $1.at }
 
         threads = c.reviewThreads.nodes.compactMap { $0 }
             .filter { !$0.isResolved }
             .compactMap { t in
-                let falas = t.comments.nodes.compactMap { $0 }.map { com in
+                let entries = t.comments.nodes.compactMap { $0 }.map { com in
                     ThreadComment(
                         id: "\(t.id)/\(com.createdAt.timeIntervalSince1970)",
                         author: com.author?.login ?? "?",
@@ -232,13 +232,13 @@ struct PR: Identifiable, Sendable, Equatable {
                         isBot: com.author?.isBot ?? false
                     )
                 }
-                guard falas.contains(where: { !$0.isBot }) else { return nil }
+                guard entries.contains(where: { !$0.isBot }) else { return nil }
                 return ReviewThread(
                     id: t.id,
                     path: t.path ?? "?",
                     line: t.line,
                     diffHunk: t.comments.nodes.compactMap { $0?.diffHunk }.first,
-                    comments: falas
+                    comments: entries
                 )
             }
     }

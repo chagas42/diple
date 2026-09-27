@@ -54,7 +54,7 @@ struct NotchView: View {
             .clipShape(shape)
             .contextMenu {
                 Button("Settings…") { Windows.shared.openSettings(model) }
-                Button("Janela main") { Windows.shared.openMain(model) }
+                Button("Main window") { Windows.shared.openMain(model) }
                 Divider()
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
@@ -184,8 +184,8 @@ struct NotchView: View {
         .frame(height: notchHeight)
     }
 
-    private func iconButton(_ name: String, _ acao: @escaping () -> Void) -> some View {
-        Button(action: acao) {
+    private func iconButton(_ name: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             Image(systemName: name)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.78))
@@ -223,7 +223,7 @@ struct NotchView: View {
                 .foregroundStyle(.white)
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(model.count)))
-            Text(model.count == 1 ? "waiting on you" : "waiting on you")
+            Text("waiting on you")
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.5))
                 .padding(.top, 2)

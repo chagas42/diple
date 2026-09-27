@@ -110,8 +110,8 @@ struct AvatarView: View {
     var side: CGFloat = 32
 
     var body: some View {
-        AsyncImage(url: person.avatar) { fase in
-            switch fase {
+        AsyncImage(url: person.avatar) { phase in
+            switch phase {
             case .success(let img): img.resizable().scaledToFill()
             default:
                 ZStack {

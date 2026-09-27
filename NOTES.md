@@ -161,3 +161,8 @@ The bundle is assembled by hand and ad-hoc signed, with no Xcode project and no
 paid Apple account. The icon must be a squircle on the official grid — 824
 artwork on a 1024 canvas — because macOS applies no mask of its own, and a
 circular corner radius reads visibly squarer than Apple's superellipse.
+
+**LaunchServices caches the icon.** `make run` touches the bundle and
+re-registers it with `lsregister` before opening it; without that the Dock
+keeps showing the previous icon. `make icon` regenerates `Diple.icns` from
+`Resources/icon-source/master-1024.png`.

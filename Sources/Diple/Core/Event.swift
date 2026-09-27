@@ -35,7 +35,7 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
         case .commented:      "commented on your PR"
         case .reviewRequested:   "requested your review"
         case .checkFailed:     "check failing"
-        case .approved:       "aprovou"
+        case .approved:       "approved your PR"
         }
     }
 }
