@@ -17,12 +17,11 @@ answer without opening anything.
 
 <br /><br />
 
-<!-- DEMO — 20-30s of the notch opening, a notification arriving, a reply sent.
-     Record it, open any GitHub issue, drag the file into the comment box, copy
-     the https://github.com/user-attachments/assets/… URL it hands back, then
-     delete these comment markers and paste it below.
+<!-- DEMO — delete these two comment markers and paste the URL below.
+     Record it, drag the file into any GitHub issue comment box, and copy the
+     https://github.com/user-attachments/assets/… URL GitHub hands back.
 
-<img src="PASTE_URL" width="720" alt="Diple in the notch" />
+<img src="PASTE_URL" width="820" alt="Diple" />
 -->
 
 </div>
@@ -42,33 +41,38 @@ is, it grows out of the bezel and says who, where, and why.
 
 ## What it does
 
-### The notch is the app
+**The notch is the app.** Nothing waiting: an eye and a dimmed zero, sitting
+inside the bezel. Something waiting: the count lights up. Hover and it opens —
+the queue, your team, the ranking, your streak. On a Mac without a notch the
+same panel floats under the menu bar.
 
-Nothing waiting: an eye and a dimmed zero, sitting inside the bezel. Something
-waiting: the count lights up. Hover and it opens — four tabs, the queue, your
-team, the ranking, your streak.
+**Answer without leaving what you are doing.** When someone replies to you on a
+line of code, the banner carries the reply box and a Resolve button. You answer
+from the notification; the thread updates on GitHub.
 
-<img src="docs/notch.gif" width="720" alt="The notch opening" />
+**A different sound per kind of event.** Glass when someone replied to you. Pop
+for a comment. Purr for a review request. Basso when a check breaks. Approvals
+arrive silently. You learn what happened before you look.
 
-### Answer without leaving what you are doing
+**Obligations only.** The queue holds reviews someone asked of you and replies
+waiting on your answer. Your own PR shows up only when somebody actually
+replied to you on it — a broken check is status, not review work, so it stays
+in Your PRs and raises a notification instead.
 
-When someone replies to you on a line of code, the banner carries the reply box
-and a Resolve button. You answer from the notification; the thread updates on
-GitHub.
+**Stacks stay stacks.** Dependent branches are grouped, numbered, and labelled
+bottom to top, because the order is the information.
 
-<img src="docs/alert.gif" width="700" alt="Replying from the banner" />
+**Every repository you belong to.** Grouped by organisation, searchable, each
+one opening its own list of open pull requests split into Ready and Draft. Star
+any of them to watch it.
 
-### A different sound per kind of event
+**Your rhythm.** A ranking over the last week, month or quarter — you and the
+people you follow, not the whole company. A contribution grid of the days you
+reviewed, and the streak.
 
-Glass when someone replied to you. Pop for a comment. Purr for a review
-request. Basso when a check breaks. Approvals arrive silently. You learn what
-happened before you look.
+---
 
-<img src="docs/queue.gif" width="760" alt="The queue and its tabs" />
-
-<img src="docs/sounds.gif" width="720" alt="A sound per kind of event" />
-
-### Review with your own Claude
+## Review with your own Claude
 
 Diple has no AI of its own. It drives **your** Claude Code session, with your
 skills and your repository's CLAUDE.md, in a throwaway worktree. The findings
@@ -83,37 +87,10 @@ Nothing is published, and that is structural rather than a promise:
 
 It does not choose not to publish. It cannot.
 
-<img src="docs/window.gif" width="820" alt="Reviewing in the window" />
-
-### A map before you start reading
-
-What the PR changes comes from the diff and is on screen at once. What it does
-not change but will feel, and what you need to know to judge it that is not in
-the diff at all, come from your Claude while a timer shows how long a PR this
-size should take and why.
-
-It draws as a canvas: drag the boxes, pinch to zoom, open it in its own window.
-A stack is one map, each box tagged with the PRs that touched it. Click a box
-and the file opens in your editor at the PR head; ⌥-click opens it on GitHub.
-
-<img src="docs/repos.gif" width="820" alt="Browsing repositories" />
-
-### Every repository you belong to
-
-Grouped by organisation, searchable, each one opening its own list of open pull
-requests split into Ready and Draft. Star any of them to watch it.
-
-<img src="docs/team.gif" width="760" alt="Picking your teammates" />
-
-### Your rhythm
-
-A ranking over the last week, month or quarter — you and the people you follow,
-not the whole company. A contribution grid of the days you reviewed, and the
-streak, with your own bar catching fire when it fills.
-
-<img src="docs/rank.gif" width="760" alt="Ranking" />
-
-<img src="docs/activity.gif" width="760" alt="Your review streak" />
+Before the findings there is a map: what the PR changes comes from the diff,
+what it does not change but will feel comes from reference search, and only the
+expensive question — *what would someone need to know to judge this, that is
+not here* — goes to the model.
 
 ---
 
@@ -146,7 +123,16 @@ make run        # build, bundle, launch — the fast loop
 make install    # /Applications; use this when testing notifications
 make tools      # show which binaries were found, and where
 make probe      # print the queue in the terminal, no UI
+make film       # run a scripted take over the demo fixtures
 make stop
+```
+
+`--demo` serves fixtures instead of GitHub, so the app can be demonstrated with
+a queue in it. `--alert <kind>` fires one notification and exits:
+
+```bash
+open /Applications/Diple.app --args --demo
+/Applications/Diple.app/Contents/MacOS/Diple --alert repliedToYou
 ```
 
 No `.xcodeproj`. The whole project is Swift Package Manager plus a Makefile
@@ -164,7 +150,6 @@ that assembles and signs the bundle, so everything is plain text.
 | Storage | A versioned JSON file in Application Support |
 | Auth | The token `gh` already holds |
 | AI | Your `claude` binary, `--output-format stream-json` |
-| PR map | A skill in `Resources/plugin`, injected with `--plugin-dir`; yours at `~/.claude/skills/diple-map` wins |
 | Dependencies | None |
 
 `NOTES.md` carries the API traps this cost real time to find — `reviewThreads`
@@ -178,7 +163,6 @@ being a separate channel from `comments`, `baseRefOid` versus a stale
 - [ ] Device flow, so `gh` is not required
 - [ ] Watched repositories feeding new PRs into the queue
 - [ ] Rate-limit state when your Claude plan runs out mid-review
-- [ ] Sound for the streak animation, behind a switch
 - [ ] A license file — pick one before this goes public
 
 ---
@@ -193,11 +177,3 @@ century BC. Our quotation marks descend from it.
 
 The app does the same job: it points, in the margin, at what deserves your
 attention.
-
----
-
-## Credits
-
-The notch window architecture — a fixed-size panel with the shape animating
-inside it, rather than resizing the window — was learned by reading
-[boring.notch](https://github.com/TheBoredTeam/boring.notch).
