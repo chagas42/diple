@@ -71,9 +71,9 @@ extension GitHubClient {
 
     /// Em que dias você revisou. Sai das datas reais de cada review, porque
     /// contributionsCollection não conta repositório privado.
-    func buscarRitmo(org: String, login: String, dias: Int = 91) async throws -> [DiaRitmo] {
+    func buscarRitmo(org: String, login: String, dias: Int = 182) async throws -> [DiaRitmo] {
         let json = try await bruto("""
-        { search(query: "is:pr org:\(org) reviewed-by:\(login) sort:updated", type: ISSUE, first: 60) {
+        { search(query: "is:pr org:\(org) reviewed-by:\(login) sort:updated", type: ISSUE, first: 100) {
             nodes { ... on PullRequest {
               reviews(first: 20, author: "\(login)") { nodes { submittedAt } }
             } }
