@@ -47,14 +47,8 @@ struct NotchView: View {
         .animation(.bouncy(duration: 0.4), value: modelo.contador)
     }
 
-    private var forma: UnevenRoundedRectangle {
-        UnevenRoundedRectangle(
-            topLeadingRadius: raioTopo,
-            bottomLeadingRadius: raio,
-            bottomTrailingRadius: raio,
-            topTrailingRadius: raioTopo,
-            style: .continuous
-        )
+    private var forma: FormaPainel {
+        FormaPainel(flare: flare, base: raio)
     }
 
     private var raio: CGFloat {
@@ -64,12 +58,12 @@ struct NotchView: View {
         }
     }
 
-    /// Fechado os cantos de cima são retos, pra casar com o recorte. Aberto
-    /// eles curvam, e o painel lê como objeto solto em vez de bloco colado.
-    private var raioTopo: CGFloat {
+    /// Fechado a lateral é reta, pra casar com o recorte. Aberto o topo se
+    /// alarga e desce com filete côncavo.
+    private var flare: CGFloat {
         switch estado {
         case .oculto, .atividade: 0
-        case .aberto, .alerta: 14
+        case .aberto, .alerta: 16
         }
     }
 
@@ -139,7 +133,7 @@ struct NotchView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.leading, 16)
+            .padding(.leading, 14 + flare)
             .frame(maxWidth: .infinity)
 
             Spacer(minLength: larguraNotch).frame(width: larguraNotch)
@@ -158,7 +152,7 @@ struct NotchView: View {
                 }
                 botaoIcone("xmark") { aoFechar() }
             }
-            .padding(.trailing, 16)
+            .padding(.trailing, 14 + flare)
             .frame(maxWidth: .infinity)
         }
         .frame(height: alturaNotch)
@@ -189,7 +183,7 @@ struct NotchView: View {
                 PainelRitmo(modelo: modelo)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 16 + flare)
         .padding(.top, 10)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
