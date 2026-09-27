@@ -81,7 +81,6 @@ struct Secao: View {
 
 struct PopoverView: View {
     @ObservedObject var modelo: Modelo
-    @Environment(\.openWindow) private var abrirJanela
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -156,11 +155,7 @@ struct PopoverView: View {
                     .foregroundStyle(.orange)
             }
             Spacer()
-            Button("Janela") {
-                // App sem Dock precisa se ativar na mão, senão a janela abre atrás.
-                NSApp.activate(ignoringOtherApps: true)
-                abrirJanela(id: Janela.principal)
-            }
+            Button("Janela") { Janelas.compartilhado.abrirPrincipal(modelo) }
             .buttonStyle(.borderless)
             .font(.system(size: 11))
             .keyboardShortcut("0", modifiers: .command)

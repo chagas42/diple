@@ -37,7 +37,7 @@ enum Worktree {
     /// Cria o worktree na ref do PR. Usa refs/pull/N/head, que existe mesmo
     /// quando o PR vem de fork.
     @discardableResult
-    static func preparar(origem: URL, repo: String, pr: Int) async throws -> URL {
+    static func preparar(origem: URL, repo: String, pr: Int, base: String = "") async throws -> URL {
         try FileManager.default.createDirectory(at: raiz, withIntermediateDirectories: true)
         let nome = "\(repo.replacingOccurrences(of: "/", with: "-"))-\(pr)"
         let destino = raiz.appendingPathComponent(nome)
@@ -45,9 +45,32 @@ enum Worktree {
         if FileManager.default.fileExists(atPath: destino.path) {
             try? await git(["worktree", "remove", "--force", destino.path], em: origem)
         }
-        _ = try await git(["fetch", "origin", "+refs/pull/\(pr)/head:refs/diple/pr-\(pr)", "--force"], em: origem)
+        var refs = ["+refs/pull/\(pr)/head:refs/diple/pr-\(pr)"]
+        // Sem trazer a base, ela pode não existir localmente e o diff sai
+        // contra um origin/HEAD velho — o que devolve o repositório inteiro.
+        if !base.isEmpty { refs.append(base) }
+        _ = try await git(["fetch", "origin"] + refs + ["--force"], em: origem)
         _ = try await git(["worktree", "add", "--detach", destino.path, "refs/diple/pr-\(pr)"], em: origem)
         return destino
+    }
+
+    /// Varre o que sobrou de execuções que morreram no meio. Sem isso cada
+    /// app fechado durante um review deixa um checkout inteiro no disco.
+    static func limparOrfaos() async {
+        let fm = FileManager.default
+        guard let pastas = try? fm.contentsOfDirectory(
+            at: raiz, includingPropertiesForKeys: [.contentModificationDateKey]
+        ) else { return }
+
+        for p in pastas {
+            let data = (try? p.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate ?? .distantPast
+            // Uma hora é folga de sobra: nenhum review honesto dura tanto.
+            guard Date().timeIntervalSince(data) > 3600 else { continue }
+            // `git worktree remove` roda de dentro do próprio worktree.
+            _ = try? await git(["worktree", "remove", "--force", p.path], em: p)
+            try? fm.removeItem(at: p)
+        }
     }
 
     static func descartar(origem: URL, destino: URL) async {

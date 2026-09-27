@@ -17,13 +17,13 @@ struct RevisorIA: Sendable {
         "Bash(curl:*)", "WebFetch",
     ].joined(separator: " ")
 
-    func revisar(pr: PR, em pasta: URL, modelo: String) -> AsyncStream<PassoIA> {
+    func revisar(pr: PR, base: String, em pasta: URL, modelo: String) -> AsyncStream<PassoIA> {
         AsyncStream { cont in
             let tarefa = Task {
                 let p = Process()
                 p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
                 p.arguments = [
-                    "claude", "-p", prompt(pr: pr),
+                    "claude", "-p", prompt(pr: pr, base: base),
                     "--output-format", "stream-json",
                     "--verbose",
                     "--permission-mode", "dontAsk",
@@ -120,15 +120,16 @@ struct RevisorIA: Sendable {
 
     // MARK: - O pedido
 
-    private func prompt(pr: PR) -> String {
+    private func prompt(pr: PR, base: String) -> String {
         """
         Você está num worktree com o PR #\(pr.numero) de \(pr.repo) já em checkout.
 
         Título do PR: \(pr.titulo)
 
-        Revise as mudanças deste PR. Comece por `git diff origin/HEAD...HEAD` \
-        (ou `git log -1 -p` se aquilo vier vazio) e leia os arquivos que precisar \
-        para entender o contexto. Siga as convenções deste repositório, incluindo \
+        Revise as mudanças deste PR. O diff é exatamente \
+        `git diff \(base.isEmpty ? "origin/HEAD" : base)...HEAD` — use essa base \
+        e nenhuma outra, senão você vai ver o repositório inteiro em vez do PR. \
+        Leia os arquivos que precisar para entender o contexto. Siga as convenções deste repositório, incluindo \
         qualquer CLAUDE.md ou skill de review que exista aqui.
 
         Aponte só o que você conseguiria defender numa conversa: bug de verdade, \
