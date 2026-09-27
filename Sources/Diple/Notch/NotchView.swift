@@ -18,6 +18,7 @@ enum EstadoNotch: Equatable {
 }
 
 struct NotchView: View {
+    @Environment(\.openWindow) private var abrirJanela
     @ObservedObject var modelo: Modelo
     let estado: EstadoNotch
     let tamanho: CGSize
@@ -98,28 +99,47 @@ struct NotchView: View {
 
     private var faixaDoTopo: some View {
         HStack(spacing: 0) {
-            HStack(spacing: 8) {
-                OlhoView(olhar: olhar, piscando: piscando, largura: 16)
-                Text("Diple")
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
+            HStack(spacing: 6) {
+                OlhoView(olhar: olhar, piscando: piscando, largura: 15)
+                    .padding(.trailing, 2)
+                ForEach(Modelo.AbaNotch.allCases) { aba in
+                    Button { modelo.abaNotch = aba } label: {
+                        Image(systemName: aba.icone)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(modelo.abaNotch == aba ? 0.95 : 0.4))
+                            .frame(width: 24, height: 22)
+                            .background(
+                                Capsule().fill(
+                                    modelo.abaNotch == aba
+                                        ? Color.white.opacity(0.14) : .clear
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(aba.titulo)
+                }
                 Spacer(minLength: 0)
             }
-            .padding(.leading, 18)
+            .padding(.leading, 16)
             .frame(maxWidth: .infinity)
 
             Spacer(minLength: larguraNotch).frame(width: larguraNotch)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 7) {
                 Spacer(minLength: 0)
-                if modelo.carregando {
-                    ProgressView().controlSize(.small).tint(.white)
+                botaoIcone("macwindow") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    abrirJanela(id: Janela.principal)
+                    aoFechar()
+                }
+                if modelo.carregando || modelo.carregandoAba {
+                    ProgressView().controlSize(.small).tint(.white).frame(width: 22)
                 } else {
                     botaoIcone("arrow.clockwise") { Task { await modelo.atualizar() } }
                 }
                 botaoIcone("xmark") { aoFechar() }
             }
-            .padding(.trailing, 18)
+            .padding(.trailing, 16)
             .frame(maxWidth: .infinity)
         }
         .frame(height: alturaNotch)
@@ -137,13 +157,23 @@ struct NotchView: View {
     }
 
     private var corpo: some View {
-        HStack(spacing: 12) {
-            cartaoResumo
-            cartaoFila
+        Group {
+            switch modelo.abaNotch {
+            case .fila:
+                HStack(spacing: 12) { cartaoResumo; cartaoFila }
+            case .time:
+                PainelTime(modelo: modelo)
+            case .rank:
+                PainelRank(modelo: modelo)
+            case .ritmo:
+                PainelRitmo(modelo: modelo)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
         .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .task(id: modelo.abaNotch) { await modelo.carregarAba(modelo.abaNotch) }
     }
 
     private var cartaoResumo: some View {
