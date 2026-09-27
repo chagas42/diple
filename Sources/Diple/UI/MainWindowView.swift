@@ -28,6 +28,7 @@ struct MainWindowView: View {
             }
         }
         .navigationTitle("Diple")
+        .environment(\.codeTheme, CodeTheme.named(model.settings.codeTheme))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

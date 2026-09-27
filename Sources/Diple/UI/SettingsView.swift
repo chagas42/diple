@@ -10,6 +10,9 @@ struct SettingsView: View {
                 .tabItem { Label("Notifications", systemImage: "bell") }
             ReposPane(model: model)
                 .tabItem { Label("Repositories", systemImage: "book.closed") }
+
+            AppearanceSettings(model: model)
+                .tabItem { Label("Appearance", systemImage: "paintpalette") }
             ClaudePane(model: model)
                 .tabItem { Label("Claude", systemImage: "sparkles") }
             AccountPane(model: model)

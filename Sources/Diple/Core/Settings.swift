@@ -18,6 +18,7 @@ struct Settings: Codable, Sendable, Equatable {
     var repoPaths: [String: String] = [:]
 
     var editor: String? = nil
+    var codeTheme: String = "diple-dark"
     var mapModel: String? = nil
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
