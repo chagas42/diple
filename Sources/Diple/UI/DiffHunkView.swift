@@ -5,23 +5,23 @@ struct DiffHunkView: View {
 
     private struct Linha: Identifiable {
         let id = UUID()
-        let numero: Int?
+        let number: Int?
         let sinal: Character
-        let texto: String
+        let text: String
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(linhas) { l in
                 HStack(spacing: 0) {
-                    Text(l.numero.map(String.init) ?? "")
+                    Text(l.number.map(String.init) ?? "")
                         .frame(width: 46, alignment: .trailing)
                         .padding(.trailing, 12)
                         .foregroundStyle(.tertiary)
                     Text(String(l.sinal))
                         .frame(width: 12, alignment: .leading)
-                        .foregroundStyle(cor(l.sinal))
-                    Text(l.texto)
+                        .foregroundStyle(color(l.sinal))
+                    Text(l.text)
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -34,31 +34,31 @@ struct DiffHunkView: View {
     }
 
     private var linhas: [Linha] {
-        var saida: [Linha] = []
+        var out: [Linha] = []
         var n: Int? = nil
         for bruta in hunk.split(separator: "\n", omittingEmptySubsequences: false) {
             let s = String(bruta)
             if s.hasPrefix("@@") {
-                if let mais = s.split(separator: "+").dropFirst().first,
-                   let num = Int(mais.prefix(while: \.isNumber)) {
+                if let additions = s.split(separator: "+").dropFirst().first,
+                   let num = Int(additions.prefix(while: \.isNumber)) {
                     n = num
                 }
-                saida.append(Linha(numero: nil, sinal: " ", texto: s))
+                out.append(Linha(number: nil, sinal: " ", text: s))
                 continue
             }
             let sinal = s.first ?? " "
-            let texto = String(s.dropFirst())
+            let text = String(s.dropFirst())
             if sinal == "-" {
-                saida.append(Linha(numero: nil, sinal: sinal, texto: texto))
+                out.append(Linha(number: nil, sinal: sinal, text: text))
             } else {
-                saida.append(Linha(numero: n, sinal: sinal, texto: texto))
-                if let atual = n { n = atual + 1 }
+                out.append(Linha(number: n, sinal: sinal, text: text))
+                if let current = n { n = current + 1 }
             }
         }
-        return saida
+        return out
     }
 
-    private func cor(_ s: Character) -> Color {
+    private func color(_ s: Character) -> Color {
         switch s { case "+": .green; case "-": .red; default: .secondary.opacity(0.55) }
     }
 

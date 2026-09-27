@@ -1,5 +1,5 @@
 enum Query {
-    static let fila = """
+    static let queue = """
     fragment pr on PullRequest {
       id
       number
@@ -30,15 +30,15 @@ enum Query {
         nodes { commit { statusCheckRollup { state } } }
       }
     }
-    query Fila {
+    query Queue {
       viewer { login }
-      meus: search(query: "is:open is:pr author:@me sort:updated", type: ISSUE, first: 30) {
+      mine: search(query: "is:open is:pr author:@me sort:updated", type: ISSUE, first: 30) {
         nodes { ...pr }
       }
-      revisar: search(query: "is:open is:pr review-requested:@me sort:updated", type: ISSUE, first: 30) {
+      toReview: search(query: "is:open is:pr review-requested:@me sort:updated", type: ISSUE, first: 30) {
         nodes { ...pr }
       }
-      envolvido: search(query: "is:open is:pr involves:@me -author:@me sort:updated", type: ISSUE, first: 30) {
+      following: search(query: "is:open is:pr involves:@me -author:@me sort:updated", type: ISSUE, first: 30) {
         nodes { ...pr }
       }
       rateLimit { remaining resetAt }

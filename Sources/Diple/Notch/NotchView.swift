@@ -1,122 +1,122 @@
 import SwiftUI
 
-enum EstadoNotch: Equatable {
-    case oculto
+enum NotchState: Equatable {
+    case hidden
 
-    case atividade
-    case aberto
-    case alerta(Evento)
+    case active
+    case open
+    case alert(Event)
 
-    static func == (a: EstadoNotch, b: EstadoNotch) -> Bool {
+    static func == (a: NotchState, b: NotchState) -> Bool {
         switch (a, b) {
-        case (.oculto, .oculto), (.atividade, .atividade), (.aberto, .aberto): true
-        case let (.alerta(x), .alerta(y)): x.id == y.id
+        case (.hidden, .hidden), (.active, .active), (.open, .open): true
+        case let (.alert(x), .alert(y)): x.id == y.id
         default: false
         }
     }
 }
 
 struct NotchView: View {
-    @ObservedObject var modelo: Modelo
-    let estado: EstadoNotch
-    let tamanho: CGSize
-    let larguraNotch: CGFloat
-    let alturaNotch: CGFloat
-    let olhar: CGPoint
-    let piscando: Bool
-    let aoFechar: () -> Void
+    @ObservedObject var model: AppModel
+    let state: NotchState
+    let size: CGSize
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
+    let gaze: CGPoint
+    let blinking: Bool
+    let onClose: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                forma.fill(.black)
-                conteudo
+                shape.fill(.black)
+                content
             }
-            .frame(width: tamanho.width, height: tamanho.height)
+            .frame(width: size.width, height: size.height)
 
-            .clipShape(forma)
+            .clipShape(shape)
             .contextMenu {
-                Button("Ajustes…") { Janelas.compartilhado.abrirAjustes(modelo) }
-                Button("Janela principal") { Janelas.compartilhado.abrirPrincipal(modelo) }
+                Button("Settings…") { Windows.compartilhado.openSettings(model) }
+                Button("Janela main") { Windows.compartilhado.openMain(model) }
                 Divider()
-                Button("Sair do Diple") { NSApplication.shared.terminate(nil) }
+                Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-        .animation(.spring(response: 0.38, dampingFraction: 0.74), value: tamanho)
-        .animation(.bouncy(duration: 0.4), value: modelo.contador)
+        .animation(.spring(response: 0.38, dampingFraction: 0.74), value: size)
+        .animation(.bouncy(duration: 0.4), value: model.count)
     }
 
-    private var forma: FormaPainel {
-        FormaPainel(flare: flare, base: raio)
+    private var shape: PanelShape {
+        PanelShape(flare: flare, base: radius)
     }
 
-    private var raio: CGFloat {
-        switch estado {
-        case .oculto, .atividade: 10
-        case .aberto, .alerta: 22
+    private var radius: CGFloat {
+        switch state {
+        case .hidden, .active: 10
+        case .open, .alert: 22
         }
     }
 
     private var flare: CGFloat {
-        switch estado {
-        case .oculto, .atividade: 0
-        case .aberto, .alerta: 16
+        switch state {
+        case .hidden, .active: 0
+        case .open, .alert: 16
         }
     }
 
-    @ViewBuilder private var conteudo: some View {
-        switch estado {
-        case .oculto:
+    @ViewBuilder private var content: some View {
+        switch state {
+        case .hidden:
             Color.clear
-        case .atividade:
-            asas
-        case .aberto:
-            aberto
-        case .alerta(let e):
-            alerta(e)
+        case .active:
+            wings
+        case .open:
+            open
+        case .alert(let e):
+            alert(e)
         }
     }
 
-    private var asas: some View {
+    private var wings: some View {
         HStack(spacing: 0) {
-            OlhoView(olhar: olhar, piscando: piscando, largura: 15)
+            EyeView(gaze: gaze, blinking: blinking, largura: 15)
                 .frame(maxWidth: .infinity)
-            Spacer(minLength: larguraNotch)
-                .frame(width: larguraNotch)
-            Text("\(modelo.contador)")
+            Spacer(minLength: notchWidth)
+                .frame(width: notchWidth)
+            Text("\(model.count)")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.92))
                 .monospacedDigit()
-                .contentTransition(.numericText(value: Double(modelo.contador)))
+                .contentTransition(.numericText(value: Double(model.count)))
                 .frame(maxWidth: .infinity)
         }
-        .frame(height: alturaNotch)
+        .frame(height: notchHeight)
     }
 
-    private var aberto: some View {
+    private var open: some View {
         VStack(spacing: 0) {
-            faixaDoTopo
-            corpo
+            topStrip
+            openBody
         }
     }
 
-    private var faixaDoTopo: some View {
+    private var topStrip: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                OlhoView(olhar: olhar, piscando: piscando, largura: 15)
+                EyeView(gaze: gaze, blinking: blinking, largura: 15)
                     .padding(.trailing, 2)
-                ForEach(Modelo.AbaNotch.allCases) { aba in
-                    Button { modelo.abaNotch = aba } label: {
-                        Image(systemName: aba.icone)
+                ForEach(AppModel.NotchTab.allCases) { tab in
+                    Button { model.abaNotch = tab } label: {
+                        Image(systemName: tab.icon)
                             .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(.white.opacity(modelo.abaNotch == aba ? 0.95 : 0.42))
+                            .foregroundStyle(.white.opacity(model.abaNotch == tab ? 0.95 : 0.42))
                             .frame(width: 30, height: 26)
                             .background(
                                 Capsule().fill(
-                                    modelo.abaNotch == aba
+                                    model.abaNotch == tab
                                         ? Color.white.opacity(0.15) : .white.opacity(0.001)
                                 )
                             )
@@ -124,41 +124,41 @@ struct NotchView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(aba.titulo)
+                    .help(tab.title)
                 }
                 Spacer(minLength: 0)
             }
             .padding(.leading, 14 + flare)
             .frame(maxWidth: .infinity)
 
-            Spacer(minLength: larguraNotch).frame(width: larguraNotch)
+            Spacer(minLength: notchWidth).frame(width: notchWidth)
 
             HStack(spacing: 7) {
                 Spacer(minLength: 0)
-                botaoIcone("macwindow") {
-                    Janelas.compartilhado.abrirPrincipal(modelo)
-                    aoFechar()
+                iconButton("macwindow") {
+                    Windows.compartilhado.openMain(model)
+                    onClose()
                 }
-                if modelo.carregando || modelo.carregandoAba {
+                if model.loading || model.loadingTab {
                     ProgressView().controlSize(.small).tint(.white).frame(width: 22)
                 } else {
-                    botaoIcone("arrow.clockwise") { Task { await modelo.atualizar() } }
+                    iconButton("arrow.clockwise") { Task { await model.refresh() } }
                 }
-                botaoIcone("gearshape") {
-                    Janelas.compartilhado.abrirAjustes(modelo)
-                    aoFechar()
+                iconButton("gearshape") {
+                    Windows.compartilhado.openSettings(model)
+                    onClose()
                 }
-                botaoIcone("xmark") { aoFechar() }
+                iconButton("xmark") { onClose() }
             }
             .padding(.trailing, 14 + flare)
             .frame(maxWidth: .infinity)
         }
-        .frame(height: alturaNotch)
+        .frame(height: notchHeight)
     }
 
-    private func botaoIcone(_ nome: String, _ acao: @escaping () -> Void) -> some View {
+    private func iconButton(_ name: String, _ acao: @escaping () -> Void) -> some View {
         Button(action: acao) {
-            Image(systemName: nome)
+            Image(systemName: name)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.78))
                 .frame(width: 26, height: 26)
@@ -168,34 +168,34 @@ struct NotchView: View {
         .buttonStyle(.plain)
     }
 
-    private var corpo: some View {
+    private var openBody: some View {
         Group {
-            switch modelo.abaNotch {
-            case .fila:
-                HStack(spacing: 12) { cartaoResumo; cartaoFila }
+            switch model.abaNotch {
+            case .queue:
+                HStack(spacing: 12) { summaryCard; queueCard }
             case .time:
-                PainelTime(modelo: modelo)
-            case .rank:
-                PainelRank(modelo: modelo)
-            case .ritmo:
-                PainelRitmo(modelo: modelo)
+                TeamTab(model: model)
+            case .ranking:
+                RankTab(model: model)
+            case .activity:
+                ActivityTab(model: model)
             }
         }
         .padding(.horizontal, 16 + flare)
         .padding(.top, 10)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .task(id: modelo.abaNotch) { await modelo.carregarAba(modelo.abaNotch) }
+        .task(id: model.abaNotch) { await model.loadTab(model.abaNotch) }
     }
 
-    private var cartaoResumo: some View {
+    private var summaryCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("\(modelo.contador)")
+            Text("\(model.count)")
                 .font(.system(size: 46, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
                 .monospacedDigit()
-                .contentTransition(.numericText(value: Double(modelo.contador)))
-            Text(modelo.contador == 1 ? "espera por você" : "esperam por você")
+                .contentTransition(.numericText(value: Double(model.count)))
+            Text(model.count == 1 ? "waiting on you" : "waiting on you")
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.5))
                 .padding(.top, 2)
@@ -203,9 +203,9 @@ struct NotchView: View {
             Spacer(minLength: 10)
 
             VStack(alignment: .leading, spacing: 5) {
-                miudo("seus PRs", modelo.fila.meus.count)
-                miudo("revisando", modelo.fila.revisar.count)
-                miudo("acompanhando", modelo.fila.envolvido.count)
+                stat("yours", model.queue.mine.count)
+                stat("to review", model.queue.toReview.count)
+                stat("following", model.queue.following.count)
             }
         }
         .padding(14)
@@ -218,39 +218,39 @@ struct NotchView: View {
         )
     }
 
-    private func miudo(_ rotulo: String, _ n: Int) -> some View {
+    private func stat(_ label: String, _ n: Int) -> some View {
         HStack(spacing: 6) {
             Text("\(n)")
                 .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.8))
-            Text(rotulo)
+            Text(label)
                 .font(.system(size: 11.5))
                 .foregroundStyle(.white.opacity(0.42))
         }
     }
 
-    private var cartaoFila: some View {
+    private var queueCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if modelo.precisamDeVoce.isEmpty {
+            if model.needsYou.isEmpty {
                 VStack(spacing: 7) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 20))
                         .foregroundStyle(.white.opacity(0.4))
-                    Text("Nada esperando por você")
+                    Text("Nothing waiting on you")
                         .font(.system(size: 12.5))
                         .foregroundStyle(.white.opacity(0.45))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HStack(spacing: 6) {
-                    Text("Esperando você")
+                    Text("Needs you")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white.opacity(0.4))
                     Spacer()
-                    Text("\(modelo.precisamDeVoce.count)")
+                    Text("\(model.needsYou.count)")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundStyle(.orange)
-                    if modelo.precisamDeVoce.count > 4 {
+                    if model.needsYou.count > 4 {
                         Image(systemName: "arrow.up.and.down")
                             .font(.system(size: 8.5))
                             .foregroundStyle(.white.opacity(0.3))
@@ -262,18 +262,18 @@ struct NotchView: View {
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(Array(modelo.precisamDeVoce.enumerated()), id: \.element.id) { i, pr in
+                        ForEach(Array(model.needsYou.enumerated()), id: \.element.id) { i, pr in
                             if i > 0 {
                                 Rectangle().fill(.white.opacity(0.06)).frame(height: 1)
                                     .padding(.horizontal, 13)
                             }
-                            Button { modelo.abrir(pr) } label: {
+                            Button { model.open(pr) } label: {
                                 HStack(spacing: 10) {
                                     Circle()
-                                        .fill(pr.ci == .falhou ? Color.red : .orange)
+                                        .fill(pr.checks == .failing ? Color.red : .orange)
                                         .frame(width: 7, height: 7)
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(pr.titulo)
+                                        Text(pr.title)
                                             .font(.system(size: 12.5, weight: .medium))
                                             .foregroundStyle(.white)
                                             .lineLimit(1)
@@ -283,7 +283,7 @@ struct NotchView: View {
                                             .lineLimit(1)
                                     }
                                     Spacer(minLength: 8)
-                                    Text(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))
+                                    Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
                                         .font(.system(size: 10.5, design: .monospaced))
                                         .foregroundStyle(.white.opacity(0.35))
                                 }
@@ -308,27 +308,27 @@ struct NotchView: View {
     }
 
     private func meta(_ pr: PR) -> String {
-        let base = "\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.numero)"
-        if let c = pr.ultimoComentario {
-            return "\(base) · \(c.autor)\(c.onde.map { " em \($0)" } ?? "")"
+        let base = "\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.number)"
+        if let c = pr.lastComment {
+            return "\(base) · \(c.author)\(c.location.map { " at \($0)" } ?? "")"
         }
         return base
     }
 
-    private func alerta(_ e: Evento) -> some View {
+    private func alert(_ e: Event) -> some View {
         VStack(spacing: 0) {
-            faixaAlerta(e)
-            corpoAlerta(e)
+            alertStrip(e)
+            alertBody(e)
         }
     }
 
-    private func faixaAlerta(_ e: Evento) -> some View {
+    private func alertStrip(_ e: Event) -> some View {
         HStack(spacing: 0) {
             HStack(spacing: 7) {
-                Image(systemName: e.tipo.glifo)
+                Image(systemName: e.kind.glyph)
                     .font(.system(size: 11))
-                    .foregroundStyle(corDoTipo(e.tipo))
-                Text(e.tipo.rotulo)
+                    .foregroundStyle(colorFor(e.kind))
+                Text(e.kind.label)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.65))
                     .lineLimit(1)
@@ -337,43 +337,43 @@ struct NotchView: View {
             .padding(.leading, 14 + flare)
             .frame(maxWidth: .infinity)
 
-            Spacer(minLength: larguraNotch).frame(width: larguraNotch)
+            Spacer(minLength: notchWidth).frame(width: notchWidth)
 
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
-                if let som = e.tipo.som {
+                if let sound = e.kind.sound {
                     HStack(spacing: 4) {
                         Image(systemName: "speaker.wave.2.fill").font(.system(size: 8.5))
-                        Text(som).font(.system(size: 10))
+                        Text(sound).font(.system(size: 10))
                     }
                     .foregroundStyle(.white.opacity(0.4))
                 }
-                botaoIcone("xmark") { aoFechar() }
+                iconButton("xmark") { onClose() }
             }
             .padding(.trailing, 14 + flare)
             .frame(maxWidth: .infinity)
         }
-        .frame(height: alturaNotch)
+        .frame(height: notchHeight)
     }
 
-    private func corpoAlerta(_ e: Evento) -> some View {
+    private func alertBody(_ e: Event) -> some View {
         HStack(alignment: .top, spacing: 13) {
             Circle()
-                .fill(corDoTipo(e.tipo).opacity(0.16))
+                .fill(colorFor(e.kind).opacity(0.16))
                 .overlay(
-                    Image(systemName: e.tipo.glifo)
+                    Image(systemName: e.kind.glyph)
                         .font(.system(size: 15))
-                        .foregroundStyle(corDoTipo(e.tipo))
+                        .foregroundStyle(colorFor(e.kind))
                 )
                 .frame(width: 38, height: 38)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(e.titulo)
+                Text(e.title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
-                Text(e.corpo)
+                Text(e.body)
                     .font(.system(size: 12.5))
                     .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(2)
@@ -384,9 +384,9 @@ struct NotchView: View {
                 HStack(spacing: 8) {
                     Button {
                         NSWorkspace.shared.open(e.url)
-                        aoFechar()
+                        onClose()
                     } label: {
-                        Text("Abrir o PR")
+                        Text("Open PR")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(.black)
                             .padding(.horizontal, 15).padding(.vertical, 7)
@@ -395,9 +395,9 @@ struct NotchView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        aoFechar()
+                        onClose()
                     } label: {
-                        Text("Depois")
+                        Text("Later")
                             .font(.system(size: 12.5, weight: .medium))
                             .foregroundStyle(.white.opacity(0.8))
                             .padding(.horizontal, 14).padding(.vertical, 7)
@@ -415,13 +415,13 @@ struct NotchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func corDoTipo(_ t: TipoEvento) -> Color {
+    private func colorFor(_ t: EventKind) -> Color {
         switch t {
-        case .responderamVoce: .orange
-        case .comentaram:      .purple
-        case .pediramReview:   .blue
-        case .checkFalhou:     .red
-        case .aprovaram:       .green
+        case .repliedToYou: .orange
+        case .commented:      .purple
+        case .reviewRequested:   .blue
+        case .checkFailed:     .red
+        case .approved:       .green
         }
     }
 }

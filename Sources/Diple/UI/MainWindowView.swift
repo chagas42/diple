@@ -1,23 +1,23 @@
 import SwiftUI
 
-struct JanelaView: View {
-    @ObservedObject var modelo: Modelo
+struct MainWindowView: View {
+    @ObservedObject var model: AppModel
 
     var body: some View {
         NavigationSplitView {
             barraLateral
                 .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 280)
         } content: {
-            lista
+            list
                 .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 520)
         } detail: {
-            if let pr = modelo.selecionado {
-                DetalheView(modelo: modelo, pr: pr)
+            if let pr = model.selected {
+                DetailView(model: model, pr: pr)
             } else {
                 ContentUnavailableView(
-                    "Escolha um pull request",
+                    "Pick a pull request",
                     systemImage: "chevron.right",
-                    description: Text("A fila à esquerda mostra o que espera por você.")
+                    description: Text("The queue on the left shows what is waiting on you.")
                 )
             }
         }
@@ -25,34 +25,34 @@ struct JanelaView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    Task { await modelo.atualizar() }
+                    Task { await model.refresh() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(modelo.carregando)
-                .help("Sincronizar agora")
+                .disabled(model.loading)
+                .help("Sincronizar now")
             }
         }
     }
 
     private var barraLateral: some View {
-        List(selection: Binding(get: { modelo.aba }, set: { modelo.aba = $0 ?? .esperando })) {
-            Section("Fila") {
-                ForEach(Modelo.Aba.allCases) { aba in
+        List(selection: Binding(get: { model.tab }, set: { model.tab = $0 ?? .esperando })) {
+            Section("Queue") {
+                ForEach(AppModel.Tab.allCases) { tab in
                     HStack {
-                        Label(aba.titulo, systemImage: aba.icone)
+                        Label(tab.title, systemImage: tab.icon)
                         Spacer()
-                        Text("\(modelo.contagem(aba))")
+                        Text("\(model.count(tab))")
                             .font(.system(size: 11.5, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
-                    .tag(aba)
+                    .tag(tab)
                 }
             }
-            Section("Repositórios") {
-                ForEach(repos, id: \.0) { nome, quantos in
+            Section("Repositories") {
+                ForEach(repos, id: \.0) { name, quantos in
                     HStack {
-                        Text(nome)
+                        Text(name)
                             .font(.system(size: 12, design: .monospaced))
                             .lineLimit(1)
                             .truncationMode(.head)
@@ -68,69 +68,69 @@ struct JanelaView: View {
     }
 
     private var repos: [(String, Int)] {
-        Dictionary(grouping: modelo.fila.todos, by: \.repo)
+        Dictionary(grouping: model.queue.all, by: \.repo)
             .map { ($0.key, $0.value.count) }
             .sorted { $0.1 > $1.1 }
             .prefix(8)
             .map { $0 }
     }
 
-    private var lista: some View {
+    private var list: some View {
         List(selection: Binding(
-            get: { modelo.selecionado?.chave },
-            set: { chave in modelo.selecionado = modelo.prs(modelo.aba).first { $0.chave == chave } }
+            get: { model.selected?.key },
+            set: { key in model.selected = model.prs(model.tab).first { $0.key == key } }
         )) {
-            ForEach(modelo.prs(modelo.aba).emPilhas()) { pilha in
-                if pilha.empilhada {
+            ForEach(model.prs(model.tab).groupedIntoStacks()) { stack in
+                if stack.isStack {
                     Section {
-                        ForEach(Array(pilha.prs.enumerated()), id: \.element.chave) { i, pr in
-                            LinhaJanela(
+                        ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
+                            PRRow(
                                 pr: pr,
-                                naoLido: modelo.naoLidos.contains(pr.chave),
-                                degrau: i + 1,
-                                degraus: pilha.prs.count
+                                naoLido: model.unread.contains(pr.key),
+                                step: i + 1,
+                                steps: stack.prs.count
                             )
-                            .tag(pr.chave)
+                            .tag(pr.key)
                         }
                     } header: {
                         HStack(spacing: 6) {
                             Image(systemName: "square.3.layers.3d.down.right")
                                 .font(.system(size: 10))
-                            Text("Pilha de \(pilha.prs.count)")
+                            Text("PRStack de \(stack.prs.count)")
                                 .font(.system(size: 10.5, weight: .semibold))
-                            Text(pilha.base?.repo.split(separator: "/").last.map(String.init) ?? "")
+                            Text(stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
                                 .font(.system(size: 10.5, design: .monospaced))
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text("leia de baixo pra cima")
+                            Text("read bottom to top")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
                         }
                     }
-                } else if let pr = pilha.prs.first {
-                    LinhaJanela(pr: pr, naoLido: modelo.naoLidos.contains(pr.chave))
-                        .tag(pr.chave)
+                } else if let pr = stack.prs.first {
+                    PRRow(pr: pr, naoLido: model.unread.contains(pr.key))
+                        .tag(pr.key)
                 }
             }
         }
-        .navigationTitle(modelo.aba.titulo)
+        .navigationTitle(model.tab.title)
         .overlay {
-            if modelo.prs(modelo.aba).isEmpty && !modelo.carregando {
-                ContentUnavailableView("Nada aqui", systemImage: "checkmark.circle")
+            if model.prs(model.tab).isEmpty && !model.loading {
+                ContentUnavailableView("Nothing here", systemImage: "checkmark.circle")
             }
         }
     }
 }
 
-struct LinhaJanela: View {
+struct PRRow: View {
     let pr: PR
     let naoLido: Bool
-    var degrau: Int? = nil
-    var degraus: Int? = nil
+    var step: Int? = nil
+    var steps: Int? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            if let d = degrau, let n = degraus {
+            if let d = step, let n = steps {
                 Text("\(d)/\(n)")
                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -138,21 +138,21 @@ struct LinhaJanela: View {
                     .padding(.top, 3)
             }
 
-            AvatarPR(url: pr.avatarAutor, login: pr.autor)
+            PRAvatar(url: pr.authorAvatar, login: pr.author)
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(pr.titulo)
+                Text(pr.title)
                     .font(.system(size: 13, weight: naoLido ? .semibold : .regular))
                     .lineLimit(2)
                 HStack(spacing: 6) {
-                    Image(systemName: glifo)
+                    Image(systemName: glyph)
                         .font(.system(size: 10))
-                        .foregroundStyle(cor)
-                    Text("\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.numero)")
+                        .foregroundStyle(color)
+                    Text("\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.number)")
                         .font(.system(size: 11, design: .monospaced))
-                    if let c = pr.ultimoComentario {
-                        Text("· \(c.autor)\(c.onde.map { " em \($0)" } ?? "")")
+                    if let c = pr.lastComment {
+                        Text("· \(c.author)\(c.location.map { " at \($0)" } ?? "")")
                             .font(.system(size: 11))
                             .lineLimit(1)
                     }
@@ -163,7 +163,7 @@ struct LinhaJanela: View {
             Spacer(minLength: 6)
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))
+                Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.tertiary)
                 if !pr.threads.isEmpty {
@@ -176,25 +176,25 @@ struct LinhaJanela: View {
         .padding(.vertical, 4)
     }
 
-    private var glifo: String {
-        if pr.ci == .falhou { "xmark.circle.fill" }
-        else if pr.aprovado { "checkmark.circle.fill" }
-        else if pr.rascunho { "circle.dashed" }
+    private var glyph: String {
+        if pr.checks == .failing { "xmark.circle.fill" }
+        else if pr.approved { "checkmark.circle.fill" }
+        else if pr.draft { "circle.dashed" }
         else { "arrow.triangle.branch" }
     }
 
-    private var cor: Color {
-        if pr.ci == .falhou { .red }
-        else if pr.aprovado { .green }
+    private var color: Color {
+        if pr.checks == .failing { .red }
+        else if pr.approved { .green }
         else if naoLido { .orange }
         else { .secondary }
     }
 }
 
-struct AvatarPR: View {
+struct PRAvatar: View {
     let url: URL?
     let login: String
-    var lado: CGFloat = 24
+    var side: CGFloat = 24
 
     var body: some View {
         AsyncImage(url: url) { fase in
@@ -204,12 +204,12 @@ struct AvatarPR: View {
                 ZStack {
                     Color.secondary.opacity(0.18)
                     Text(String(login.prefix(2)).uppercased())
-                        .font(.system(size: lado * 0.34, weight: .semibold))
+                        .font(.system(size: side * 0.34, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .frame(width: lado, height: lado)
+        .frame(width: side, height: side)
         .clipShape(Circle())
     }
 }
