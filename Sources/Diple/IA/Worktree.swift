@@ -42,7 +42,14 @@ enum Worktree {
         let nome = "\(repo.replacingOccurrences(of: "/", with: "-"))-\(pr)"
         let destino = raiz.appendingPathComponent(nome)
 
+        // Reaproveita se já está no commit certo: refazer custa ~3s de fetch
+        // e checkout de milhares de arquivos, e conferir custa 10ms.
         if FileManager.default.fileExists(atPath: destino.path) {
+            let atual = try? await git(["rev-parse", "HEAD"], em: destino)
+            let alvo = try? await git(["rev-parse", "refs/diple/pr-\(pr)"], em: origem)
+            let mesmo = atual?.trimmingCharacters(in: .whitespacesAndNewlines)
+                == alvo?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if mesmo, atual?.isEmpty == false { return destino }
             try? await git(["worktree", "remove", "--force", destino.path], em: origem)
         }
         var refs = ["+refs/pull/\(pr)/head:refs/diple/pr-\(pr)"]

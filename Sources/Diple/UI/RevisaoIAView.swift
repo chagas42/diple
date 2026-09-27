@@ -12,13 +12,8 @@ struct RevisaoIAView: View {
         VStack(alignment: .leading, spacing: 10) {
             cabecalho
 
-            if rodando, let passo = modelo.passoIA {
-                progresso(passo)
-            } else if case .falhou(let msg) = modelo.passoIA, achados.isEmpty, !rodando {
-                Label(msg, systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
+            if rodando || !modelo.progressoIA.isEmpty {
+                progresso
             }
 
             if !achados.isEmpty {
@@ -51,27 +46,61 @@ struct RevisaoIAView: View {
         }
     }
 
-    private func progresso(_ passo: PassoIA) -> some View {
-        HStack(spacing: 9) {
-            ProgressView().controlSize(.small)
-            Text(descricao(passo))
-                .font(.system(size: 11.5, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-    }
+    private var progresso: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                if rodando {
+                    ProgressView().controlSize(.small)
+                    Text("Revisando")
+                        .font(.system(size: 12, weight: .semibold))
+                } else {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text("Terminado")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                Spacer()
+                if let i = modelo.inicioIA {
+                    // Relógio vivo: sem ele a espera não tem escala nenhuma.
+                    Text(i, style: .timer)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+            .padding(.bottom, 8)
 
-    private func descricao(_ p: PassoIA) -> String {
-        switch p {
-        case .preparando(let t): t
-        case .pensando:          "pensando…"
-        case .ferramenta(let t): t
-        case .pronto(let l):     "\(l.count) apontamentos"
-        case .falhou(let m):     m
+            ForEach(modelo.progressoIA) { linha in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: linha.concluido ? "checkmark" : "circle.dotted")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(linha.concluido ? .green : .secondary)
+                        .frame(width: 12)
+                    Text(linha.texto)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(linha.concluido ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if linha.repeticoes > 1 {
+                        Text("×\(linha.repeticoes)")
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 2)
+            }
+
+            if rodando {
+                Text("O git leva uns 3 segundos. O resto é o Claude lendo o "
+                     + "repositório — costuma ir de 30 s a 2 min.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 6)
+            }
         }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 9))
     }
 
     private var aviso: some View {
