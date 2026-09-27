@@ -45,3 +45,7 @@ stop:
 
 clean:
 	rm -rf .build build
+
+gifmaker:
+	@swiftc -O tools/gifmaker.swift -o build/gifmaker
+	@echo "  build/gifmaker in.mp4 out.gif <fps> <width> [cropX cropY cropW cropH]"
