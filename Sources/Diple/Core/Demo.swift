@@ -3,11 +3,9 @@ import Foundation
 enum Demo {
     static var isOn: Bool { CommandLine.arguments.contains("--demo") }
 
-    private static let viewer = "chagas42"
+    private static let viewer = "you"
 
-    private static func avatar(_ login: String) -> URL? {
-        URL(string: "https://github.com/\(login).png?size=64")
-    }
+    private static func avatar(_ login: String) -> URL? { nil }
 
     private static func ago(_ minutes: Double) -> Date {
         Date().addingTimeInterval(-minutes * 60)
@@ -74,74 +72,74 @@ enum Demo {
         Queue(
             viewer: viewer,
             mine: [
-                pr("SalvyLTD/salvy-api", 7842, "feat: bill Salvy's demo and test companies again",
+                pr("acme/orders-api", 7842, "feat: charge trial accounts again once they convert",
                    author: viewer, mine: true, checks: .failing, minutes: 12,
-                   head: "chagas42/bill-demo-companies",
-                   reply: ("danilofuchs", "src/billing/invoice-skip-reason.ts", 27,
-                           "Isso aqui vai marcar as empresas de teste como inadimplentes também. Não era melhor tratar no skip reason?")),
-                pr("SalvyLTD/salvy-api", 7843, "feat: keep Salvy's own companies out of delinquency",
+                   head: "you/bill-demo-companies",
+                   reply: ("rafa-mendes", "src/orders/refund-policy.ts", 27,
+                           "This marks trial accounts as overdue too. Wouldn't it be better to handle it in the skip reason?")),
+                pr("acme/orders-api", 7843, "feat: keep internal accounts out of dunning",
                    author: viewer, mine: true, approved: true, minutes: 48,
-                   head: "chagas42/skip-own-companies", base: "chagas42/bill-demo-companies"),
-                pr("SalvyLTD/salvy-api", 7841, "feat: never charge Salvy's own companies for roaming",
+                   head: "you/skip-own-companies", base: "you/bill-demo-companies"),
+                pr("acme/orders-api", 7841, "feat: never charge internal accounts for overage",
                    author: viewer, mine: true, minutes: 95,
-                   head: "chagas42/roaming-own-companies",
-                   reply: ("yurikasper", "src/billing/billing-container-module.ts", 102,
-                           "Salvar o provider em companies não vaza detalhe de billing pro domínio?")),
-                pr("SalvyLTD/salvy-flutter-app", 844, "feat: call the app routes under /app/v1 [ENG-7757]",
+                   head: "you/roaming-own-companies",
+                   reply: ("nina-costa", "src/orders/orders-module.ts", 102,
+                           "Doesn't storing the provider on the account leak a billing detail into the domain?")),
+                pr("acme/mobile", 844, "feat: move the app routes under /app/v1",
                    author: viewer, mine: true, checks: .running, minutes: 180,
-                   head: "chagas42/app-v1-routes"),
-                pr("SalvyLTD/salvy-emails", 312, "chore: move the welcome email to Resend",
+                   head: "you/app-v1-routes"),
+                pr("acme/notifier", 312, "chore: move the welcome email to the new provider",
                    author: viewer, mine: true, draft: true, minutes: 300,
-                   head: "chagas42/welcome-resend"),
+                   head: "you/welcome-resend"),
             ],
             toReview: [
-                pr("SalvyLTD/salvy-dashboard", 4753, "feat: hide the data balance column on pool group tabs",
-                   author: "girardiricardo", mine: false, minutes: 7,
-                   head: "girardiricardo/hide-balance-column"),
-                pr("SalvyLTD/salvy-dashboard", 4751, "feat: show pool phone accounts as unavailable in balance",
-                   author: "girardiricardo", mine: false, checks: .failing, minutes: 34,
-                   head: "girardiricardo/pool-unavailable"),
-                pr("SalvyLTD/salvy-api", 7867, "feat: say what kind of actor authenticated",
-                   author: "danilofuchs", mine: false, minutes: 110,
-                   head: "danilofuchs/actor-kind"),
-                pr("SalvyLTD/salvy-meltano", 541, "chore: sync DW models with salvy-api #7842",
-                   author: "hudovisk", mine: false, approved: true, minutes: 240,
-                   head: "hudovisk/sync-dw-models"),
+                pr("acme/console", 4753, "feat: hide the balance column on group tabs",
+                   author: "lu-ferraz", mine: false, minutes: 7,
+                   head: "lu-ferraz/hide-balance-column"),
+                pr("acme/console", 4751, "feat: show pooled accounts as unavailable",
+                   author: "lu-ferraz", mine: false, checks: .failing, minutes: 34,
+                   head: "lu-ferraz/pooled-unavailable"),
+                pr("acme/orders-api", 7867, "feat: say what kind of actor authenticated",
+                   author: "rafa-mendes", mine: false, minutes: 110,
+                   head: "rafa-mendes/actor-kind"),
+                pr("acme/warehouse", 541, "chore: sync warehouse models with orders-api #742",
+                   author: "tiago-arantes", mine: false, approved: true, minutes: 240,
+                   head: "tiago-arantes/sync-warehouse-models"),
             ],
             following: [
-                pr("SalvyLTD/salvy-api", 7880, "fix: retry the Telecall swap when the msisdn is stale",
-                   author: "eduardo-otte", mine: false, minutes: 22,
-                   head: "eduardo-otte/telecall-retry",
-                   reply: ("eduardo-otte", "src/telecall/swap-msisdn.ts", 58,
-                           "Boa, era isso mesmo. Subi o retry com backoff como você sugeriu.")),
-                pr("SalvyLTD/salvy-dashboard", 4749, "feat: block top-up and group changes for pool accounts",
-                   author: "girardiricardo", mine: false, minutes: 260,
-                   head: "girardiricardo/data-pool-batch-top-up"),
+                pr("acme/orders-api", 7880, "fix: retry the reroute when the label is stale",
+                   author: "bea-nunes", mine: false, minutes: 22,
+                   head: "bea-nunes/reroute-retry",
+                   reply: ("bea-nunes", "src/shipping/reroute-parcel.ts", 58,
+                           "Good catch. Pushed the retry with backoff the way you suggested.")),
+                pr("acme/console", 4749, "feat: block top-up and group changes for pooled accounts",
+                   author: "lu-ferraz", mine: false, minutes: 260,
+                   head: "lu-ferraz/pooled-batch-top-up"),
             ],
             rateLimitLeft: 4980
         )
     }
 
     static var unread: Set<String> {
-        ["SalvyLTD/salvy-api#7842", "SalvyLTD/salvy-api#7841", "SalvyLTD/salvy-api#7880"]
+        ["acme/orders-api#7842", "acme/orders-api#7841", "acme/orders-api#7880"]
     }
 
     static let team: [Person] = [
-        Person(login: "danilofuchs", name: "Danilo Fuchs", avatar: avatar("danilofuchs")!),
-        Person(login: "eduardo-otte", name: "Eduardo Otte", avatar: avatar("eduardo-otte")!),
-        Person(login: "chagas42", name: "Celso Chagas", avatar: avatar("chagas42")!),
-        Person(login: "hudovisk", name: "Hudo Assenco", avatar: avatar("hudovisk")!),
-        Person(login: "girardiricardo", name: "Ricardo Girardi", avatar: avatar("girardiricardo")!),
-        Person(login: "yurikasper", name: "Yuri Kasper", avatar: avatar("yurikasper")!),
-        Person(login: "alysonvilela", name: "Alyson Vilela", avatar: avatar("alysonvilela")!),
-        Person(login: "mizaelsantos", name: "Mizael Santos", avatar: avatar("mizaelsantos")!),
+        Person(login: "rafa-mendes", name: "Rafa Mendes", avatar: URL(string: "about:blank")!),
+        Person(login: "bea-nunes", name: "Bea Nunes", avatar: URL(string: "about:blank")!),
+        Person(login: "you", name: "You", avatar: URL(string: "about:blank")!),
+        Person(login: "tiago-arantes", name: "Tiago Arantes", avatar: URL(string: "about:blank")!),
+        Person(login: "lu-ferraz", name: "Lu Ferraz", avatar: URL(string: "about:blank")!),
+        Person(login: "nina-costa", name: "Nina Costa", avatar: URL(string: "about:blank")!),
+        Person(login: "caio-braga", name: "Caio Braga", avatar: URL(string: "about:blank")!),
+        Person(login: "ester-pinho", name: "Ester Pinho", avatar: URL(string: "about:blank")!),
     ]
 
     static func ranking(_ period: RankPeriod) -> [RankRow] {
         let base: [(String, Int)] = switch period {
-        case .week:    [("danilofuchs", 85), ("eduardo-otte", 46), ("chagas42", 36), ("hudovisk", 9), ("girardiricardo", 4)]
-        case .month:   [("danilofuchs", 265), ("eduardo-otte", 97), ("chagas42", 85), ("hudovisk", 30), ("girardiricardo", 8)]
-        case .quarter: [("danilofuchs", 937), ("chagas42", 271), ("eduardo-otte", 224), ("hudovisk", 186), ("girardiricardo", 27)]
+        case .week:    [("rafa-mendes", 85), ("bea-nunes", 46), ("you", 36), ("tiago-arantes", 9), ("lu-ferraz", 4)]
+        case .month:   [("rafa-mendes", 265), ("bea-nunes", 97), ("you", 85), ("tiago-arantes", 30), ("lu-ferraz", 8)]
+        case .quarter: [("rafa-mendes", 937), ("you", 271), ("bea-nunes", 224), ("tiago-arantes", 186), ("lu-ferraz", 27)]
         }
         return base.compactMap { login, n in
             team.first { $0.login == login }.map { RankRow(person: $0, reviews: n) }

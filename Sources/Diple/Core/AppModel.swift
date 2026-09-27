@@ -145,15 +145,15 @@ final class AppModel: ObservableObject {
     func loadRepos(force: Bool = false) {
         if Demo.isOn {
             repos = Demo.team.isEmpty ? [] : [
-                RepoRef(nameWithOwner: "SalvyLTD/salvy-api", owner: "SalvyLTD", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "SalvyLTD/salvy-dashboard", owner: "SalvyLTD", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "SalvyLTD/salvy-emails", owner: "SalvyLTD", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "SalvyLTD/salvy-flutter-app", owner: "SalvyLTD", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "SalvyLTD/salvy-meltano", owner: "SalvyLTD", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "chagas42/diple", owner: "chagas42", isOrg: false, isPrivate: true),
-                RepoRef(nameWithOwner: "chagas42/jsonl-inspect", owner: "chagas42", isOrg: false, isPrivate: false),
+                RepoRef(nameWithOwner: "acme/orders-api", owner: "acme", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "acme/console", owner: "acme", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "acme/notifier", owner: "acme", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "acme/mobile", owner: "acme", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "acme/warehouse", owner: "acme", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "chagas42/diple", owner: "you", isOrg: false, isPrivate: true),
+                RepoRef(nameWithOwner: "chagas42/jsonl-inspect", owner: "you", isOrg: false, isPrivate: false),
             ]
-            watching = ["SalvyLTD/salvy-api"]
+            watching = ["acme/orders-api"]
             return
         }
         let cache = store.state.cache
