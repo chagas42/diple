@@ -30,6 +30,11 @@ enum Worktree {
         }
     }
 
+    static func existing(repo: String, pr: Int) -> URL? {
+        let target = root.appendingPathComponent("\(repo.replacingOccurrences(of: "/", with: "-"))-\(pr)")
+        return FileManager.default.fileExists(atPath: target.path) ? target : nil
+    }
+
     @discardableResult
     static func prepare(origin: URL, repo: String, pr: Int, base: String = "") async throws -> URL {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

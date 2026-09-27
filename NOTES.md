@@ -72,6 +72,66 @@ app. The test path bypasses it explicitly.
 **`threadIdentifier`** groups several notifications from one PR into a single
 banner. **`UNTextInputNotificationAction`** is what puts a reply field in it.
 
+## The PR map
+
+**Two layers, two speeds.** Domains and modules come from the GraphQL file list
+and appear the moment it returns, at no token cost. Only what needs judgement
+(intent, edges, what feels the change, context) waits for `claude`. A map that
+never gets the second layer is still a correct map, marked "diff only".
+
+**`files(first: 100)` truncates silently.** A PR with 300 files returned the
+top 100 and the map looked complete. The file list is paginated now, up to the
+3000 GitHub itself caps at.
+
+**The skill ships inside the bundle.** `Resources/plugin` is copied to
+`Contents/Resources/plugin` and passed with `--plugin-dir`, so the prompt and the
+parser that reads its JSON always come from the same build. A personal copy at
+`~/.claude/skills/diple-map/SKILL.md` wins over the bundled one. `Skill` has to be
+in `--allowed-tools`, or the session loads the skill and cannot run it.
+
+**A stack is one map.** Each PR in the stack is fetched against its own base and
+the file lists are merged, so every node carries the PRs that touched it. The
+worktree is the head of the top PR and the diff base is the base of the bottom
+one.
+
+**The worktree outlives the map.** Clicking a node opens the file at the PR head,
+which only exists in the worktree. It is not discarded after drawing;
+`pruneStale` removes it an hour later, and the click falls back to the clone and
+then to GitHub at `headRefOid`.
+
+**Domains are guessed from paths.** Leading containers (`src`, `lib`,
+`features`, …) are skipped and workspaces (`apps/x`, `packages/x`, `Sources/x`)
+consume two segments. The first segment left is the domain, the next one the
+module. It is a heuristic and the skill is told not to trust it blindly.
+
+**Speed comes from not letting the model search.** Measured on a 12-file PR:
+170s, 14 sequential tool calls and 6k thinking tokens with the first skill; 44s,
+2 rounds and 138 thinking tokens after three changes. A local `git grep` for
+each changed file's `parent/stem` and `stem` finds the files that mention it in
+under a second, and they go in the input as `candidates`. The skill tells the
+model to batch independent calls in one turn and never repeat a search. And the
+session runs with `--effort low` and `--strict-mcp-config`, so none of the user's
+MCP servers start just to draw a map.
+
+**`--bare` is not an option.** It would skip hooks and plugins, which is exactly
+the startup cost left, but it only authenticates with `ANTHROPIC_API_KEY` and
+never reads the OAuth login, which breaks "your own Claude".
+
+**The link of a module is never a test.** The file a module box opens is the
+most-changed file that is not a spec; tests only win when the module has
+nothing else.
+
+**The estimate is a sum you can read.** Session start, worktree fetch when there
+is none, files, thousand lines and domains, each with its own rate, then scaled
+by the median of actual over predicted for the last ten maps on this machine
+(`map-timings.json`). While the session runs, the remaining time blends toward
+the pace measured in tool calls against the expected budget.
+
+**New settings are optional on purpose.** `StoredState` decodes with synthesized
+`Codable`, and a non-optional field missing from an older `state.json` fails the
+whole decode, which moves the file aside as unreadable. Every field added after
+the first release is optional with a computed accessor.
+
 ## Signing
 
 The bundle is assembled by hand and ad-hoc signed, with no Xcode project and no
