@@ -94,6 +94,93 @@ final class AppModel: ObservableObject {
         }
     }
 
+    @Published var repos: [RepoRef] = []
+    @Published var selectedRepo: String?
+    @Published var repoPRs: [PR] = []
+    @Published var loadingRepo = false
+    @Published var repoShowsDraft = false
+    @Published var watching: Set<String> = []
+
+    enum RepoGroup: Identifiable {
+        case personal([RepoRef])
+        case org(String, [RepoRef])
+
+        var id: String {
+            switch self {
+            case .personal:      "~personal"
+            case .org(let o, _): o
+            }
+        }
+        var title: String {
+            switch self {
+            case .personal:      "Personal"
+            case .org(let o, _): o
+            }
+        }
+        var items: [RepoRef] {
+            switch self {
+            case .personal(let r):  r
+            case .org(_, let r):    r
+            }
+        }
+    }
+
+    var repoGroups: [RepoGroup] {
+        let orgs = Dictionary(grouping: repos.filter(\.isOrg), by: \.owner)
+            .map { RepoGroup.org($0.key, $0.value.sorted { $0.name < $1.name }) }
+            .sorted { $0.title.lowercased() < $1.title.lowercased() }
+        let mine = repos.filter { !$0.isOrg }.sorted { $0.name < $1.name }
+        return orgs + (mine.isEmpty ? [] : [.personal(mine)])
+    }
+
+    var repoPRsShown: [PR] {
+        repoPRs.filter { $0.draft == repoShowsDraft }
+    }
+
+    func loadRepos(force: Bool = false) {
+        let cache = store.state.cache
+        if !force, let cached = cache.repos, !cached.isEmpty,
+           !cache.isStale(cache.reposAt, after: 24 * 3600) {
+            repos = cached
+            return
+        }
+        if let cached = cache.repos { repos = cached }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let fetched = try await client.fetchRepos()
+                var c = self.store.state.cache
+                c.repos = fetched
+                c.reposAt = Date()
+                self.store.saveCache(c)
+                self.repos = fetched
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func selectRepo(_ full: String?) {
+        selectedRepo = full
+        repoPRs = []
+        guard let full else { return }
+        loadingRepo = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.loadingRepo = false }
+            do {
+                self.repoPRs = try await self.client.fetchRepoPRs(full)
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func toggleWatch(_ repo: String) {
+        store.toggleWatch(repo)
+        watching = store.state.watching ?? []
+    }
+
     private let client = GitHubClient()
     private let store = Store()
     private let notificador = Notifier()
@@ -107,10 +194,13 @@ final class AppModel: ObservableObject {
         started = true
         notificador.install()
         notificador.onChange = { [weak self] in await self?.refresh() }
+        defer { loadRepos() }
         unread = store.state.unread
         following = store.state.following
+        watching = store.state.watching ?? []
         let cache = store.state.cache
         team = cache.team
+        repos = cache.repos ?? []
         ranking = cache.rank(rankPeriod)
         activity = cache.activity
         settings = store.state.settings
@@ -235,17 +325,6 @@ final class AppModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    var shouldAnimateScore: Bool {
-        guard let shown = store.state.cache.scoreShownOn else { return true }
-        return !Calendar.current.isDateInToday(shown)
-    }
-
-    func markScoreShown() {
-        var cache = store.state.cache
-        cache.scoreShownOn = Date()
-        store.saveCache(cache)
     }
 
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }

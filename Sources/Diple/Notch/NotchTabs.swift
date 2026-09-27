@@ -229,22 +229,26 @@ struct RankTab: View {
             }
             Spacer(minLength: 0)
         }
-        .onAppear(perform: runOnce)
-        .onChange(of: model.ranking) { _ in runOnce() }
-        .onChange(of: model.rankPeriod) { _ in progress = 0 }
+        .task(id: runKey) { await play() }
     }
 
-    private func runOnce() {
-        guard !model.ranking.isEmpty else { progress = 0; return }
-        guard model.shouldAnimateScore else { progress = 1; return }
-        model.markScoreShown()
+    private var runKey: String {
+        "\(model.rankPeriod.rawValue)|\(model.ranking.map(\.person.login).joined(separator: ","))"
+    }
+
+    @MainActor
+    private func play() async {
+        guard !model.ranking.isEmpty else {
+            progress = 0
+            celebrating = false
+            return
+        }
         progress = 0
         celebrating = true
-        withAnimation(.easeOut(duration: 1.5)) { progress = 1 }
-        Task {
-            try? await Task.sleep(for: .milliseconds(1700))
-            withAnimation(.easeOut(duration: 0.35)) { celebrating = false }
-        }
+        try? await Task.sleep(for: .milliseconds(60))
+        withAnimation(.easeOut(duration: 0.9)) { progress = 1 }
+        try? await Task.sleep(for: .milliseconds(1100))
+        withAnimation(.easeOut(duration: 0.3)) { celebrating = false }
     }
 }
 
@@ -304,7 +308,7 @@ struct ActivityTab: View {
             if streak > 0 {
                 HStack(spacing: 5) {
                     Image(systemName: "flame.fill").font(.system(size: 9.5))
-                    Text("\(streak) day\(streak == 1 ? "" : "s") seguido\(streak == 1 ? "" : "s")")
+                    Text("\(streak) day\(streak == 1 ? "" : "s") in a row")
                         .font(.system(size: 11, weight: .semibold))
                 }
                 .foregroundStyle(Self.accent)

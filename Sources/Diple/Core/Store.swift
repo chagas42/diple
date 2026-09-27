@@ -16,6 +16,7 @@ struct StoredState: Codable, Sendable {
     var hasRunBefore: Bool = false
 
     var following: Set<String> = []
+    var watching: Set<String>? = nil
     var settings = Settings()
     var cache = Cache()
 }
@@ -67,6 +68,8 @@ struct Cache: Codable, Sendable {
     var rankingAt: Date?
     var activityAt: Date?
     var scoreShownOn: Date?
+    var repos: [RepoRef]? = nil
+    var reposAt: Date? = nil
     var rankByPeriod: [String: [RankRow]]? = nil
     var rankAtByPeriod: [String: Date]? = nil
 
@@ -139,6 +142,13 @@ final class Store {
 
     func saveSettings(_ c: Settings) {
         state.settings = c
+        save()
+    }
+
+    func toggleWatch(_ repo: String) {
+        var w = state.watching ?? []
+        if w.contains(repo) { w.remove(repo) } else { w.insert(repo) }
+        state.watching = w
         save()
     }
 

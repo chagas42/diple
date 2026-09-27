@@ -1,5 +1,5 @@
 enum Query {
-    static let queue = """
+    static let prFragment = """
     fragment pr on PullRequest {
       id
       number
@@ -30,6 +30,9 @@ enum Query {
         nodes { commit { statusCheckRollup { state } } }
       }
     }
+    """
+
+    static let queue = prFragment + """
     query Queue {
       viewer { login }
       mine: search(query: "is:open is:pr author:@me sort:updated", type: ISSUE, first: 30) {
