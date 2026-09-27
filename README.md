@@ -95,12 +95,23 @@ not here* — goes to the model.
 
 ```bash
 brew install --cask chagas42/tap/diple
+xattr -dr com.apple.quarantine /Applications/Diple.app
 ```
 
 ### Direct download
 
 Grab the latest `.zip` from [Releases](https://github.com/chagas42/diple/releases/latest),
-unpack it into `/Applications`, and on first launch right-click → Open.
+unpack it into `/Applications`, then run the same `xattr` line.
+
+> **Run that second line, or macOS will tell you Diple is malware.** It is not
+> lying to you and it is not wrong to be suspicious: the build is signed
+> ad-hoc, not notarised, and macOS cannot tell an ad-hoc signature from
+> anything else it has never seen. Notarising needs a paid Apple Developer
+> account, which this project does not have. `xattr -dr com.apple.quarantine`
+> clears the flag the download put there; if you skip it, you get the scary
+> dialog and then System Settings → Privacy & Security → Open Anyway.
+>
+> Building from source has no such step, because nothing was downloaded.
 
 ### From source
 
