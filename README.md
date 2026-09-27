@@ -48,10 +48,7 @@ Nothing waiting: an eye and a dimmed zero, sitting inside the bezel. Something
 waiting: the count lights up. Hover and it opens — four tabs, the queue, your
 team, the ranking, your streak.
 
-<!-- hover open/close, 8s loop
-
-<img src="PASTE_URL" width="640" alt="The notch opening" />
--->
+<img src="docs/notch.gif" width="720" alt="The notch opening" />
 
 ### Answer without leaving what you are doing
 
