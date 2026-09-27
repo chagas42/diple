@@ -31,8 +31,8 @@ struct Geometria {
         guard pendencias > 0 else { return alvoInvisivel() }
         // Largura exata do recorte: o flare fica zero e não sobra degrau
         // nenhum nas laterais. Parece só que a notch ficou um pouco mais alta.
-        return temNotch ? pendurado(largura: larguraNotch, altura: 30)
-                        : solto(largura: 150, altura: 30)
+        return temNotch ? pendurado(largura: larguraNotch, altura: 17)
+                        : solto(largura: 110, altura: 22)
     }
 
     func aberto() -> NSRect {
@@ -55,6 +55,15 @@ struct Geometria {
 
     /// Cobre exatamente o recorte (ou o centro da barra, sem recorte).
     /// Nada é desenhado aqui — essa área não é clicável de todo jeito.
+    /// A faixa do recorte em si. O ponteiro passando aqui já conta como hover,
+    /// senão você teria que mirar os 17pt do repouso.
+    func zonaNotch() -> NSRect {
+        let l = temNotch ? larguraNotch : 180
+        return NSRect(x: tela.frame.midX - l / 2,
+                      y: tela.frame.maxY - alturaTopo,
+                      width: l, height: alturaTopo)
+    }
+
     private func alvoInvisivel() -> NSRect {
         let l = temNotch ? larguraNotch : 180
         return NSRect(x: tela.frame.midX - l / 2,

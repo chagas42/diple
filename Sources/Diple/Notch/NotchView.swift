@@ -30,8 +30,6 @@ struct NotchView: View {
     let larguraNotch: CGFloat
     let olhar: CGPoint
     let piscando: Bool
-    let aoEntrar: () -> Void
-    let aoSair: () -> Void
 
     var body: some View {
         conteudo
@@ -45,7 +43,6 @@ struct NotchView: View {
                     radius: pendurado ? 10 : 14,
                     y: pendurado ? 8 : 6)
             .contentShape(Rectangle())
-            .onHover { $0 ? aoEntrar() : aoSair() }
             .animation(.spring(response: 0.42, dampingFraction: 0.72), value: raio)
             .animation(.bouncy(duration: 0.45), value: modelo.contador)
     }
@@ -83,16 +80,15 @@ struct NotchView: View {
 
     @ViewBuilder private var repouso: some View {
         if modelo.contador > 0 {
-            HStack(spacing: 8) {
-                OlhoView(olhar: olhar, piscando: piscando)
+            HStack(spacing: 6) {
+                OlhoView(olhar: olhar, piscando: piscando, largura: 14)
                 Text("\(modelo.contador)")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.92))
                     .monospacedDigit()
                     .contentTransition(.numericText(value: Double(modelo.contador)))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.bottom, pendurado ? 3 : 0)
         } else {
             Color.clear
         }

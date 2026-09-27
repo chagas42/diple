@@ -82,7 +82,9 @@ final class Notch: ObservableObject {
     private func seguirPonteiro() {
         olhos = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.estado == .repouso else { return }
+                guard let self else { return }
+                self.verificarPonteiro()
+                guard self.estado == .repouso else { return }
                 let centro = CGPoint(x: self.painel.frame.midX, y: self.painel.frame.midY)
                 let m = NSEvent.mouseLocation
                 let alcance: CGFloat = 320
@@ -95,6 +97,22 @@ final class Notch: ObservableObject {
                 }
             }
         }
+    }
+
+    /// A fonte da verdade do hover é onde o ponteiro está, não um evento de
+    /// layout. onHover do SwiftUI dispara durante a própria animação de
+    /// redimensionar: abre, o layout muda, dispara saída, fecha, entra de novo.
+    /// Isso era o piscar.
+    private func verificarPonteiro() {
+        let m = NSEvent.mouseLocation
+        let sensivel = painel.frame.union(Geometria.atual().zonaNotch())
+        // Folga assimétrica: entra justo, sai com margem. Sem histerese o
+        // ponteiro parado na borda faz o painel tremer.
+        let dentro = estado == .repouso
+            ? sensivel.contains(m)
+            : sensivel.insetBy(dx: -14, dy: -14).contains(m)
+
+        if dentro { abrir() } else if hover { fechar() }
     }
 
     private func piscarDeVezEmQuando() {
@@ -145,9 +163,7 @@ final class Notch: ObservableObject {
                 pendurado: notch.pendurado,
                 larguraNotch: notch.larguraNotch,
                 olhar: notch.olhar,
-                piscando: notch.piscando,
-                aoEntrar: { notch.abrir() },
-                aoSair: { notch.fechar() }
+                piscando: notch.piscando
             )
         }
     }
