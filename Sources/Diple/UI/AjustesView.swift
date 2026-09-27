@@ -60,15 +60,31 @@ struct PainelNotificacoes: View {
 
                         Button {
                             if let s = modelo.config.som(t) { NSSound(named: s)?.play() }
-                        } label: { Image(systemName: "play.fill") }
+                        } label: { Image(systemName: "speaker.wave.2.fill") }
                             .disabled(modelo.config.som(t) == nil)
+                            .help("Ouvir só o som")
+
+                        Button("Testar") { Task { await modelo.testar(t) } }
+                            .help("Dispara um aviso de verdade, com banner, som e a animação da notch")
                     }
                     .padding(.vertical, 2)
+                }
+                HStack {
+                    Button("Testar todos em sequência") {
+                        Task {
+                            for t in TipoEvento.allCases where modelo.config.avisa(t) {
+                                await modelo.testar(t)
+                                try? await Task.sleep(for: .seconds(2.5))
+                            }
+                        }
+                    }
+                    Spacer()
                 }
             } header: {
                 Text("Quando isto acontece")
             } footer: {
-                Text("O que fica desligado continua entrando na fila — só não interrompe.")
+                Text("O que fica desligado continua entrando na fila — só não interrompe. "
+                     + "Testar dispara um aviso real: banner, som e a notch abrindo.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }

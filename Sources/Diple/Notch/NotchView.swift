@@ -261,38 +261,63 @@ struct NotchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ForEach(Array(modelo.precisamDeVoce.prefix(3).enumerated()), id: \.element.id) { i, pr in
-                    if i > 0 {
-                        Rectangle().fill(.white.opacity(0.06)).frame(height: 1)
+                // O cabeçalho diz quantos são no total. Antes a lista mostrava
+                // três e o número grande dizia catorze, sem ligação entre eles.
+                HStack(spacing: 6) {
+                    Text("Esperando você")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.4))
+                    Spacer()
+                    Text("\(modelo.precisamDeVoce.count)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.orange)
+                    if modelo.precisamDeVoce.count > 4 {
+                        Image(systemName: "arrow.up.and.down")
+                            .font(.system(size: 8.5))
+                            .foregroundStyle(.white.opacity(0.3))
                     }
-                    Button { modelo.abrir(pr) } label: {
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(pr.ci == .falhou ? Color.red : .orange)
-                                .frame(width: 7, height: 7)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(pr.titulo)
-                                    .font(.system(size: 12.5, weight: .medium))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-                                Text(meta(pr))
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.white.opacity(0.45))
-                                    .lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                            Text(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))
-                                .font(.system(size: 10.5, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.35))
-                        }
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 11)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
                 }
-                Spacer(minLength: 0)
+                .padding(.horizontal, 13)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(modelo.precisamDeVoce.enumerated()), id: \.element.id) { i, pr in
+                            if i > 0 {
+                                Rectangle().fill(.white.opacity(0.06)).frame(height: 1)
+                                    .padding(.horizontal, 13)
+                            }
+                            Button { modelo.abrir(pr) } label: {
+                                HStack(spacing: 10) {
+                                    Circle()
+                                        .fill(pr.ci == .falhou ? Color.red : .orange)
+                                        .frame(width: 7, height: 7)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(pr.titulo)
+                                            .font(.system(size: 12.5, weight: .medium))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(1)
+                                        Text(meta(pr))
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.white.opacity(0.45))
+                                            .lineLimit(1)
+                                    }
+                                    Spacer(minLength: 8)
+                                    Text(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))
+                                        .font(.system(size: 10.5, design: .monospaced))
+                                        .foregroundStyle(.white.opacity(0.35))
+                                }
+                                .padding(.horizontal, 13)
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .scrollIndicators(.visible)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
