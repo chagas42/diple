@@ -33,6 +33,7 @@ struct ErroGraphQL: Decodable, Sendable {
 struct Ator: Decodable, Sendable {
     let login: String
     let __typename: String
+    let avatarUrl: URL?
 
     var ehBot: Bool {
         __typename == "Bot" || login.hasSuffix("[bot]") || Ator.conhecidos.contains(login)
@@ -52,6 +53,8 @@ struct PRCru: Decodable, Sendable {
     let url: URL
     let updatedAt: Date
     let isDraft: Bool
+    let headRefName: String
+    let baseRefName: String
     let repository: Repo
     let author: Ator?
     let reviewDecision: String?
@@ -107,7 +110,11 @@ struct PR: Identifiable, Sendable, Equatable {
     let atualizadoEm: Date
     let rascunho: Bool
     let autor: String
+    let avatarAutor: URL?
     let souEuOAutor: Bool
+    /// As duas refs que revelam pilha: a base de um PR é o topo do anterior.
+    let ramo: String
+    let ramoBase: String
     let ci: EstadoCI
     let aprovado: Bool
     /// Threads inline abertas, com o trecho de código de cada uma.
@@ -158,7 +165,10 @@ struct PR: Identifiable, Sendable, Equatable {
         atualizadoEm = c.updatedAt
         rascunho = c.isDraft
         autor = c.author?.login ?? "?"
+        avatarAutor = c.author?.avatarUrl
         souEuOAutor = c.author?.login == meuLogin
+        ramo = c.headRefName
+        ramoBase = c.baseRefName
         ci = EstadoCI(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         aprovado = c.reviewDecision == "APPROVED"
 

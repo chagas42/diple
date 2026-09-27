@@ -27,6 +27,8 @@ final class Modelo: ObservableObject {
     // Review pela sua própria sessão do Claude
     @Published private(set) var achados: [String: [Achado]] = [:]
     @Published private(set) var passoIA: PassoIA?
+    @Published private(set) var progressoIA: [LinhaProgresso] = []
+    @Published private(set) var inicioIA: Date?
     @Published private(set) var revisandoIA: String?
     @Published private(set) var mapas: [String: Mapa] = [:]
     @Published private(set) var desenhandoMapa: String?
@@ -207,40 +209,68 @@ final class Modelo: ObservableObject {
     func revisarComIA(_ pr: PR) async {
         guard revisandoIA == nil else { return }
         revisandoIA = pr.chave
-        passoIA = .preparando("procurando o repositório")
+        progressoIA = []
+        inicioIA = Date()
+        marcar("procurando o repositório")
         defer { revisandoIA = nil }
 
         guard let origem = Worktree.localDe(pr.repo, configurados: config.caminhos) else {
             passoIA = .falhou("não achei \(pr.repo) na sua máquina. Aponte a pasta em Ajustes.")
+            marcar("repositório não encontrado", fechando: true)
             return
         }
 
         var destino: URL?
         do {
-            passoIA = .preparando("buscando a base do diff")
+            marcar("buscando a base do diff no GitHub")
             let (base, _) = try await cliente.baseEModulos(repo: pr.repo, pr: pr.numero)
 
-            passoIA = .preparando("preparando worktree descartável")
+            marcar("preparando o worktree")
             let w = try await Worktree.preparar(
                 origem: origem, repo: pr.repo, pr: pr.numero, base: base
             )
             destino = w
 
+            marcar("o Claude está lendo o código")
             for await passo in RevisorIA().revisar(
                 pr: pr, base: base, em: w, modelo: config.modeloIA
             ) {
                 passoIA = passo
-                if case .pronto(let lista) = passo { achados[pr.chave] = lista }
+                switch passo {
+                case .preparando(let t), .ferramenta(let t): marcar(t)
+                case .pensando: marcar("pensando")
+                case .pronto(let lista):
+                    achados[pr.chave] = lista
+                    marcar("\(lista.count) apontamento\(lista.count == 1 ? "" : "s")",
+                           fechando: true)
+                case .falhou(let m): marcar(m, fechando: true)
+                }
             }
         } catch {
             passoIA = .falhou(error.localizedDescription)
+            marcar(error.localizedDescription, fechando: true)
         }
 
-        if let d = destino { await Worktree.descartar(origem: origem, destino: d) }
+        // O worktree fica: refazer custa uns 3s de fetch e checkout, conferir
+        // custa 10ms. A limpeza do que envelhece roda no lançamento.
+        _ = destino
     }
 
     /// O que muda sai do diff, sem IA. Só a pergunta que exige julgamento —
     /// o que sente a mudança e o que você precisa conhecer — vai pro Claude.
+    /// Acumula o progresso, fecha o passo anterior e agrupa repetição — uma
+    /// linha só que troca de texto não dá nenhuma noção de avanço.
+    private func marcar(_ texto: String, fechando: Bool = false) {
+        if var ultima = progressoIA.last, ultima.texto == texto {
+            ultima.repeticoes += 1
+            progressoIA[progressoIA.count - 1] = ultima
+            return
+        }
+        if !progressoIA.isEmpty { progressoIA[progressoIA.count - 1].concluido = true }
+        progressoIA.append(LinhaProgresso(texto: texto, concluido: fechando))
+        if progressoIA.count > 14 { progressoIA.removeFirst() }
+    }
+
     func desenharMapa(_ pr: PR) async {
         guard desenhandoMapa == nil else { return }
         desenhandoMapa = pr.chave

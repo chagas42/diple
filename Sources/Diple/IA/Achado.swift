@@ -47,6 +47,16 @@ struct Achado: Identifiable, Codable, Sendable, Equatable {
     }
 }
 
+/// Uma linha do que já aconteceu. O progresso se acumula em vez de se
+/// substituir: uma linha só que troca de texto não dá noção de avanço.
+struct LinhaProgresso: Identifiable, Sendable, Equatable {
+    let id = UUID()
+    var texto: String
+    var concluido: Bool
+    /// Quantas vezes seguidas a mesma coisa apareceu, pra não virar enxurrada.
+    var repeticoes: Int = 1
+}
+
 /// Estado do que a sessão está fazendo, pra UI poder mostrar progresso.
 enum PassoIA: Sendable, Equatable {
     case preparando(String)

@@ -10,8 +10,10 @@ enum Query {
       url
       updatedAt
       isDraft
+      headRefName
+      baseRefName
       repository { nameWithOwner }
-      author { login __typename }
+      author { login __typename avatarUrl(size: 64) }
       reviewDecision
       comments(last: 20) {
         nodes { author { login __typename } createdAt bodyText }

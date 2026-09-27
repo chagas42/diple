@@ -76,12 +76,42 @@ struct JanelaView: View {
     }
 
     private var lista: some View {
-        List(modelo.prs(modelo.aba), selection: Binding(
+        List(selection: Binding(
             get: { modelo.selecionado?.chave },
             set: { chave in modelo.selecionado = modelo.prs(modelo.aba).first { $0.chave == chave } }
-        )) { pr in
-            LinhaJanela(pr: pr, naoLido: modelo.naoLidos.contains(pr.chave))
-                .tag(pr.chave)
+        )) {
+            ForEach(modelo.prs(modelo.aba).emPilhas()) { pilha in
+                if pilha.empilhada {
+                    Section {
+                        ForEach(Array(pilha.prs.enumerated()), id: \.element.chave) { i, pr in
+                            LinhaJanela(
+                                pr: pr,
+                                naoLido: modelo.naoLidos.contains(pr.chave),
+                                degrau: i + 1,
+                                degraus: pilha.prs.count
+                            )
+                            .tag(pr.chave)
+                        }
+                    } header: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "square.3.layers.3d.down.right")
+                                .font(.system(size: 10))
+                            Text("Pilha de \(pilha.prs.count)")
+                                .font(.system(size: 10.5, weight: .semibold))
+                            Text(pilha.base?.repo.split(separator: "/").last.map(String.init) ?? "")
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("leia de baixo pra cima")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                } else if let pr = pilha.prs.first {
+                    LinhaJanela(pr: pr, naoLido: modelo.naoLidos.contains(pr.chave))
+                        .tag(pr.chave)
+                }
+            }
         }
         .navigationTitle(modelo.aba.titulo)
         .overlay {
@@ -95,13 +125,21 @@ struct JanelaView: View {
 struct LinhaJanela: View {
     let pr: PR
     let naoLido: Bool
+    var degrau: Int? = nil
+    var degraus: Int? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: glifo)
-                .font(.system(size: 13))
-                .foregroundStyle(cor)
-                .frame(width: 16)
+            if let d = degrau, let n = degraus {
+                // O número diz a ordem de leitura, que é o que a pilha carrega.
+                Text("\(d)/\(n)")
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22)
+                    .padding(.top, 3)
+            }
+
+            AvatarPR(url: pr.avatarAutor, login: pr.autor)
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -109,6 +147,9 @@ struct LinhaJanela: View {
                     .font(.system(size: 13, weight: naoLido ? .semibold : .regular))
                     .lineLimit(2)
                 HStack(spacing: 6) {
+                    Image(systemName: glifo)
+                        .font(.system(size: 10))
+                        .foregroundStyle(cor)
                     Text("\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.numero)")
                         .font(.system(size: 11, design: .monospaced))
                     if let c = pr.ultimoComentario {
@@ -148,5 +189,28 @@ struct LinhaJanela: View {
         else if pr.aprovado { .green }
         else if naoLido { .orange }
         else { .secondary }
+    }
+}
+
+struct AvatarPR: View {
+    let url: URL?
+    let login: String
+    var lado: CGFloat = 24
+
+    var body: some View {
+        AsyncImage(url: url) { fase in
+            switch fase {
+            case .success(let img): img.resizable().scaledToFill()
+            default:
+                ZStack {
+                    Color.secondary.opacity(0.18)
+                    Text(String(login.prefix(2)).uppercased())
+                        .font(.system(size: lado * 0.34, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(width: lado, height: lado)
+        .clipShape(Circle())
     }
 }
