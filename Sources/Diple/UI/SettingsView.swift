@@ -150,7 +150,7 @@ struct NotificationsPane: View {
         case .commented:      "PR conversation and inline code comments."
         case .reviewRequested:   "Directly to you, or through one of your teams."
         case .checkFailed:     "Only on the first failure; retries do not repeat."
-        case .approved:       "Costuma bastar ver at open a queue."
+        case .approved:       "Usually enough to see when you open the queue."
         }
     }
 }

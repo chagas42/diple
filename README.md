@@ -66,6 +66,8 @@ happened before you look.
 
 <img src="docs/queue.gif" width="760" alt="The queue and its tabs" />
 
+<img src="docs/sounds.gif" width="720" alt="A sound per kind of event" />
+
 ### Review with your own Claude
 
 Diple has no AI of its own. It drives **your** Claude Code session, with your
@@ -81,10 +83,7 @@ Nothing is published, and that is structural rather than a promise:
 
 It does not choose not to publish. It cannot.
 
-<!-- pressing Review with AI → live progress → findings in the margin
-
-<img src="PASTE_URL" width="640" alt="AI review in draft" />
--->
+<img src="docs/window.gif" width="820" alt="Reviewing in the window" />
 
 ### A map before you start reading
 
@@ -97,10 +96,7 @@ It draws as a canvas: drag the boxes, pinch to zoom, open it in its own window.
 A stack is one map, each box tagged with the PRs that touched it. Click a box
 and the file opens in your editor at the PR head; ⌥-click opens it on GitHub.
 
-<!-- the PR map, connected boxes
-
-<img src="PASTE_URL" width="640" alt="The PR map" />
--->
+<img src="docs/repos.gif" width="820" alt="Browsing repositories" />
 
 ### Every repository you belong to
 

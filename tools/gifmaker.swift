@@ -8,9 +8,13 @@ import UniformTypeIdentifiers
 
 let a = CommandLine.arguments
 guard a.count >= 5 else {
-    FileHandle.standardError.write("usage: gifmaker in.mp4 out.gif fps width [cropX cropY cropW cropH]\n".data(using: .utf8)!)
+    FileHandle.standardError.write("usage: gifmaker in.mp4 out.gif fps width [cropX cropY cropW cropH] [--from S] [--dur S]\n".data(using: .utf8)!)
     exit(2)
 }
+var startAt: Double = 0
+var window: Double = -1
+if let i = a.firstIndex(of: "--from"), i + 1 < a.count { startAt = Double(a[i+1]) ?? 0 }
+if let i = a.firstIndex(of: "--dur"), i + 1 < a.count { window = Double(a[i+1]) ?? -1 }
 let inURL = URL(fileURLWithPath: a[1])
 let outURL = URL(fileURLWithPath: a[2])
 let fps = Double(a[3]) ?? 15
@@ -41,10 +45,11 @@ guard duration > 0, natural != .zero else {
 
 let gen = AVAssetImageGenerator(asset: asset)
 gen.appliesPreferredTrackTransform = true
-gen.requestedTimeToleranceBefore = .zero
-gen.requestedTimeToleranceAfter = .zero
+gen.requestedTimeToleranceBefore = CMTime(seconds: 0.02, preferredTimescale: 600)
+gen.requestedTimeToleranceAfter = CMTime(seconds: 0.02, preferredTimescale: 600)
 
-let frameCount = Int(duration * fps)
+let span = window > 0 ? min(window, duration - startAt) : duration - startAt
+let frameCount = Int(span * fps)
 let delay = 1.0 / fps
 
 guard let dest = CGImageDestinationCreateWithURL(
@@ -65,7 +70,7 @@ let frameProps = [
 
 var written = 0
 for i in 0..<frameCount {
-    let t = CMTime(seconds: Double(i) * delay, preferredTimescale: 600)
+    let t = CMTime(seconds: startAt + Double(i) * delay, preferredTimescale: 600)
     guard var cg = try? gen.copyCGImage(at: t, actualTime: nil) else { continue }
 
     if let c = crop, let cropped = cg.cropping(to: c) { cg = cropped }

@@ -4,13 +4,13 @@ struct DetailView: View {
     @ObservedObject var model: AppModel
     let pr: PR
 
-    enum Secao: String, CaseIterable, Identifiable {
-        case conversa = "Conversation"
-        case mapa = "Overview"
-        case ia = "AI review"
+    enum Section: String, CaseIterable, Identifiable {
+        case conversation = "Conversation"
+        case map = "Overview"
+        case ai = "AI review"
         var id: String { rawValue }
     }
-    @State private var secao: Secao = .conversa
+    @State private var section: Section = .conversation
 
     var body: some View {
         ScrollView {
@@ -19,14 +19,14 @@ struct DetailView: View {
                 Divider()
                 estatisticas
 
-                Picker("", selection: $secao) {
-                    ForEach(Secao.allCases) { Text($0.rawValue).tag($0) }
+                Picker("", selection: $section) {
+                    ForEach(Section.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
-                switch secao {
-                case .conversa:
+                switch section {
+                case .conversation:
                     if pr.threads.isEmpty {
                         semThreads
                     } else {
@@ -34,16 +34,16 @@ struct DetailView: View {
                             ThreadView(model: model, thread: t)
                         }
                     }
-                case .mapa:
+                case .map:
                     MapaView(model: model, pr: pr)
-                case .ia:
+                case .ai:
                     AIReviewView(model: model, pr: pr)
                 }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onChange(of: pr.key) { secao = .conversa }
+        .onChange(of: pr.key) { section = .conversation }
         .toolbar {
             ToolbarItem {
                 Button {
@@ -68,7 +68,7 @@ struct DetailView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("\(pr.author) abriu · atualizado \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
+            Text("opened by \(pr.author) · updated \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
         }
@@ -90,9 +90,9 @@ struct DetailView: View {
 
     private var estatisticas: some View {
         HStack(spacing: 8) {
-            label(pr.checks == .failing ? "checks vermelhos" : pr.checks == .passing ? "checks verdes" : "checks running")
+            label(pr.checks == .failing ? "checks failing" : pr.checks == .passing ? "checks passing" : "checks running")
             Text("·").foregroundStyle(.tertiary)
-            label("\(pr.threads.count) conversa\(pr.threads.count == 1 ? "" : "s") aberta\(pr.threads.count == 1 ? "" : "s")")
+            label("\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")")
         }
         .font(.system(size: 12, design: .monospaced))
         .foregroundStyle(.secondary)
