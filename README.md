@@ -63,11 +63,46 @@ Sources/Diple/
 Estado local em `~/Library/Application Support/Diple/estado.json`. A primeira
 execução nunca notifica — senão a estreia dispararia um banner por PR aberto.
 
-## Escopo desta v1
+## O que existe
 
-Entra: barra de menu com contador, popover com a fila, notificação com som
-por tipo, clique abre o PR.
+**Na notch.** Em repouso o painel tem exatamente o tamanho do recorte e some.
+Com pendência abre duas asas na altura da barra de menu, com um olho que
+acompanha o ponteiro e o número. No hover expande, com filete côncavo nos
+cantos de cima — a emenda com o bezel se esconde na forma, porque num LCD o
+preto nunca iguala o recorte físico. Sem recorte, vira pílula flutuante, e o
+item da barra de menu só aparece nesse caso.
 
-Fica para depois: HUD na notch, janela de três colunas, review pela IA com a
-sua própria sessão do Claude, mapa de domínios do PR, tela de ajustes,
-OAuth device flow no lugar do token do `gh`.
+Quatro abas no painel: a fila, o time com avatares para marcar quem você
+acompanha, o rank de reviews dos últimos três meses e o grid de dias em que
+você revisou.
+
+**Na janela.** Três colunas. O detalhe traz a conversa com o trecho de código
+do `diffHunk`, a visão geral e o review da IA. Dá para responder e resolver
+thread sem sair dali.
+
+**Nos avisos.** Som por tipo, agrupados por PR, com resposta inline no banner.
+
+## Review pela sua própria sessão
+
+O Diple não tem IA e não tem servidor. Ele roda o `claude` da sua máquina,
+com a sua conta e as suas skills — então o review conhece o `CLAUDE.md` do
+repositório e sai na sua voz, e o código não transita por infra de terceiro.
+
+Cada review roda num worktree descartável em `~/.diple/worktrees`, criado de
+`refs/pull/N/head`, que existe mesmo quando o PR vem de fork. Seu checkout
+não é tocado.
+
+A garantia de que nada é publicado é estrutural, não promessa: a sessão nasce
+com `--allowed-tools` só de leitura e `git` de consulta, e `--disallowed-tools`
+barrando `Write`, `Edit`, `gh`, `push`, `commit`, `curl` e `WebFetch`. A IA
+não escolhe não publicar — ela não tem a ferramenta.
+
+O mapa do PR separa o que é conta do que é julgamento: os módulos alterados
+saem do diff sem gastar token; só o que *sente* a mudança e o que você
+precisa conhecer pra julgar vão para o modelo.
+
+## Fica para depois
+
+OAuth device flow no lugar do token do `gh`, e SQLite quando existir
+histórico de eventos — hoje o estado é um instantâneo por PR aberto,
+reescrito inteiro a cada ciclo, e JSON resolve sem adicionar dependência.
