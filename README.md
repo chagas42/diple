@@ -122,10 +122,7 @@ A ranking over the last week, month or quarter — you and the people you follow
 not the whole company. A contribution grid of the days you reviewed, and the
 streak, with your own bar catching fire when it fills.
 
-<!-- the ranking animating, the streak flame
-
-<img src="PASTE_URL" width="640" alt="Ranking and streak" />
--->
+<img src="docs/ranking.gif" width="640" alt="Ranking and streak" />
 
 ---
 
