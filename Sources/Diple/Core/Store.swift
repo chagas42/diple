@@ -15,6 +15,8 @@ struct EstadoSalvo: Codable, Sendable {
     var naoLidos: Set<String> = []
     /// Primeira execução não notifica nada: senão a estreia dispara 38 banners.
     var jaRodouUmaVez: Bool = false
+    /// Quem você escolheu acompanhar de perto.
+    var seguindo: Set<String> = []
 }
 
 @MainActor
@@ -45,6 +47,12 @@ final class Store {
 
     func marcarLido(_ chave: String) {
         estado.naoLidos.remove(chave)
+        salvar()
+    }
+
+    func alternarSeguir(_ login: String) {
+        if estado.seguindo.contains(login) { estado.seguindo.remove(login) }
+        else { estado.seguindo.insert(login) }
         salvar()
     }
 

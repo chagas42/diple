@@ -32,7 +32,7 @@ struct Geometria {
         CGSize(width: larguraNotch + asa * 2, height: alturaTopo)
     }
 
-    var aberto: CGSize { CGSize(width: 660, height: 316) }
+    var aberto: CGSize { CGSize(width: 680, height: 330) }
 
     var alerta: CGSize { CGSize(width: 560, height: 186) }
 

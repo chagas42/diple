@@ -17,6 +17,35 @@ final class Modelo: ObservableObject {
     @Published private(set) var permissao = false
     @Published private(set) var naoLidos: Set<String> = []
 
+    // Abas do painel expandido
+    @Published var abaNotch: AbaNotch = .fila
+    @Published private(set) var equipe: [Pessoa] = []
+    @Published private(set) var rank: [LinhaRank] = []
+    @Published private(set) var ritmo: [DiaRitmo] = []
+    @Published private(set) var seguindo: Set<String> = []
+    @Published private(set) var carregandoAba = false
+
+    enum AbaNotch: String, CaseIterable, Identifiable {
+        case fila, time, rank, ritmo
+        var id: String { rawValue }
+        var icone: String {
+            switch self {
+            case .fila:  "tray.full"
+            case .time:  "person.2"
+            case .rank:  "trophy"
+            case .ritmo: "square.grid.3x3"
+            }
+        }
+        var titulo: String {
+            switch self {
+            case .fila:  "Fila"
+            case .time:  "Time"
+            case .rank:  "Rank"
+            case .ritmo: "Ritmo"
+            }
+        }
+    }
+
     // Seleção da janela
     @Published var aba: Aba = .esperando
     @Published var selecionado: PR?
@@ -59,6 +88,7 @@ final class Modelo: ObservableObject {
         notificador.instalar()
         notificador.aoMudar = { [weak self] in await self?.atualizar() }
         naoLidos = store.estado.naoLidos
+        seguindo = store.estado.seguindo
 
         Task {
             permissao = await notificador.autorizado()
@@ -97,6 +127,48 @@ final class Modelo: ObservableObject {
             aoContadorMudar?()
             if let primeiro = eventos.first(where: { $0.tipo.interrompe }) {
                 aoEvento?(primeiro)
+            }
+        } catch {
+            erro = error.localizedDescription
+        }
+    }
+
+    /// A organização sai dos repositórios que já estão na fila — nada fixo
+    /// no código.
+    var org: String {
+        let donos = fila.todos.compactMap { $0.repo.split(separator: "/").first.map(String.init) }
+        let contagem = Dictionary(grouping: donos, by: { $0 }).mapValues(\.count)
+        return contagem.max { $0.value < $1.value }?.key ?? ""
+    }
+
+    func seguir(_ login: String) {
+        store.alternarSeguir(login)
+        seguindo = store.estado.seguindo
+    }
+
+    /// Carrega o que a aba precisa, uma vez. Nada disso entra na sincronização
+    /// de 60s — é dado que muda devagar.
+    func carregarAba(_ aba: AbaNotch) async {
+        guard !org.isEmpty, !carregandoAba else { return }
+        switch aba {
+        case .fila: return
+        case .time where !equipe.isEmpty: return
+        case .rank where !rank.isEmpty: return
+        case .ritmo where !ritmo.isEmpty: return
+        default: break
+        }
+
+        carregandoAba = true
+        defer { carregandoAba = false }
+        do {
+            if equipe.isEmpty { equipe = try await cliente.buscarEquipe(org: org) }
+            switch aba {
+            case .rank:
+                let desde = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                rank = try await cliente.buscarRank(org: org, pessoas: equipe, desde: desde)
+            case .ritmo:
+                ritmo = try await cliente.buscarRitmo(org: org, login: fila.eu)
+            default: break
             }
         } catch {
             erro = error.localizedDescription
