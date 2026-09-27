@@ -6,6 +6,7 @@ final class Notch: ObservableObject {
     @Published private(set) var estado: EstadoNotch = .repouso
     @Published private(set) var pendurado = true
     @Published private(set) var larguraNotch: CGFloat = 209
+    @Published private(set) var alturaNotch: CGFloat = 38
     @Published private(set) var olhar: CGPoint = .zero
     @Published private(set) var piscando = false
 
@@ -133,6 +134,7 @@ final class Notch: ObservableObject {
         let g = Geometria.atual()
         pendurado = g.temNotch
         larguraNotch = g.larguraNotch
+        alturaNotch = g.alturaTopo
 
         let alvo: NSRect = switch estado {
         case .repouso: g.repouso(pendencias: modelo?.contador ?? 0)
@@ -162,6 +164,7 @@ final class Notch: ObservableObject {
                 estado: notch.estado,
                 pendurado: notch.pendurado,
                 larguraNotch: notch.larguraNotch,
+                alturaNotch: notch.alturaNotch,
                 olhar: notch.olhar,
                 piscando: notch.piscando
             )

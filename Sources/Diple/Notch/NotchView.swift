@@ -28,11 +28,14 @@ struct NotchView: View {
     /// Verdadeiro quando pendura no recorte físico.
     let pendurado: Bool
     let larguraNotch: CGFloat
+    let alturaNotch: CGFloat
     let olhar: CGPoint
     let piscando: Bool
 
     var body: some View {
         conteudo
+            // O topo do painel fica atrás do bezel; o conteúdo começa abaixo.
+            .padding(.top, pendurado ? alturaNotch : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Self.pretoDeDispositivo)
             .clipShape(forma)
@@ -49,7 +52,9 @@ struct NotchView: View {
 
     private var forma: AnyShape {
         pendurado
-            ? AnyShape(FormaNotch(larguraNotch: larguraNotch, base: raio))
+            ? AnyShape(FormaNotch(larguraNotch: larguraNotch,
+                                  alturaNotch: pendurado ? alturaNotch : 0,
+                                  base: raio))
             : AnyShape(RoundedRectangle(cornerRadius: raio, style: .continuous))
     }
 
@@ -116,7 +121,7 @@ struct NotchView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, pendurado ? 20 : 14)
+            .padding(.top, 14)
             .padding(.bottom, 10)
 
             ForEach(Array(modelo.precisamDeVoce.prefix(3))) { pr in
@@ -207,7 +212,7 @@ struct NotchView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, pendurado ? 22 : 16)
+        .padding(.top, 16)
         .padding(.bottom, 14)
     }
 }

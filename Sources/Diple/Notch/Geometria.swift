@@ -31,26 +31,28 @@ struct Geometria {
         guard pendencias > 0 else { return alvoInvisivel() }
         // Largura exata do recorte: o flare fica zero e não sobra degrau
         // nenhum nas laterais. Parece só que a notch ficou um pouco mais alta.
-        return temNotch ? pendurado(largura: larguraNotch, altura: 17)
+        return temNotch ? pendurado(largura: larguraNotch, visivel: 17)
                         : solto(largura: 110, altura: 22)
     }
 
     func aberto() -> NSRect {
-        temNotch ? pendurado(largura: 620, altura: 296)
+        temNotch ? pendurado(largura: 620, visivel: 296)
                  : solto(largura: 620, altura: 300)
     }
 
     func alerta() -> NSRect {
-        temNotch ? pendurado(largura: 580, altura: 186)
+        temNotch ? pendurado(largura: 580, visivel: 186)
                  : solto(largura: 580, altura: 190)
     }
 
-    /// Pendurado na borda de baixo do recorte: o topo do painel encosta
-    /// exatamente onde o bezel termina.
-    private func pendurado(largura: CGFloat, altura: CGFloat) -> NSRect {
+    /// Começa no topo da tela: os primeiros `alturaTopo` pontos ficam atrás do
+    /// recorte, onde não existe display, e o corpo aparece abaixo dele. É isso
+    /// que faz a forma sair de dentro da notch em vez de pendurar nela.
+    /// `visivel` é a altura do que de fato se vê.
+    private func pendurado(largura: CGFloat, visivel: CGFloat) -> NSRect {
         NSRect(x: tela.frame.midX - largura / 2,
-               y: tela.frame.maxY - alturaTopo - altura,
-               width: largura, height: altura)
+               y: tela.frame.maxY - alturaTopo - visivel,
+               width: largura, height: alturaTopo + visivel)
     }
 
     /// Cobre exatamente o recorte (ou o centro da barra, sem recorte).
