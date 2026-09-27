@@ -32,7 +32,7 @@ struct PRMap: Codable, Sendable, Equatable {
 }
 
 extension GitHubClient {
-    func baseAndModules(repo: String, pr: Int) async throws -> (base: String, modulos: [Module]) {
+    func baseAndModules(repo: String, pr: Int) async throws -> (base: String, modules: [Module]) {
         let parts = repo.split(separator: "/")
         guard parts.count == 2 else { return ("", []) }
 
@@ -47,39 +47,39 @@ extension GitHubClient {
         """)
 
         let data = json["data"] as? [String: Any]
-        let repositorio = data?["repository"] as? [String: Any]
-        let pull = repositorio?["pullRequest"] as? [String: Any]
-        let arquivos = pull?["files"] as? [String: Any]
-        let nos = arquivos?["nodes"] as? [[String: Any]] ?? []
+        let repository = data?["repository"] as? [String: Any]
+        let pull = repository?["pullRequest"] as? [String: Any]
+        let files = pull?["files"] as? [String: Any]
+        let nodes = files?["nodes"] as? [[String: Any]] ?? []
         let base = (pull?["baseRefOid"] as? String) ?? ""
 
-        var porModulo: [String: (additions: Int, deletions: Int, arquivos: Int)] = [:]
-        for f in nos {
+        var byModule: [String: (additions: Int, deletions: Int, files: Int)] = [:]
+        for f in nodes {
             guard let path = f["path"] as? String else { continue }
-            let key = Self.moduloDe(path)
-            var current = porModulo[key] ?? (0, 0, 0)
+            let key = Self.moduleOf(path)
+            var current = byModule[key] ?? (0, 0, 0)
             current.additions += (f["additions"] as? Int) ?? 0
             current.deletions += (f["deletions"] as? Int) ?? 0
-            current.arquivos += 1
-            porModulo[key] = current
+            current.files += 1
+            byModule[key] = current
         }
 
-        let modulos = porModulo
+        let modules = byModule
             .map { key, v in
                 Module(
                     name: key.split(separator: "/").last.map(String.init) ?? key,
                     path: key,
-                    detail: "\(v.arquivos) path\(v.arquivos == 1 ? "" : "s")",
+                    detail: "\(v.files) path\(v.files == 1 ? "" : "s")",
                     additions: v.additions, deletions: v.deletions
                 )
             }
             .sorted { ($0.additions + $0.deletions) > ($1.additions + $1.deletions) }
             .prefix(4)
             .map { $0 }
-        return (base, modulos)
+        return (base, modules)
     }
 
-    private static func moduloDe(_ path: String) -> String {
+    private static func moduleOf(_ path: String) -> String {
         let p = path.split(separator: "/").dropLast()
         guard !p.isEmpty else { return "root" }
         return p.prefix(3).joined(separator: "/")

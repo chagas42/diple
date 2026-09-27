@@ -43,9 +43,9 @@ struct Settings: Codable, Sendable, Equatable {
 
         let h = cal.component(.hour, from: now)
 
-        let calado = quietFrom > quietUntil
+        let muted = quietFrom > quietUntil
             ? (h >= quietFrom || h < quietUntil)
             : (h >= quietFrom && h < quietUntil)
-        return !calado
+        return !muted
     }
 }

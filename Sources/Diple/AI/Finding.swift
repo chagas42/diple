@@ -1,22 +1,22 @@
 import Foundation
 
 enum Category: String, Codable, Sendable {
-    case correcao, simplificacao, eficiencia, teste, outro
+    case correctness, simplification, efficiency, test, note
 
     var label: String {
         switch self {
-        case .correcao:      "correctness"
-        case .simplificacao: "simplification"
-        case .eficiencia:    "efficiency"
-        case .teste:         "test"
-        case .outro:         "note"
+        case .correctness:      "correctness"
+        case .simplification: "simplification"
+        case .efficiency:    "efficiency"
+        case .test:         "test"
+        case .note:         "note"
         }
     }
 }
 
 enum Verdict: String, Codable, Sendable {
-    case confirmado, plausivel
-    var label: String { self == .confirmado ? "confirmed" : "plausible" }
+    case confirmed, plausible
+    var label: String { self == .confirmed ? "confirmed" : "plausible" }
 }
 
 struct Finding: Identifiable, Codable, Sendable, Equatable {

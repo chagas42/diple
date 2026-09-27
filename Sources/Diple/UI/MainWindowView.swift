@@ -11,7 +11,7 @@ struct MainWindowView: View {
 
     var body: some View {
         NavigationSplitView {
-            barraLateral
+            sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 280)
         } content: {
             list
@@ -36,7 +36,7 @@ struct MainWindowView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(model.loading)
-                .help("Sincronizar now")
+                .help("Sync now")
             }
         }
     }
@@ -61,7 +61,7 @@ struct MainWindowView: View {
         )
     }
 
-    private var barraLateral: some View {
+    private var sidebar: some View {
         List(selection: sidebarSelection) {
             Section("Queue") {
                 ForEach(AppModel.Tab.allCases) { tab in
@@ -162,7 +162,7 @@ struct MainWindowView: View {
                     .font(.system(size: 12))
             } else {
                 ForEach(model.repoPRsShown, id: \.key) { pr in
-                    PRRow(pr: pr, naoLido: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
                         .tag(pr.key)
                 }
             }
@@ -198,7 +198,7 @@ struct MainWindowView: View {
                         ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
                             PRRow(
                                 pr: pr,
-                                naoLido: model.unread.contains(pr.key),
+                                unread: model.unread.contains(pr.key),
                                 step: i + 1,
                                 steps: stack.prs.count
                             )
@@ -208,7 +208,7 @@ struct MainWindowView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "square.3.layers.3d.down.right")
                                 .font(.system(size: 10))
-                            Text("PRStack de \(stack.prs.count)")
+                            Text("Stack of \(stack.prs.count)")
                                 .font(.system(size: 10.5, weight: .semibold))
                             Text(stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
                                 .font(.system(size: 10.5, design: .monospaced))
@@ -220,7 +220,7 @@ struct MainWindowView: View {
                         }
                     }
                 } else if let pr = stack.prs.first {
-                    PRRow(pr: pr, naoLido: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
                         .tag(pr.key)
                 }
             }
@@ -253,7 +253,7 @@ struct MainWindowView: View {
 
 struct PRRow: View {
     let pr: PR
-    let naoLido: Bool
+    let unread: Bool
     var step: Int? = nil
     var steps: Int? = nil
 
@@ -272,7 +272,7 @@ struct PRRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(pr.title)
-                    .font(.system(size: 13, weight: naoLido ? .semibold : .regular))
+                    .font(.system(size: 13, weight: unread ? .semibold : .regular))
                     .lineLimit(2)
                 HStack(spacing: 6) {
                     Image(systemName: glyph)
@@ -315,7 +315,7 @@ struct PRRow: View {
     private var color: Color {
         if pr.checks == .failing { .red }
         else if pr.approved { .green }
-        else if naoLido { .orange }
+        else if unread { .orange }
         else { .secondary }
     }
 }
@@ -326,8 +326,8 @@ struct PRAvatar: View {
     var side: CGFloat = 24
 
     var body: some View {
-        AsyncImage(url: url) { fase in
-            switch fase {
+        AsyncImage(url: url) { phase in
+            switch phase {
             case .success(let img): img.resizable().scaledToFill()
             default:
                 ZStack {

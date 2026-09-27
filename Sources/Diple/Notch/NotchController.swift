@@ -22,7 +22,7 @@ final class NotchController: ObservableObject {
 
     func mount(model: AppModel) {
         self.model = model
-        panel.contentView = NSHostingView(rootView: Hospedeiro(notch: self, model: model))
+        panel.contentView = NSHostingView(rootView: NotchHost(notch: self, model: model))
         measure()
         panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
         panel.orderFrontRegardless()
@@ -82,7 +82,7 @@ final class NotchController: ObservableObject {
         apply()
     }
 
-    func alertar(_ e: Event) {
+    func announce(_ e: Event) {
         guard e.kind.interrupts else { return }
         collapseTask?.cancel()
         pointerAnchor = NSEvent.mouseLocation
@@ -167,7 +167,7 @@ final class NotchController: ObservableObject {
         }
     }
 
-    private struct Hospedeiro: View {
+    private struct NotchHost: View {
         @ObservedObject var notch: NotchController
         @ObservedObject var model: AppModel
 

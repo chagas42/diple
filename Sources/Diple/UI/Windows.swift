@@ -3,7 +3,7 @@ import AppKit
 
 @MainActor
 final class Windows: NSObject, NSWindowDelegate {
-    static let compartilhado = Windows()
+    static let shared = Windows()
 
     private var main: NSWindow?
     private var settings: NSWindow?

@@ -1,12 +1,12 @@
 import SwiftUI
 
-struct LinhaPR: View {
+struct PopoverRow: View {
     let pr: PR
-    let naoLido: Bool
-    let acao: () -> Void
+    let unread: Bool
+    let action: () -> Void
 
     var body: some View {
-        Button(action: acao) {
+        Button(action: action) {
             HStack(alignment: .top, spacing: 9) {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(color)
@@ -22,7 +22,7 @@ struct LinhaPR: View {
                             .font(.system(size: 10.5, design: .monospaced))
                             .foregroundStyle(.tertiary)
                         Spacer(minLength: 4)
-                        if naoLido {
+                        if unread {
                             Circle().fill(color).frame(width: 5, height: 5)
                         }
                         Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
@@ -31,7 +31,7 @@ struct LinhaPR: View {
                     }
 
                     Text(pr.title)
-                        .font(.system(size: 12.5, weight: naoLido ? .semibold : .regular))
+                        .font(.system(size: 12.5, weight: unread ? .semibold : .regular))
                         .multilineTextAlignment(.leading)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -52,13 +52,13 @@ struct LinhaPR: View {
 
     private var color: Color {
         if pr.checks == .failing { .red }
-        else if naoLido { .orange }
+        else if unread { .orange }
         else if pr.approved { .green }
         else { .secondary.opacity(0.35) }
     }
 }
 
-struct Secao: View {
+struct QueueSection: View {
     let title: String
     let prs: [PR]
     let unread: Set<String>
@@ -72,7 +72,7 @@ struct Secao: View {
                     .foregroundStyle(.tertiary)
                     .padding(.top, 4)
                 ForEach(prs) { pr in
-                    LinhaPR(pr: pr, naoLido: unread.contains(pr.key)) { open(pr) }
+                    PopoverRow(pr: pr, unread: unread.contains(pr.key)) { open(pr) }
                 }
             }
         }
@@ -97,13 +97,13 @@ struct PopoverView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    Secao(title: "Needs you", prs: model.needsYou,
+                    QueueSection(title: "Needs you", prs: model.needsYou,
                           unread: model.unread, open: model.open)
-                    Secao(title: "Your PRs", prs: Array(model.rest.prefix(8)),
+                    QueueSection(title: "Your PRs", prs: Array(model.rest.prefix(8)),
                           unread: model.unread, open: model.open)
 
                     if model.queue.all.isEmpty && !model.loading {
-                        Text("Nada na queue.")
+                        Text("Nothing in the queue.")
                             .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 8)
@@ -126,7 +126,7 @@ struct PopoverView: View {
                 .foregroundStyle(model.count > 0 ? .orange : .secondary)
             Text("\(model.count)")
                 .font(.system(size: 26, weight: .semibold))
-            Text(model.count == 1 ? "waiting on you" : "waiting on you")
+            Text("waiting on you")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             Spacer()
@@ -137,7 +137,7 @@ struct PopoverView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Sincronizar now")
+                .help("Sync now")
             }
         }
     }
@@ -155,7 +155,7 @@ struct PopoverView: View {
                     .foregroundStyle(.orange)
             }
             Spacer()
-            Button("Window") { Windows.compartilhado.openMain(model) }
+            Button("Window") { Windows.shared.openMain(model) }
             .buttonStyle(.borderless)
             .font(.system(size: 11))
             .keyboardShortcut("0", modifiers: .command)

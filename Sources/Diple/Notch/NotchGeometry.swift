@@ -11,22 +11,22 @@ struct NotchGeometry {
     }
 
     var notchWidth: CGFloat {
-        guard let esq = screen.auxiliaryTopLeftArea,
-              let dir = screen.auxiliaryTopRightArea else { return 185 }
-        return max(0, screen.frame.width - esq.width - dir.width)
+        guard let left = screen.auxiliaryTopLeftArea,
+              let right = screen.auxiliaryTopRightArea else { return 185 }
+        return max(0, screen.frame.width - left.width - right.width)
     }
 
     var closed: CGSize { CGSize(width: notchWidth, height: topInset) }
 
     var active: CGSize {
-        CGSize(width: notchWidth + asa * 2, height: topInset)
+        CGSize(width: notchWidth + wing * 2, height: topInset)
     }
 
     var open: CGSize { CGSize(width: 680, height: 330) }
 
     var alert: CGSize { CGSize(width: 580, height: 196) }
 
-    var asa: CGFloat { 42 }
+    var wing: CGFloat { 42 }
 
     func windowFrame() -> NSRect {
         let l = max(open.width, alert.width)

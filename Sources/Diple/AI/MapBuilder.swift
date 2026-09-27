@@ -16,10 +16,10 @@ struct MapBuilder: Sendable {
         p.standardError = Pipe()
 
         do { try p.run() } catch { return nil }
-        let date = out.fileHandleForReading.readDataToEndOfFile()
+        let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
 
-        guard let env = try? JSONSerialization.jsonObject(with: date) as? [String: Any],
+        guard let env = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let text = env["result"] as? String else { return nil }
 
         guard let start = text.firstIndex(of: "{"),

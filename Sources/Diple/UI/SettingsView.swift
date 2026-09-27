@@ -150,7 +150,7 @@ struct NotificationsPane: View {
         case .commented:      "PR conversation and inline code comments."
         case .reviewRequested:   "Directly to you, or through one of your teams."
         case .checkFailed:     "Only on the first failure; retries do not repeat."
-        case .approved:       "Costuma bastar ver at open a queue."
+        case .approved:       "Seeing it when you open the queue is usually enough."
         }
     }
 }
@@ -170,11 +170,11 @@ struct ReposPane: View {
                 if repos.isEmpty {
                     Text("The queue has not loaded yet.").foregroundStyle(.secondary)
                 }
-                ForEach(repos, id: \.0) { name, quantos in
+                ForEach(repos, id: \.0) { name, pending in
                     HStack {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(name).font(.system(size: 12.5, design: .monospaced))
-                            Text("\(quantos) na queue")
+                            Text("\(pending) in the queue")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
                         }
@@ -211,8 +211,8 @@ struct AccountPane: View {
                     Text("borrowed from gh")
                         .foregroundStyle(.secondary)
                 }
-                LabeledContent("RawRateLimit restante") {
-                    Text("\(model.queue.rateLimitLeft) de 5000")
+                LabeledContent("Rate limit left") {
+                    Text("\(model.queue.rateLimitLeft) of 5000")
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -235,7 +235,7 @@ struct AccountPane: View {
 
             Section {
                 HStack {
-                    Button("Sincronizar now") { Task { await model.refresh() } }
+                    Button("Sync now") { Task { await model.refresh() } }
                         .disabled(model.loading)
                     Spacer()
                     Button("Quit Diple") { NSApplication.shared.terminate(nil) }
@@ -258,9 +258,9 @@ struct ClaudePane: View {
             Section {
                 HStack(spacing: 9) {
                     Circle()
-                        .fill(temClaude ? .green : .orange)
+                        .fill(hasClaude ? .green : .orange)
                         .frame(width: 7, height: 7)
-                    Text(temClaude ? "claude found on PATH"
+                    Text(hasClaude ? "claude found on PATH"
                                    : "claude is not on PATH")
                     Spacer()
                 }
@@ -313,11 +313,11 @@ struct ClaudePane: View {
                         Text(r).font(.system(size: 12, design: .monospaced))
                         Spacer()
                         if let u = Worktree.localPath(r, configured: model.settings.repoPaths) {
-                            Text(atalho(u.path))
+                            Text(abbreviated(u.path))
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         } else {
-                            Button("Choose…") { escolher(r) }
+                            Button("Choose…") { choose(r) }
                         }
                     }
                 }
@@ -334,7 +334,7 @@ struct ClaudePane: View {
         .formStyle(.grouped)
     }
 
-    private var temClaude: Bool {
+    private var hasClaude: Bool {
         if ["/opt/homebrew/bin/claude", "/usr/localPath/bin/claude"]
             .contains(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
             return true
@@ -351,15 +351,15 @@ struct ClaudePane: View {
         return p.terminationStatus == 0
     }
 
-    private func atalho(_ p: String) -> String {
+    private func abbreviated(_ p: String) -> String {
         p.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
     }
 
-    private func escolher(_ repo: String) {
+    private func choose(_ repo: String) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Usar esta folder"
+        panel.prompt = "Use this folder"
         if panel.runModal() == .OK, let u = panel.url {
             model.settings.repoPaths[repo] = u.path
         }

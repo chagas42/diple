@@ -49,8 +49,8 @@ struct Reviewer: Sendable {
                     while let newline = buffer.firstIndex(of: 0x0A) {
                         let line = buffer[..<newline]
                         buffer = buffer[buffer.index(after: newline)...]
-                        if let passo = parse(line, result: &result) {
-                            cont.yield(passo)
+                        if let step = parse(line, result: &result) {
+                            cont.yield(step)
                         }
                     }
                 }
@@ -84,11 +84,11 @@ struct Reviewer: Sendable {
             let parts = ((o["message"] as? [String: Any])?["content"] as? [[String: Any]]) ?? []
             for c in parts where (c["type"] as? String) == "tool_use" {
                 let name = (c["name"] as? String) ?? "?"
-                let alvo = ((c["input"] as? [String: Any])?["file_path"] as? String)
+                let target = ((c["input"] as? [String: Any])?["file_path"] as? String)
                     ?? ((c["input"] as? [String: Any])?["pattern"] as? String)
                     ?? ((c["input"] as? [String: Any])?["command"] as? String)
-                let curto = alvo.map { String($0.split(separator: "/").last ?? "").prefix(40) }
-                return .tool(curto.map { "\(name) \($0)" } ?? name)
+                let short = target.map { String($0.split(separator: "/").last ?? "").prefix(40) }
+                return .tool(short.map { "\(name) \($0)" } ?? name)
             }
             return .thinking
 
@@ -106,8 +106,8 @@ struct Reviewer: Sendable {
               let end = text.lastIndex(of: "}") else { return [] }
         let body = String(text[start...end])
         struct Envelope: Decodable { let findings: [Finding] }
-        guard let date = body.data(using: .utf8),
-              let env = try? JSONDecoder().decode(Envelope.self, from: date) else { return [] }
+        guard let data = body.data(using: .utf8),
+              let env = try? JSONDecoder().decode(Envelope.self, from: data) else { return [] }
         return env.findings
     }
 

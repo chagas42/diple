@@ -13,7 +13,7 @@ struct AIReviewView: View {
             header
 
             if running || !model.reviewProgress.isEmpty {
-                progresso
+                progress
             }
 
             if !findings.isEmpty {
@@ -38,7 +38,7 @@ struct AIReviewView: View {
             Button {
                 Task { await model.runAIReview(pr) }
             } label: {
-                Label(findings.isEmpty ? "Review with AI" : "Revisar de next",
+                Label(findings.isEmpty ? "Review with AI" : "Review again",
                       systemImage: "play.fill")
             }
             .disabled(model.reviewingKey != nil)
@@ -46,7 +46,7 @@ struct AIReviewView: View {
         }
     }
 
-    private var progresso: some View {
+    private var progress: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 if running {
@@ -117,15 +117,15 @@ struct AIReviewView: View {
 
 struct FindingCard: View {
     let finding: Finding
-    let aoDescartar: () -> Void
-    @State private var copiado = false
+    let onDiscard: () -> Void
+    @State private var copied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
-                selo(finding.category.label, color: corCategoria)
-                selo(finding.verdict.label,
-                     color: finding.verdict == .confirmado ? .green : .secondary)
+                badge(finding.category.label, color: categoryColor)
+                badge(finding.verdict.label,
+                     color: finding.verdict == .confirmed ? .green : .secondary)
                 Spacer()
                 Text(finding.location)
                     .font(.system(size: 11, design: .monospaced))
@@ -160,13 +160,13 @@ struct FindingCard: View {
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(finding.markdown, forType: .string)
-                    copiado = true
+                    copied = true
                 } label: {
-                    Label(copiado ? "Copied" : "Copy comment",
-                          systemImage: copiado ? "checkmark" : "doc.on.doc")
+                    Label(copied ? "Copied" : "Copy comment",
+                          systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
                 Spacer()
-                Button("Discard", action: aoDescartar)
+                Button("Discard", action: onDiscard)
                     .foregroundStyle(.secondary)
             }
             .font(.system(size: 12))
@@ -177,17 +177,17 @@ struct FindingCard: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary, lineWidth: 1))
     }
 
-    private var corCategoria: Color {
+    private var categoryColor: Color {
         switch finding.category {
-        case .correcao:      .red
-        case .simplificacao: .purple
-        case .eficiencia:    .blue
-        case .teste:         .teal
-        case .outro:         .secondary
+        case .correctness:      .red
+        case .simplification: .purple
+        case .efficiency:    .blue
+        case .test:         .teal
+        case .note:         .secondary
         }
     }
 
-    private func selo(_ t: String, color: Color) -> some View {
+    private func badge(_ t: String, color: Color) -> some View {
         Text(t.uppercased())
             .font(.system(size: 9.5, weight: .bold))
             .padding(.horizontal, 6).padding(.vertical, 2)

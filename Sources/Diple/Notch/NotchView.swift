@@ -53,8 +53,8 @@ struct NotchView: View {
 
             .clipShape(shape)
             .contextMenu {
-                Button("Settings…") { Windows.compartilhado.openSettings(model) }
-                Button("Janela main") { Windows.compartilhado.openMain(model) }
+                Button("Settings…") { Windows.shared.openSettings(model) }
+                Button("Main window") { Windows.shared.openMain(model) }
                 Divider()
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
@@ -100,7 +100,7 @@ struct NotchView: View {
 
     private var wings: some View {
         HStack(spacing: 0) {
-            EyeView(gaze: gaze, blinking: blinking, largura: 15)
+            EyeView(gaze: gaze, blinking: blinking, width: 15)
                 .opacity(model.count > 0 ? 1 : 0.42)
                 .animation(.easeOut(duration: 0.25), value: model.count > 0)
                 .frame(maxWidth: .infinity)
@@ -128,7 +128,7 @@ struct NotchView: View {
     private var topStrip: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                EyeView(gaze: gaze, blinking: blinking, largura: 15)
+                EyeView(gaze: gaze, blinking: blinking, width: 15)
                     .padding(.trailing, 2)
                 ForEach(AppModel.NotchTab.allCases) { tab in
                     Button { model.notchTab = tab } label: {
@@ -158,7 +158,7 @@ struct NotchView: View {
             HStack(spacing: 7) {
                 Spacer(minLength: 0)
                 iconButton("macwindow") {
-                    Windows.compartilhado.openMain(model)
+                    Windows.shared.openMain(model)
                     onClose()
                 }
                 if model.loading || model.refreshingTab != nil {
@@ -173,7 +173,7 @@ struct NotchView: View {
                     }
                 }
                 iconButton("gearshape") {
-                    Windows.compartilhado.openSettings(model)
+                    Windows.shared.openSettings(model)
                     onClose()
                 }
                 iconButton("xmark") { onClose() }
@@ -184,8 +184,8 @@ struct NotchView: View {
         .frame(height: notchHeight)
     }
 
-    private func iconButton(_ name: String, _ acao: @escaping () -> Void) -> some View {
-        Button(action: acao) {
+    private func iconButton(_ name: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             Image(systemName: name)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.78))
@@ -223,7 +223,7 @@ struct NotchView: View {
                 .foregroundStyle(.white)
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(model.count)))
-            Text(model.count == 1 ? "waiting on you" : "waiting on you")
+            Text("waiting on you")
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.5))
                 .padding(.top, 2)
@@ -269,7 +269,7 @@ struct NotchView: View {
                             Text("\(model.count(t))")
                                 .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                                 .foregroundStyle(
-                                    t == .esperando && model.count(t) > 0
+                                    t == .waiting && model.count(t) > 0
                                         ? .orange : .white.opacity(on ? 0.5 : 0.3)
                                 )
                         }
@@ -314,7 +314,7 @@ struct NotchView: View {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 20))
                         .foregroundStyle(.white.opacity(0.4))
-                    Text(model.tab == .esperando ? "Nothing waiting on you" : "Nothing in \(model.tab.title)")
+                    Text(model.tab == .waiting ? "Nothing waiting on you" : "Nothing in \(model.tab.title)")
                         .font(.system(size: 12.5))
                         .foregroundStyle(.white.opacity(0.45))
                 }

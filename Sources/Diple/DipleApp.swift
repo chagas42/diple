@@ -8,8 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     @Published var showsMenuBarItem = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let model = AppModel.compartilhado
-        model.onEvent = { [weak self] evento in self?.notch.alertar(evento) }
+        let model = AppModel.shared
+        model.onEvent = { [weak self] event in self?.notch.announce(event) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
         notch.mount(model: model)
         model.start()
@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         Task { await Worktree.pruneStale() }
 
         if CommandLine.arguments.contains("--windowFrame") {
-            Windows.compartilhado.openMain(model)
+            Windows.shared.openMain(model)
         }
 
         NotificationCenter.default.addObserver(
@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
 struct DipleApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @ObservedObject private var model = AppModel.compartilhado
+    @ObservedObject private var model = AppModel.shared
 
     var body: some Scene {
         MenuBarExtra(isInserted: Binding(

@@ -16,17 +16,17 @@ enum Worktree {
             return URL(fileURLWithPath: (p as NSString).expandingTildeInPath)
         }
         let name = repo.split(separator: "/").last.map(String.init) ?? repo
-        let casa = FileManager.default.homeDirectoryForCurrentUser
-        let candidatos = ["@studies", "@work", "dev", "work", "Developer", "code", "src"]
-            .map { casa.appendingPathComponent($0).appendingPathComponent(name) }
-            + [casa.appendingPathComponent(name)]
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let candidates = ["@studies", "@work", "dev", "work", "Developer", "code", "src"]
+            .map { home.appendingPathComponent($0).appendingPathComponent(name) }
+            + [home.appendingPathComponent(name)]
 
-        return candidatos.first { url in
+        return candidates.first { url in
             var folder: ObjCBool = false
-            let existe = FileManager.default.fileExists(
+            let exists = FileManager.default.fileExists(
                 atPath: url.appendingPathComponent(".git").path, isDirectory: &folder
             )
-            return existe
+            return exists
         }
     }
 
@@ -38,10 +38,10 @@ enum Worktree {
 
         if FileManager.default.fileExists(atPath: target.path) {
             let current = try? await git(["rev-parse", "HEAD"], in: target)
-            let alvo = try? await git(["rev-parse", "refs/diple/pr-\(pr)"], in: origin)
-            let mesmo = current?.trimmingCharacters(in: .whitespacesAndNewlines)
-                == alvo?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if mesmo, current?.isEmpty == false { return target }
+            let wanted = try? await git(["rev-parse", "refs/diple/pr-\(pr)"], in: origin)
+            let same = current?.trimmingCharacters(in: .whitespacesAndNewlines)
+                == wanted?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if same, current?.isEmpty == false { return target }
             try? await git(["worktree", "remove", "--force", target.path], in: origin)
         }
         var refs = ["+refs/pull/\(pr)/head:refs/diple/pr-\(pr)"]
@@ -54,11 +54,11 @@ enum Worktree {
 
     static func pruneStale() async {
         let fm = FileManager.default
-        guard let pastas = try? fm.contentsOfDirectory(
+        guard let folders = try? fm.contentsOfDirectory(
             at: root, includingPropertiesForKeys: [.contentModificationDateKey]
         ) else { return }
 
-        for p in pastas {
+        for p in folders {
             let date = (try? p.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate ?? .distantPast
 
@@ -83,10 +83,10 @@ enum Worktree {
             p.standardError = error
             try p.run()
             let text = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            let falha = String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            let errorOutput = String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
             p.waitUntilExit()
             guard p.terminationStatus == 0 else {
-                throw WorktreeError(message: "git \(args.first ?? ""): \(falha.trimmingCharacters(in: .whitespacesAndNewlines))")
+                throw WorktreeError(message: "git \(args.first ?? ""): \(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
             return text
         }.value

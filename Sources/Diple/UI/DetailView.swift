@@ -4,46 +4,46 @@ struct DetailView: View {
     @ObservedObject var model: AppModel
     let pr: PR
 
-    enum Secao: String, CaseIterable, Identifiable {
-        case conversa = "Conversation"
-        case mapa = "Overview"
-        case ia = "AI review"
+    enum Pane: String, CaseIterable, Identifiable {
+        case conversation = "Conversation"
+        case map = "Overview"
+        case ai = "AI review"
         var id: String { rawValue }
     }
-    @State private var secao: Secao = .conversa
+    @State private var pane: Pane = .conversation
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 Divider()
-                estatisticas
+                stats
 
-                Picker("", selection: $secao) {
-                    ForEach(Secao.allCases) { Text($0.rawValue).tag($0) }
+                Picker("", selection: $pane) {
+                    ForEach(Pane.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
-                switch secao {
-                case .conversa:
+                switch pane {
+                case .conversation:
                     if pr.threads.isEmpty {
-                        semThreads
+                        noThreads
                     } else {
                         ForEach(pr.threads) { t in
                             ThreadView(model: model, thread: t)
                         }
                     }
-                case .mapa:
-                    MapaView(model: model, pr: pr)
-                case .ia:
+                case .map:
+                    PRMapView(model: model, pr: pr)
+                case .ai:
                     AIReviewView(model: model, pr: pr)
                 }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onChange(of: pr.key) { secao = .conversa }
+        .onChange(of: pr.key) { pane = .conversation }
         .toolbar {
             ToolbarItem {
                 Button {
@@ -59,7 +59,7 @@ struct DetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                selo
+                badge
                 Text("\(pr.repo) #\(pr.number)")
                     .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -68,13 +68,13 @@ struct DetailView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("\(pr.author) abriu · atualizado \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
+            Text("\(pr.author) opened · updated \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
         }
     }
 
-    @ViewBuilder private var selo: some View {
+    @ViewBuilder private var badge: some View {
         let (text, color): (String, Color) =
             if pr.checks == .failing { ("Check failing", .red) }
             else if pr.approved { ("Approved", .green) }
@@ -88,11 +88,11 @@ struct DetailView: View {
             .foregroundStyle(color)
     }
 
-    private var estatisticas: some View {
+    private var stats: some View {
         HStack(spacing: 8) {
-            label(pr.checks == .failing ? "checks vermelhos" : pr.checks == .passing ? "checks verdes" : "checks running")
+            label(pr.checks == .failing ? "checks failing" : pr.checks == .passing ? "checks passing" : "checks running")
             Text("·").foregroundStyle(.tertiary)
-            label("\(pr.threads.count) conversa\(pr.threads.count == 1 ? "" : "s") aberta\(pr.threads.count == 1 ? "" : "s")")
+            label("\(pr.threads.count) open conversation\(pr.threads.count == 1 ? "" : "s")")
         }
         .font(.system(size: 12, design: .monospaced))
         .foregroundStyle(.secondary)
@@ -100,7 +100,7 @@ struct DetailView: View {
 
     private func label(_ t: String) -> some View { Text(t) }
 
-    private var semThreads: some View {
+    private var noThreads: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle").foregroundStyle(.green)
             Text("No open human threads on this PR.")
@@ -148,30 +148,30 @@ struct ThreadView: View {
                 Divider()
             }
 
-            ForEach(thread.comments) { fala in
+            ForEach(thread.comments) { comment in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 7) {
-                        Text(fala.author)
+                        Text(comment.author)
                             .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundStyle(fala.isBot ? .secondary : .primary)
-                        if fala.isBot {
+                            .foregroundStyle(comment.isBot ? .secondary : .primary)
+                        if comment.isBot {
                             Text("bot")
                                 .font(.system(size: 9.5, weight: .bold))
                                 .padding(.horizontal, 5).padding(.vertical, 1)
                                 .background(.quaternary, in: Capsule())
                         }
-                        Text(fala.at.formatted(.relative(presentation: .numeric)))
+                        Text(comment.at.formatted(.relative(presentation: .numeric)))
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                     }
-                    Text(fala.text)
+                    Text(comment.text)
                         .font(.system(size: 13))
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .opacity(fala.isBot ? 0.55 : 1)
+                .opacity(comment.isBot ? 0.55 : 1)
                 Divider()
             }
 
