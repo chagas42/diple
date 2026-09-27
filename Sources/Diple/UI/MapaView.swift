@@ -20,8 +20,6 @@ struct MapaView: View {
         }
     }
 
-    // MARK: - Proposta
-
     private func proposta(_ m: Mapa) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
@@ -49,8 +47,6 @@ struct MapaView: View {
             }
         }
     }
-
-    // MARK: - Caixas conectadas
 
     private func grafo(_ m: Mapa) -> some View {
         HStack(alignment: .top, spacing: 0) {
@@ -83,8 +79,6 @@ struct MapaView: View {
             .frame(maxWidth: .infinity)
         }
     }
-
-    // MARK: - Contexto
 
     private func faixaContexto(_ m: Mapa) -> some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -143,8 +137,6 @@ struct MapaView: View {
             Text(t)
         }
     }
-
-    // MARK: - Vazio
 
     private var vazio: some View {
         VStack(alignment: .leading, spacing: 10) {

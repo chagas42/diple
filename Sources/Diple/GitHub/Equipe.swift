@@ -26,7 +26,6 @@ struct DiaRitmo: Identifiable, Sendable, Equatable {
 }
 
 extension GitHubClient {
-    /// Membros da organização, com avatar.
     func buscarEquipe(org: String) async throws -> [Pessoa] {
         let json = try await bruto("""
         { organization(login: "\(org)") {
@@ -44,8 +43,6 @@ extension GitHubClient {
         }
     }
 
-    /// Quantas PRs cada um revisou desde a data. Uma busca por pessoa, com
-    /// alias, tudo numa chamada só — custa 1 ponto no total.
     func buscarRank(org: String, pessoas: [Pessoa], desde: Date) async throws -> [LinhaRank] {
         guard !pessoas.isEmpty else { return [] }
         let fmt = ISO8601DateFormatter()
@@ -69,8 +66,6 @@ extension GitHubClient {
         .sorted { $0.reviews > $1.reviews }
     }
 
-    /// Em que dias você revisou. Sai das datas reais de cada review, porque
-    /// contributionsCollection não conta repositório privado.
     func buscarRitmo(org: String, login: String, dias: Int = 182) async throws -> [DiaRitmo] {
         let json = try await bruto("""
         { search(query: "is:pr org:\(org) reviewed-by:\(login) sort:updated", type: ISSUE, first: 100) {
@@ -103,7 +98,6 @@ extension GitHubClient {
         }
     }
 
-    /// GraphQL cru, pra consultas com alias montado em tempo de execução.
     func bruto(_ query: String) async throws -> [String: Any] {
         let token = try await Task.detached(priority: .utility) { try Token.atual() }.value
         var req = URLRequest(url: URL(string: "https://api.github.com/graphql")!)

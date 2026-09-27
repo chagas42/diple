@@ -1,11 +1,6 @@
 import Foundation
 
-/// Roda o Claude da sua máquina, com a sua conta e as suas skills.
-/// O Diple não tem IA própria nem servidor: isto é um subprocesso local.
 struct RevisorIA: Sendable {
-
-    /// A garantia de "nunca publica" é estrutural, não promessa: a sessão
-    /// nasce sem as ferramentas de escrita e sem o gh.
     private static let liberado = [
         "Read", "Grep", "Glob",
         "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)",
@@ -72,8 +67,6 @@ struct RevisorIA: Sendable {
         }
     }
 
-    // MARK: - Leitura do stream
-
     private func interpretar(_ linha: Data, resultado: inout String?) -> PassoIA? {
         guard !linha.isEmpty,
               let o = try? JSONSerialization.jsonObject(with: Data(linha)) as? [String: Any],
@@ -106,8 +99,6 @@ struct RevisorIA: Sendable {
         }
     }
 
-    /// O modelo às vezes embrulha o JSON em cerca de código. Pega o maior
-    /// objeto entre chaves e tenta decodificar.
     static func extrair(_ texto: String) -> [Achado] {
         guard let inicio = texto.firstIndex(of: "{"),
               let fim = texto.lastIndex(of: "}") else { return [] }
@@ -117,8 +108,6 @@ struct RevisorIA: Sendable {
               let env = try? JSONDecoder().decode(Envelope.self, from: dados) else { return [] }
         return env.achados
     }
-
-    // MARK: - O pedido
 
     private func prompt(pr: PR, base: String) -> String {
         """
@@ -157,10 +146,7 @@ struct RevisorIA: Sendable {
     }
 }
 
-// MARK: - Leitura em pedaços
-
 private extension FileHandle.AsyncBytes {
-    /// Junta os bytes em blocos, pra não pagar uma troca de contexto por byte.
     func chunks() -> AsyncStream<Data> {
         AsyncStream { cont in
             Task {

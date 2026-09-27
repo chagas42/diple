@@ -1,9 +1,6 @@
 import SwiftUI
 
-/// Amêndoa: duas curvas que se encontram em ponta. Elipse achatada não lê
-/// como olho — falta o canto.
 struct FormaOlho: Shape {
-    /// 1 = aberto, 0 = fechado.
     var abertura: CGFloat = 1
 
     var animatableData: CGFloat {
@@ -26,7 +23,6 @@ struct FormaOlho: Shape {
 }
 
 struct OlhoView: View {
-    /// Direção do olhar, cada eixo de -1 a 1.
     var olhar: CGPoint
     var piscando: Bool
     var largura: CGFloat = 15

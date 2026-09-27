@@ -19,8 +19,6 @@ struct AjustesView: View {
     }
 }
 
-// MARK: - Notificações e sons
-
 struct PainelNotificacoes: View {
     @ObservedObject var modelo: Modelo
 
@@ -157,8 +155,6 @@ struct PainelNotificacoes: View {
     }
 }
 
-// MARK: - Repositórios
-
 struct PainelRepositorios: View {
     @ObservedObject var modelo: Modelo
 
@@ -203,8 +199,6 @@ struct PainelRepositorios: View {
         .formStyle(.grouped)
     }
 }
-
-// MARK: - Conta
 
 struct PainelConta: View {
     @ObservedObject var modelo: Modelo
@@ -251,9 +245,6 @@ struct PainelConta: View {
         .formStyle(.grouped)
     }
 }
-
-
-// MARK: - Claude
 
 struct PainelClaude: View {
     @ObservedObject var modelo: Modelo

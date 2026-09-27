@@ -1,8 +1,6 @@
 import Foundation
 import AppKit
 
-/// `Diple --probe` imprime a fila no terminal. Serve pra depurar a camada
-/// de dados sem subir a UI.
 enum Probe {
     static func rodar() async {
         do {
@@ -36,7 +34,6 @@ enum Probe {
     }
 }
 
-/// `Diple --notch` mede a tela: serve pra saber se o recorte existe e onde ele está.
 @MainActor
 enum ProbeNotch {
     static func rodar() {

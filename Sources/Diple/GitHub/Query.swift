@@ -1,7 +1,4 @@
 enum Query {
-    /// Uma chamada cobre as três filas. Custa 1 ponto de 5000/hora,
-    /// então 60s de intervalo gasta 60 pontos/hora.
-    /// Pega 5 comentários porque o último costuma ser bot — o filtro é no cliente.
     static let fila = """
     fragment pr on PullRequest {
       id

@@ -22,6 +22,7 @@ run: app stop
 	-@touch $(DEST)
 	-@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
 		-f $(DEST) 2>/dev/null || true
+	-@killall usernoted 2>/dev/null || true
 	open $(DEST)
 
 icone:

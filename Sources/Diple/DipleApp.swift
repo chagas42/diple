@@ -1,14 +1,10 @@
 import SwiftUI
 import AppKit
 
-/// A notch precisa existir desde o lançamento, e o conteúdo do MenuBarExtra
-/// só é construído quando você clica nele — por isso a montagem vive aqui.
 @MainActor
 final class Delegate: NSObject, NSApplicationDelegate, ObservableObject {
     let notch = Notch()
 
-    /// Com recorte, o app já aparece dentro dele — dois ícones dizendo a mesma
-    /// coisa na mesma faixa é ruído.
     @Published var naBarraDeMenu = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -20,7 +16,6 @@ final class Delegate: NSObject, NSApplicationDelegate, ObservableObject {
         conferirTela()
         Task { await Worktree.limparOrfaos() }
 
-        // `open -a Diple --args --janela` sobe já com a janela aberta.
         if CommandLine.arguments.contains("--janela") {
             Janelas.compartilhado.abrirPrincipal(modelo)
         }
@@ -49,16 +44,12 @@ struct DipleApp: App {
         )) {
             PopoverView(modelo: modelo)
         } label: {
-            // O diple ⟩ com o contador: a marca de margem que dá nome ao app.
             Text(modelo.contador > 0 ? "⟩ \(modelo.contador)" : "⟩")
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-
-// MARK: - Ponto de entrada
-// `Diple --probe` roda o cliente no terminal; sem argumento sobe a UI.
 @main
 struct Entrada {
     static func main() async {

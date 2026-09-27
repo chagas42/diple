@@ -14,8 +14,6 @@ enum TokenError: LocalizedError {
     }
 }
 
-/// v1 pega o token emprestado do gh, que você já autenticou.
-/// Device flow entra depois; isso aqui economiza a configuração inteira.
 enum Token {
     static func atual() throws -> String {
         let p = Process()

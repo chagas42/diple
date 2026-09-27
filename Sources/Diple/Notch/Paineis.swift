@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Time
-
 struct PainelTime: View {
     @ObservedObject var modelo: Modelo
 
@@ -71,8 +69,6 @@ struct Avatar: View {
     }
 }
 
-// MARK: - Rank
-
 struct PainelRank: View {
     @ObservedObject var modelo: Modelo
 
@@ -122,13 +118,9 @@ struct PainelRank: View {
     private func eu(_ l: LinhaRank) -> Bool { l.pessoa.login == modelo.fila.eu }
 }
 
-// MARK: - Ritmo
-
 struct PainelRitmo: View {
     @ObservedObject var modelo: Modelo
 
-    /// Verde-menta em vez de laranja: laranja é o sinal de "precisa de você",
-    /// e reaproveitá-lo aqui faria o grid parecer alarme.
     private static let escala: [Color] = [
         Color(red: 0.10, green: 0.31, blue: 0.27),
         Color(red: 0.13, green: 0.52, blue: 0.43),
@@ -150,8 +142,7 @@ struct PainelRitmo: View {
                     .frame(maxHeight: .infinity)
             } else {
                 GeometryReader { g in
-                    // O quadrado é calculado a partir da largura disponível,
-                    // então o grid preenche o painel em qualquer tamanho.
+
                     let n = max(1, semanas.count)
                     let lado = max(6, (g.size.width - vao * CGFloat(n - 1)) / CGFloat(n))
                     VStack(alignment: .leading, spacing: 5) {
@@ -231,9 +222,6 @@ struct PainelRitmo: View {
         }
     }
 
-    // MARK: - Contas
-
-    /// Colunas de 7, do dia mais antigo pro mais novo.
     private var semanas: [[DiaRitmo]] {
         stride(from: 0, to: modelo.ritmo.count, by: linhas).map {
             Array(modelo.ritmo[$0..<min($0 + linhas, modelo.ritmo.count)])
@@ -244,8 +232,6 @@ struct PainelRitmo: View {
     private var diasAtivos: Int { modelo.ritmo.filter { $0.reviews > 0 }.count }
     private var melhor: Int { modelo.ritmo.map(\.reviews).max() ?? 0 }
 
-    /// Conta de trás pra frente. Hoje ainda zerado não quebra a sequência —
-    /// o dia não acabou.
     private var sequencia: Int {
         var n = 0
         for (i, d) in modelo.ritmo.enumerated().reversed() {

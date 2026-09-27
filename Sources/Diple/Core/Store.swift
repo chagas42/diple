@@ -1,7 +1,5 @@
 import Foundation
 
-/// O que a gente lembra de cada PR entre uma sincronização e outra.
-/// É a diferença entre dois instantâneos que vira evento.
 struct Instantaneo: Codable, Sendable, Equatable {
     var atualizadoEm: Date
     var ci: String
@@ -13,9 +11,9 @@ struct Instantaneo: Codable, Sendable, Equatable {
 struct EstadoSalvo: Codable, Sendable {
     var prs: [String: Instantaneo] = [:]
     var naoLidos: Set<String> = []
-    /// Primeira execução não notifica nada: senão a estreia dispara 38 banners.
+
     var jaRodouUmaVez: Bool = false
-    /// Quem você escolheu acompanhar de perto.
+
     var seguindo: Set<String> = []
     var config = Config()
 }
@@ -67,7 +65,6 @@ final class Store {
         salvar()
     }
 
-    /// Compara a fila nova com o que estava salvo e devolve o que mudou.
     func diferenca(_ fila: Fila, meuLogin: String) -> [Evento] {
         var eventos: [Evento] = []
         var novos: [String: Instantaneo] = [:]
@@ -88,7 +85,6 @@ final class Store {
             guard !estreia else { continue }
             let antes = estado.prs[pr.chave]
 
-            // Pediram sua review: entrou na fila de revisar agora.
             if agora.emRevisar, antes?.emRevisar != true {
                 eventos.append(Evento(
                     id: "\(pr.chave)/review/\(pr.atualizadoEm.timeIntervalSince1970)",
@@ -98,7 +94,6 @@ final class Store {
                 ))
             }
 
-            // Check quebrou: só na transição pra falho, não a cada retentativa.
             if pr.souEuOAutor, agora.ci == EstadoCI.falhou.rawValue,
                let a = antes, a.ci != EstadoCI.falhou.rawValue {
                 eventos.append(Evento(
@@ -109,7 +104,6 @@ final class Store {
                 ))
             }
 
-            // Comentário humano novo. Se te cita, é resposta: som mais forte.
             if let c = pr.ultimoComentario,
                antes?.ultimoComentarioEm != c.quando,
                antes != nil {
@@ -124,7 +118,6 @@ final class Store {
                 ))
             }
 
-            // Aprovaram: entra na fila, sem som.
             if pr.souEuOAutor, agora.aprovado, antes?.aprovado == false {
                 eventos.append(Evento(
                     id: "\(pr.chave)/ok/\(pr.atualizadoEm.timeIntervalSince1970)",

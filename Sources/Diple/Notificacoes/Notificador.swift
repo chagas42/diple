@@ -7,14 +7,13 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
     private let centro = UNUserNotificationCenter.current()
     private let cliente = GitHubClient()
 
-    /// Chamado depois de responder ou resolver, pra fila refletir o que você fez.
     var aoMudar: (() async -> Void)?
-    /// A config viva, injetada pelo modelo a cada sincronização.
+
     var config = Config()
 
     private enum Cat {
-        static let thread = "THREAD"   // dá pra responder
-        static let simples = "SIMPLES" // só abre
+        static let thread = "THREAD"
+        static let simples = "SIMPLES"
     }
     private enum Acao {
         static let responder = "RESPONDER"
@@ -24,8 +23,6 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
     func instalar() {
         centro.delegate = self
 
-        // O campo de texto vive na categoria, não na notificação: o placeholder
-        // é fixo, então tem que ser genérico.
         let responder = UNTextInputNotificationAction(
             identifier: Acao.responder,
             title: "Responder",
@@ -64,8 +61,6 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
         await centro.notificationSettings().authorizationStatus == .authorized
     }
 
-    /// `forcando` ignora silêncio e liga/desliga. Só o teste usa: um botão de
-    /// teste que não toca por causa do horário parece app quebrado.
     func postar(_ eventos: [Evento], forcando: Bool = false) async {
         for e in eventos where forcando || config.deixaPassar(e.tipo) {
             let c = UNMutableNotificationContent()
@@ -75,7 +70,7 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
                                    : config.som(e.tipo) {
                 c.sound = UNNotificationSound(named: UNNotificationSoundName("\(som).aiff"))
             }
-            // Agrupa tudo do mesmo PR num aviso só em vez de empilhar três.
+
             c.threadIdentifier = e.chave
             c.categoryIdentifier = e.threadId == nil ? Cat.simples : Cat.thread
             c.userInfo = [
@@ -88,7 +83,6 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
         }
     }
 
-    /// Falha silenciosa aqui é pior que ruído: você acha que respondeu e não respondeu.
     private func avisarFalha(_ oQue: String, _ erro: Error) async {
         let c = UNMutableNotificationContent()
         c.title = "\(oQue) não foi enviado"
@@ -99,9 +93,6 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
         )
     }
 
-    // MARK: - Delegate
-
-    // Sem isto, um aviso postado com o app ativo é engolido em silêncio.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification

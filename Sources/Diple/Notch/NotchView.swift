@@ -1,9 +1,8 @@
 import SwiftUI
 
 enum EstadoNotch: Equatable {
-    /// Exatamente o recorte: o app existe mas não aparece.
     case oculto
-    /// O recorte com asas, mostrando o olho e o número.
+
     case atividade
     case aberto
     case alerta(Evento)
@@ -34,9 +33,7 @@ struct NotchView: View {
                 conteudo
             }
             .frame(width: tamanho.width, height: tamanho.height)
-            // Recorta o conteúdo na forma que está animando. Sem isto o texto
-            // é disposto no tamanho final e vaza por cima do wallpaper antes
-            // de a forma alcançá-lo.
+
             .clipShape(forma)
             .contextMenu {
                 Button("Ajustes…") { Janelas.compartilhado.abrirAjustes(modelo) }
@@ -47,7 +44,7 @@ struct NotchView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        // A forma cresce e encolhe com mola; a janela fica parada.
+
         .animation(.spring(response: 0.38, dampingFraction: 0.74), value: tamanho)
         .animation(.bouncy(duration: 0.4), value: modelo.contador)
     }
@@ -63,8 +60,6 @@ struct NotchView: View {
         }
     }
 
-    /// Fechado a lateral é reta, pra casar com o recorte. Aberto o topo se
-    /// alarga e desce com filete côncavo.
     private var flare: CGFloat {
         switch estado {
         case .oculto, .atividade: 0
@@ -85,7 +80,6 @@ struct NotchView: View {
         }
     }
 
-    /// Olho numa asa, número na outra, e o vão do recorte livre no meio.
     private var asas: some View {
         HStack(spacing: 0) {
             OlhoView(olhar: olhar, piscando: piscando, largura: 15)
@@ -101,10 +95,6 @@ struct NotchView: View {
         }
         .frame(height: alturaNotch)
     }
-
-    // MARK: - Aberto
-    // A faixa do topo fica na altura da barra de menu, com o vão do recorte
-    // livre no meio. O corpo são cartões, não linhas de lista.
 
     private var aberto: some View {
         VStack(spacing: 0) {
@@ -130,7 +120,7 @@ struct NotchView: View {
                                         ? Color.white.opacity(0.15) : .white.opacity(0.001)
                                 )
                             )
-                            // A área de toque é o retângulo inteiro, não o glifo.
+
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -252,8 +242,6 @@ struct NotchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // O cabeçalho diz quantos são no total. Antes a lista mostrava
-                // três e o número grande dizia catorze, sem ligação entre eles.
                 HStack(spacing: 6) {
                     Text("Esperando você")
                         .font(.system(size: 10, weight: .bold))
@@ -326,11 +314,6 @@ struct NotchView: View {
         }
         return base
     }
-
-    // MARK: - Alerta
-    // Mesma estrutura do aberto: faixa na altura da barra de menu com o vão
-    // do recorte livre, e o corpo embaixo. Sem isso o texto começava colado
-    // no recorte e encostava na curva côncava.
 
     private func alerta(_ e: Evento) -> some View {
         VStack(spacing: 0) {

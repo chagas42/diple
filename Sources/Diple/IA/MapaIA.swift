@@ -1,9 +1,6 @@
 import Foundation
 
-/// A única pergunta do mapa que precisa de julgamento: o que alguém
-/// precisaria saber pra julgar isto, que não está no diff.
 struct MapaIA: Sendable {
-
     func desenhar(pr: PR, base: String, alterados: [Modulo], em pasta: URL, modelo: String) async -> Mapa? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")

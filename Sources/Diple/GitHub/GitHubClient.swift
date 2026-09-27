@@ -56,10 +56,7 @@ struct GitHubClient: Sendable {
     }
 }
 
-// MARK: - Escrita
-
 extension GitHubClient {
-    /// Responde numa thread de review sem sair do banner.
     func responder(threadId: String, corpo: String) async throws {
         _ = try await mutar(
             """
@@ -101,7 +98,7 @@ extension GitHubClient {
         if let http = resposta as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ClienteErro.http(http.statusCode)
         }
-        // Uma mutation pode voltar 200 com errors; sem checar, "enviado" mente.
+
         if let obj = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
            let erros = obj["errors"] as? [[String: Any]], !erros.isEmpty {
             throw ClienteErro.graphql(erros.compactMap { $0["message"] as? String })

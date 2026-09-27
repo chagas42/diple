@@ -13,11 +13,9 @@ final class Notch: ObservableObject {
     private let painel = NotchPanel()
     private weak var modelo: Modelo?
     private var recolher: Task<Void, Never>?
-    /// Desde quando o ponteiro está fora. Nil = está dentro.
+
     private var foraDesde: Date?
-    /// Onde o ponteiro estava quando o aviso chegou. Enquanto ele não se
-    /// mexer, o hover não abre — senão um aviso que aparece embaixo do mouse
-    /// parado é engolido na mesma hora.
+
     private var ancora: CGPoint?
     private var olhos: Timer?
     private var piscada: Task<Void, Never>?
@@ -43,8 +41,6 @@ final class Notch: ObservableObject {
         }
     }
 
-    // MARK: - Estados
-
     private func medir() {
         let g = Geometria.atual()
         larguraNotch = g.larguraNotch
@@ -52,8 +48,6 @@ final class Notch: ObservableObject {
         aplicar()
     }
 
-    /// Só troca o tamanho da forma. A janela nunca se mexe — é isso que
-    /// mantém a animação líquida e elimina o laço de hover.
     private func aplicar() {
         let g = Geometria.atual()
         let novo: CGSize = switch estado {
@@ -64,8 +58,6 @@ final class Notch: ObservableObject {
         }
         tamanho = novo
 
-        // Fechado, os cliques atravessam pra barra de menu. Aberto, os botões
-        // precisam receber.
         switch estado {
         case .oculto, .atividade: painel.ignoresMouseEvents = true
         case .aberto, .alerta:    painel.ignoresMouseEvents = false
@@ -98,7 +90,7 @@ final class Notch: ObservableObject {
         ancora = NSEvent.mouseLocation
         estado = .alerta(e)
         aplicar()
-        // Só o alerta usa timer: ele recolhe sozinho sem depender do ponteiro.
+
         recolher = Task { [weak self] in
             try? await Task.sleep(for: .seconds(6))
             guard !Task.isCancelled, let self, self.estado != .aberto else { return }
@@ -106,14 +98,11 @@ final class Notch: ObservableObject {
         }
     }
 
-    /// Chamado quando o contador muda: some ou aparece sem passar pelo hover.
     func revisarRepouso() {
         guard estado == .oculto || estado == .atividade else { return }
         estado = repouso()
         aplicar()
     }
-
-    // MARK: - Ponteiro e olho
 
     private func acompanhar() {
         olhos = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
@@ -125,13 +114,10 @@ final class Notch: ObservableObject {
         }
     }
 
-    /// A verdade do hover é onde o ponteiro está, testada contra a forma —
-    /// não contra a janela, que é bem maior, nem contra eventos de layout.
     private func verificarPonteiro() {
         let g = Geometria.atual()
         let forma = g.retangulo(tamanho)
-        // A faixa do recorte sempre conta, pra você poder mirar a notch mesmo
-        // quando nada está visível.
+
         let sensivel = forma.union(g.retangulo(g.fechado))
         let m = NSEvent.mouseLocation
 
@@ -152,9 +138,6 @@ final class Notch: ObservableObject {
 
         guard aberto else { foraDesde = nil; return }
 
-        // Nada de agendar tarefa aqui: o tick roda 30x por segundo e cancelaria
-        // o próprio agendamento a cada passada, então o fechamento nunca vinha.
-        // A carência é medida, não agendada.
         let agora = Date()
         if foraDesde == nil { foraDesde = agora }
         if agora.timeIntervalSince(foraDesde!) >= 0.25 {
