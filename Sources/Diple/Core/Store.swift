@@ -20,6 +20,45 @@ struct StoredState: Codable, Sendable {
     var cache = Cache()
 }
 
+enum RankPeriod: String, CaseIterable, Codable, Sendable, Identifiable {
+    case week, month, quarter
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .week:    "Week"
+        case .month:   "Month"
+        case .quarter: "Quarter"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .week:    "last 7 days"
+        case .month:   "last 30 days"
+        case .quarter: "last 3 months"
+        }
+    }
+
+    var since: Date {
+        let cal = Calendar.current
+        let now = Date()
+        return switch self {
+        case .week:    cal.date(byAdding: .day, value: -7, to: now) ?? now
+        case .month:   cal.date(byAdding: .day, value: -30, to: now) ?? now
+        case .quarter: cal.date(byAdding: .month, value: -3, to: now) ?? now
+        }
+    }
+
+    var freshFor: TimeInterval {
+        switch self {
+        case .week:    600
+        case .month:   1800
+        case .quarter: 3600
+        }
+    }
+}
+
 struct Cache: Codable, Sendable {
     var team: [Person] = []
     var ranking: [RankRow] = []
@@ -28,6 +67,25 @@ struct Cache: Codable, Sendable {
     var rankingAt: Date?
     var activityAt: Date?
     var scoreShownOn: Date?
+    var rankByPeriod: [String: [RankRow]]? = nil
+    var rankAtByPeriod: [String: Date]? = nil
+
+    func rank(_ p: RankPeriod) -> [RankRow] { rankByPeriod?[p.rawValue] ?? [] }
+    func rankAt(_ p: RankPeriod) -> Date? { rankAtByPeriod?[p.rawValue] }
+
+    mutating func setRank(_ rows: [RankRow], for p: RankPeriod) {
+        var byP = rankByPeriod ?? [:]
+        byP[p.rawValue] = rows
+        rankByPeriod = byP
+        var atP = rankAtByPeriod ?? [:]
+        atP[p.rawValue] = Date()
+        rankAtByPeriod = atP
+    }
+
+    mutating func dropRanks() {
+        rankByPeriod = nil
+        rankAtByPeriod = nil
+    }
 
     func isStale(_ at: Date?, after seconds: TimeInterval) -> Bool {
         guard let at else { return true }

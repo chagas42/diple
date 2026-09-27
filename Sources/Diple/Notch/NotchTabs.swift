@@ -139,19 +139,49 @@ struct RankTab: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Text("Reviews in the last 3 months")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.45))
-                Text("· \(scope)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.28))
+                HStack(spacing: 2) {
+                    ForEach(RankPeriod.allCases) { p in
+                        let on = model.rankPeriod == p
+                        Button {
+                            model.rankPeriod = p
+                        } label: {
+                            Text(p.label)
+                                .font(.system(size: 10.5, weight: on ? .semibold : .regular))
+                                .foregroundStyle(.white.opacity(on ? 0.95 : 0.45))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(.white.opacity(on ? 0.14 : 0))
+                                )
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.white.opacity(0.05))
+                )
+
+                Text(model.rankPeriod.caption)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.white.opacity(0.3))
+
                 Spacer()
+
+                Text(scope)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.white.opacity(0.28))
+
                 if model.refreshingTab == .ranking && !model.ranking.isEmpty {
                     Text("updating")
                         .font(.system(size: 10))
                         .foregroundStyle(.white.opacity(0.3))
                 }
             }
+            .animation(.easeOut(duration: 0.15), value: model.rankPeriod)
 
             if model.ranking.isEmpty {
                 Placeholder(text: "Counting reviews…")
@@ -200,10 +230,12 @@ struct RankTab: View {
             Spacer(minLength: 0)
         }
         .onAppear(perform: runOnce)
+        .onChange(of: model.ranking) { _ in runOnce() }
+        .onChange(of: model.rankPeriod) { _ in progress = 0 }
     }
 
     private func runOnce() {
-        guard !model.ranking.isEmpty else { return }
+        guard !model.ranking.isEmpty else { progress = 0; return }
         guard model.shouldAnimateScore else { progress = 1; return }
         model.markScoreShown()
         progress = 0

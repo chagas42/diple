@@ -86,6 +86,14 @@ final class AppModel: ObservableObject {
         }
     }
 
+    var rankPeriod: RankPeriod = .month {
+        didSet {
+            guard rankPeriod != oldValue else { return }
+            ranking = store.state.cache.rank(rankPeriod)
+            loadTab(.ranking)
+        }
+    }
+
     private let client = GitHubClient()
     private let store = Store()
     private let notificador = Notifier()
@@ -103,7 +111,7 @@ final class AppModel: ObservableObject {
         following = store.state.following
         let cache = store.state.cache
         team = cache.team
-        ranking = cache.ranking
+        ranking = cache.rank(rankPeriod)
         activity = cache.activity
         settings = store.state.settings
         notificador.settings = settings
@@ -168,24 +176,28 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
-        let cache = store.state.cache
+        var cache = store.state.cache
+        cache.dropRanks()
+        store.saveCache(cache)
         team = cache.team
-        ranking = cache.ranking
         activity = cache.activity
+        ranking = ranking.filter { rankingScope(cache.team).contains($0.person) }
+        loadTab(.ranking, force: true)
     }
 
-    func loadTab(_ tab: NotchTab) {
-        guard !org.isEmpty, refreshingTab == nil else { return }
-
+    func loadTab(_ tab: NotchTab, force: Bool = false) {
+        guard !org.isEmpty else { return }
+        guard force || refreshingTab == nil else { return }
         guard tab != .queue else { return }
+
         let cache = store.state.cache
         let stale: Bool = switch tab {
         case .queue:    false
         case .team:     cache.isStale(cache.teamAt, after: 24 * 3600)
-        case .ranking:  cache.isStale(cache.rankingAt, after: 6 * 3600)
+        case .ranking:  cache.isStale(cache.rankAt(rankPeriod), after: rankPeriod.freshFor)
         case .activity: cache.isStale(cache.activityAt, after: 3600)
         }
-        guard stale else { return }
+        guard force || stale else { return }
 
         refreshingTab = tab
         refreshTask?.cancel()
@@ -207,12 +219,12 @@ final class AppModel: ObservableObject {
             }
             switch tab {
             case .ranking:
-                let from = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
-                cache.ranking = try await client.fetchRanking(
-                    org: org, people: rankingScope(cache.team), from: from
+                let period = rankPeriod
+                let rows = try await client.fetchRanking(
+                    org: org, people: rankingScope(cache.team), from: period.since
                 )
-                cache.rankingAt = Date()
-                ranking = cache.ranking
+                cache.setRank(rows, for: period)
+                if period == rankPeriod { ranking = rows }
             case .activity:
                 cache.activity = try await client.fetchActivity(org: org, login: queue.viewer)
                 cache.activityAt = Date()
@@ -387,15 +399,35 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
     }
 
+    enum NeedsReason: Sendable {
+        case reviewRequested
+        case replied
+
+        var label: String {
+            switch self {
+            case .reviewRequested: "review requested"
+            case .replied:         "replied to you"
+            }
+        }
+    }
+
+    func needsReason(_ pr: PR) -> NeedsReason? {
+        if unread.contains(pr.key) { return .replied }
+        if queue.toReview.contains(where: { $0.key == pr.key }) { return .reviewRequested }
+        return nil
+    }
+
     var needsYou: [PR] {
-        var vistos = Set<String>()
+        var seen = Set<String>()
         var out: [PR] = []
-        for pr in queue.toReview + queue.mine.filter({ $0.checks == .failing })
-                 + queue.all.filter({ unread.contains($0.key) }) {
-            if vistos.insert(pr.key).inserted { out.append(pr) }
+        for pr in queue.toReview + queue.all.filter({ unread.contains($0.key) }) {
+            guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
+            if seen.insert(pr.key).inserted { out.append(pr) }
         }
         return out
     }
+
+    var yoursBroken: [PR] { queue.mine.filter { $0.checks == .failing } }
 
     var count: Int { needsYou.count }
 
