@@ -65,6 +65,9 @@ struct PRCru: Decodable, Sendable {
         let author: Ator?
         let createdAt: Date
         let bodyText: String
+        /// Só vem em comentário inline. É o trecho de código já recortado
+        /// pelo GitHub — o detalhe não precisa buscar o diff separado.
+        let diffHunk: String?
     }
     struct Threads: Decodable, Sendable { let nodes: [Thread?] }
     struct Thread: Decodable, Sendable {
@@ -107,8 +110,31 @@ struct PR: Identifiable, Sendable, Equatable {
     let souEuOAutor: Bool
     let ci: EstadoCI
     let aprovado: Bool
+    /// Threads inline abertas, com o trecho de código de cada uma.
+    let threads: [ThreadPR]
     /// Último comentário de gente, já sem bot.
     let ultimoComentario: ComentarioHumano?
+
+    struct ThreadPR: Identifiable, Sendable, Equatable {
+        let id: String
+        let arquivo: String
+        let linha: Int?
+        let diffHunk: String?
+        let comentarios: [Fala]
+
+        var onde: String {
+            let nome = arquivo.split(separator: "/").last.map(String.init) ?? arquivo
+            return linha.map { "\(nome):\($0)" } ?? nome
+        }
+    }
+
+    struct Fala: Identifiable, Sendable, Equatable {
+        let id: String
+        let autor: String
+        let quando: Date
+        let texto: String
+        let ehBot: Bool
+    }
 
     struct ComentarioHumano: Sendable, Equatable {
         let autor: String
@@ -165,6 +191,30 @@ struct PR: Identifiable, Sendable, Equatable {
         }
 
         ultimoComentario = candidatos.max { $0.quando < $1.quando }
+
+        // As threads inteiras, pro painel de detalhe: o diffHunk já vem aqui,
+        // então revisar não custa nenhuma chamada extra.
+        threads = c.reviewThreads.nodes.compactMap { $0 }
+            .filter { !$0.isResolved }
+            .compactMap { t in
+                let falas = t.comments.nodes.compactMap { $0 }.map { com in
+                    Fala(
+                        id: "\(t.id)/\(com.createdAt.timeIntervalSince1970)",
+                        autor: com.author?.login ?? "?",
+                        quando: com.createdAt,
+                        texto: com.bodyText,
+                        ehBot: com.author?.ehBot ?? false
+                    )
+                }
+                guard falas.contains(where: { !$0.ehBot }) else { return nil }
+                return ThreadPR(
+                    id: t.id,
+                    arquivo: t.path ?? "?",
+                    linha: t.line,
+                    diffHunk: t.comments.nodes.compactMap { $0?.diffHunk }.first,
+                    comentarios: falas
+                )
+            }
     }
 }
 

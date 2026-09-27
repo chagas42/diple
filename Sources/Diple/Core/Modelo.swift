@@ -17,6 +17,32 @@ final class Modelo: ObservableObject {
     @Published private(set) var permissao = false
     @Published private(set) var naoLidos: Set<String> = []
 
+    // Seleção da janela
+    @Published var aba: Aba = .esperando
+    @Published var selecionado: PR?
+    @Published private(set) var enviando = false
+
+    enum Aba: String, CaseIterable, Identifiable {
+        case esperando, meus, revisando, observando
+        var id: String { rawValue }
+        var titulo: String {
+            switch self {
+            case .esperando:  "Esperando você"
+            case .meus:       "Seus PRs"
+            case .revisando:  "Revisando"
+            case .observando: "Observando"
+            }
+        }
+        var icone: String {
+            switch self {
+            case .esperando:  "tray.full"
+            case .meus:       "arrow.triangle.branch"
+            case .revisando:  "bubble.left.and.bubble.right"
+            case .observando: "eye"
+            }
+        }
+    }
+
     private let cliente = GitHubClient()
     private let store = Store()
     private let notificador = Notificador()
@@ -61,6 +87,9 @@ final class Modelo: ObservableObject {
             let nova = try await cliente.buscarFila()
             let eventos = store.diferenca(nova, meuLogin: nova.eu)
             fila = nova
+            if let s = selecionado {
+                selecionado = nova.todos.first { $0.chave == s.chave } ?? s
+            }
             naoLidos = store.estado.naoLidos
             ultimaSync = Date()
             erro = nil
@@ -98,6 +127,44 @@ final class Modelo: ObservableObject {
     }
 
     var contador: Int { precisamDeVoce.count }
+
+    func prs(_ aba: Aba) -> [PR] {
+        switch aba {
+        case .esperando:  precisamDeVoce
+        case .meus:       fila.meus
+        case .revisando:  fila.revisar
+        case .observando: fila.envolvido
+        }
+    }
+
+    func contagem(_ aba: Aba) -> Int { prs(aba).count }
+
+    /// Responde numa thread pela janela. Recarrega a fila pra conversa refletir.
+    func responder(thread: String, texto: String) async -> String? {
+        let t = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return nil }
+        enviando = true
+        defer { enviando = false }
+        do {
+            try await cliente.responder(threadId: thread, corpo: t)
+            await atualizar()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    func resolver(thread: String) async -> String? {
+        enviando = true
+        defer { enviando = false }
+        do {
+            try await cliente.resolver(threadId: thread)
+            await atualizar()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
 
     var resto: [PR] {
         let urgentes = Set(precisamDeVoce.map(\.chave))

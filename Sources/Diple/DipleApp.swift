@@ -28,7 +28,17 @@ struct DipleApp: App {
             Text(modelo.contador > 0 ? "⟩ \(modelo.contador)" : "⟩")
         }
         .menuBarExtraStyle(.window)
+
+        Window("Diple", id: Janela.principal) {
+            JanelaView(modelo: modelo)
+        }
+        .defaultSize(width: 1320, height: 820)
+        .windowToolbarStyle(.unified)
     }
+}
+
+enum Janela {
+    static let principal = "principal"
 }
 
 // MARK: - Ponto de entrada
