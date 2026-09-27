@@ -3,9 +3,6 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
-// mp4 -> animated GIF, cropping a region and scaling to a target width.
-// usage: gifmaker in.mp4 out.gif fps width cropX cropY cropW cropH
-
 let a = CommandLine.arguments
 guard a.count >= 5 else {
     FileHandle.standardError.write("usage: gifmaker in.mp4 out.gif fps width [cropX cropY cropW cropH]\n".data(using: .utf8)!)

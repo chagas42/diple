@@ -18,7 +18,6 @@ app: build
 	@echo "bundled  $(DEST)"
 
 run: app stop
-	@# LaunchServices guarda o ícone em cache; sem isto o Dock mostra o antigo.
 	-@touch $(DEST)
 	-@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
 		-f $(DEST) 2>/dev/null || true
@@ -36,8 +35,8 @@ install: app
 	@echo
 	@./.build/release/$(APP) --tools
 
-icone:
-	swift Resources/icone-fonte/gerar-icns.swift
+icon:
+	swift Resources/icon-source/make-icns.swift
 	iconutil -c icns /tmp/Diple.iconset -o Resources/Diple.icns
 
 stop:
