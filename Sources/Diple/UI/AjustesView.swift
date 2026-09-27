@@ -10,6 +10,8 @@ struct AjustesView: View {
                 .tabItem { Label("Notificações", systemImage: "bell") }
             PainelRepositorios(modelo: modelo)
                 .tabItem { Label("Repositórios", systemImage: "book.closed") }
+            PainelClaude(modelo: modelo)
+                .tabItem { Label("Claude", systemImage: "sparkles") }
             PainelConta(modelo: modelo)
                 .tabItem { Label("Conta", systemImage: "person.crop.circle") }
         }
@@ -208,5 +210,128 @@ struct PainelConta: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+
+// MARK: - Claude
+
+struct PainelClaude: View {
+    @ObservedObject var modelo: Modelo
+
+    private var repos: [String] {
+        Array(Set(modelo.fila.todos.map(\.repo))).sorted()
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 9) {
+                    Circle()
+                        .fill(temClaude ? .green : .orange)
+                        .frame(width: 7, height: 7)
+                    Text(temClaude ? "claude encontrado no PATH"
+                                   : "claude não está no PATH")
+                    Spacer()
+                }
+                Picker("Modelo", selection: $modelo.config.modeloIA) {
+                    Text("Opus").tag("opus")
+                    Text("Sonnet").tag("sonnet")
+                    Text("Haiku").tag("haiku")
+                }
+                Text("O Diple não tem IA própria. Ele chama o claude da sua máquina, "
+                     + "com a sua conta e as suas skills. Os tokens contam no seu plano.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Sessão")
+            }
+
+            Section {
+                HStack(spacing: 22) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("LIBERADO")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(.green)
+                        Text("Read · Grep · Glob\nBash(git diff/log/show/status)")
+                            .font(.system(size: 10.5, design: .monospaced))
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("BLOQUEADO")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(.red)
+                        Text("Write · Edit · WebFetch\nBash(gh/push/commit/curl)")
+                            .font(.system(size: 10.5, design: .monospaced))
+                    }
+                    Spacer()
+                }
+            } header: {
+                Text("Limites da sessão")
+            } footer: {
+                Text("Não dá para desligar: a sessão nasce sem as ferramentas de escrita, "
+                     + "então a IA não tem como publicar nada.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                if repos.isEmpty {
+                    Text("A fila ainda não carregou.").foregroundStyle(.secondary)
+                }
+                ForEach(repos, id: \.self) { r in
+                    HStack {
+                        Text(r).font(.system(size: 12, design: .monospaced))
+                        Spacer()
+                        if let u = Worktree.localDe(r, configurados: modelo.config.caminhos) {
+                            Text(atalho(u.path))
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button("Escolher…") { escolher(r) }
+                        }
+                    }
+                }
+            } header: {
+                Text("Onde cada repositório está")
+            } footer: {
+                Text("O Diple procura sozinho em @work, @studies, dev, work, Developer, "
+                     + "code e src. Cada review roda num worktree descartável em "
+                     + "~/.diple/worktrees — o seu checkout não é tocado.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var temClaude: Bool {
+        if ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+            .contains(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            return true
+        }
+        return which()
+    }
+
+    private func which() -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = ["which", "claude"]
+        p.standardOutput = Pipe(); p.standardError = Pipe()
+        try? p.run(); p.waitUntilExit()
+        return p.terminationStatus == 0
+    }
+
+    private func atalho(_ p: String) -> String {
+        p.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+    }
+
+    private func escolher(_ repo: String) {
+        let painel = NSOpenPanel()
+        painel.canChooseDirectories = true
+        painel.canChooseFiles = false
+        painel.prompt = "Usar esta pasta"
+        if painel.runModal() == .OK, let u = painel.url {
+            modelo.config.caminhos[repo] = u.path
+        }
     }
 }

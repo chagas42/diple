@@ -14,6 +14,10 @@ struct Config: Codable, Sendable, Equatable {
     /// Repositórios que não geram aviso nenhum.
     var silenciados: Set<String> = []
     var intervalo: TimeInterval = 60
+    /// Modelo do SEU plano. O Diple não paga token nenhum.
+    var modeloIA = "opus"
+    /// repo -> pasta local. Vazio = o Diple procura sozinho.
+    var caminhos: [String: String] = [:]
 
     static let sonsDisponiveis = [
         "Glass", "Pop", "Tink", "Basso", "Hero", "Blow", "Bottle",

@@ -17,6 +17,8 @@ struct DetalheView: View {
                         ThreadView(modelo: modelo, thread: t)
                     }
                 }
+                Divider()
+                RevisaoIAView(modelo: modelo, pr: pr)
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
