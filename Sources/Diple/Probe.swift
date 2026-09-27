@@ -52,8 +52,10 @@ enum ProbeNotch {
             } else {
                 print("  áreas auxiliares: nenhuma (tela sem recorte)")
             }
-            print("  repouso com 3: \(g.repouso(pendencias: 3))")
-            print("  aberto:        \(g.aberto())")
+            print("  fechado:   \(g.fechado)  -> \(g.retangulo(g.fechado))")
+            print("  atividade: \(g.atividade)  -> \(g.retangulo(g.atividade))")
+            print("  aberto:    \(g.aberto)  -> \(g.retangulo(g.aberto))")
+            print("  janela fixa: \(g.janela())")
         }
     }
 }
