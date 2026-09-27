@@ -200,6 +200,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func reportOpenFailure(_ message: String) { errorMessage = message }
+
     func toggleWatch(_ repo: String) {
         store.toggleWatch(repo)
         watching = store.state.watching ?? []

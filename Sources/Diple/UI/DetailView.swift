@@ -31,7 +31,7 @@ struct DetailView: View {
                         semThreads
                     } else {
                         ForEach(pr.threads) { t in
-                            ThreadView(model: model, thread: t)
+                            ThreadView(model: model, pr: pr, thread: t)
                         }
                     }
                 case .map:
@@ -113,6 +113,7 @@ struct DetailView: View {
 
 struct ThreadView: View {
     @ObservedObject var model: AppModel
+    let pr: PR
     let thread: PR.ReviewThread
 
     @State private var response = ""
@@ -124,14 +125,38 @@ struct ThreadView: View {
                 Image(systemName: "doc.text")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                Text(thread.path)
-                    .font(.system(size: 11.5, design: .monospaced))
-                if let l = thread.line {
-                    Text("line \(l)")
-                        .font(.system(size: 11.5, design: .monospaced))
-                        .foregroundStyle(.tertiary)
+
+                Button {
+                    model.openOnGitHub(pr: pr, thread: thread)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(thread.path)
+                            .font(.system(size: 11.5, design: .monospaced))
+                        if let l = thread.line {
+                            Text("line \(l)")
+                                .font(.system(size: 11.5, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help("Open the whole file on GitHub")
+
                 Spacer()
+
+                if model.localEditor != nil {
+                    Button {
+                        model.openInEditor(pr: pr, thread: thread)
+                    } label: {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .font(.system(size: 10.5))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Open at this line in \(model.localEditor ?? "your editor")")
+                }
+
                 Button("Resolve") {
                     Task { error = await model.resolve(thread: thread.id) }
                 }
@@ -143,37 +168,16 @@ struct ThreadView: View {
             .background(.quaternary.opacity(0.4))
 
             if let h = thread.diffHunk {
-                DiffHunkView(hunk: h)
-                    .padding(.horizontal, 4)
-                Divider()
+                DiffHunkView(hunk: h, path: thread.path)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
             }
 
-            ForEach(thread.comments) { fala in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 7) {
-                        Text(fala.author)
-                            .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundStyle(fala.isBot ? .secondary : .primary)
-                        if fala.isBot {
-                            Text("bot")
-                                .font(.system(size: 9.5, weight: .bold))
-                                .padding(.horizontal, 5).padding(.vertical, 1)
-                                .background(.quaternary, in: Capsule())
-                        }
-                        Text(fala.at.formatted(.relative(presentation: .numeric)))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                    }
-                    Text(fala.text)
-                        .font(.system(size: 13))
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .opacity(fala.isBot ? 0.55 : 1)
-                Divider()
+            ForEach(Array(thread.comments.enumerated()), id: \.element.id) { i, c in
+                if i > 0 { Divider().opacity(0.5) }
+                CommentView(comment: c, path: thread.path)
             }
+            Divider()
 
             VStack(alignment: .leading, spacing: 7) {
                 if let e = error {
