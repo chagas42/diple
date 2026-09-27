@@ -18,7 +18,6 @@ enum EstadoNotch: Equatable {
 }
 
 struct NotchView: View {
-    @Environment(\.openWindow) private var abrirJanela
     @ObservedObject var modelo: Modelo
     let estado: EstadoNotch
     let tamanho: CGSize
@@ -40,14 +39,8 @@ struct NotchView: View {
             // de a forma alcançá-lo.
             .clipShape(forma)
             .contextMenu {
-                Button("Ajustes…") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    abrirJanela(id: Janela.ajustes)
-                }
-                Button("Janela principal") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    abrirJanela(id: Janela.principal)
-                }
+                Button("Ajustes…") { Janelas.compartilhado.abrirAjustes(modelo) }
+                Button("Janela principal") { Janelas.compartilhado.abrirPrincipal(modelo) }
                 Divider()
                 Button("Sair do Diple") { NSApplication.shared.terminate(nil) }
             }
@@ -153,8 +146,7 @@ struct NotchView: View {
             HStack(spacing: 7) {
                 Spacer(minLength: 0)
                 botaoIcone("macwindow") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    abrirJanela(id: Janela.principal)
+                    Janelas.compartilhado.abrirPrincipal(modelo)
                     aoFechar()
                 }
                 if modelo.carregando || modelo.carregandoAba {
@@ -163,8 +155,7 @@ struct NotchView: View {
                     botaoIcone("arrow.clockwise") { Task { await modelo.atualizar() } }
                 }
                 botaoIcone("gearshape") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    abrirJanela(id: Janela.ajustes)
+                    Janelas.compartilhado.abrirAjustes(modelo)
                     aoFechar()
                 }
                 botaoIcone("xmark") { aoFechar() }

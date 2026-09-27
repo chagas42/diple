@@ -4,11 +4,11 @@ import Foundation
 /// precisaria saber pra julgar isto, que não está no diff.
 struct MapaIA: Sendable {
 
-    func desenhar(pr: PR, alterados: [Modulo], em pasta: URL, modelo: String) async -> Mapa? {
+    func desenhar(pr: PR, base: String, alterados: [Modulo], em pasta: URL, modelo: String) async -> Mapa? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         p.arguments = [
-            "claude", "-p", prompt(pr: pr, alterados: alterados),
+            "claude", "-p", prompt(pr: pr, base: base, alterados: alterados),
             "--output-format", "json",
             "--permission-mode", "dontAsk",
             "--allowed-tools", "Read Grep Glob Bash(git diff:*) Bash(git log:*)",
@@ -48,7 +48,7 @@ struct MapaIA: Sendable {
         )
     }
 
-    private func prompt(pr: PR, alterados: [Modulo]) -> String {
+    private func prompt(pr: PR, base: String, alterados: [Modulo]) -> String {
         let lista = alterados.map { "- \($0.caminho) (\($0.diff ?? ""))" }.joined(separator: "\n")
         return """
         Você está num worktree com o PR #\(pr.numero) de \(pr.repo) em checkout.
@@ -75,7 +75,7 @@ struct MapaIA: Sendable {
         estados. Para cada um diga por que sem isso a review fica fraca, e onde \
         ler, se existir arquivo ou doc no repositório.
 
-        Explore o repositório o quanto precisar. Responda SOMENTE com este JSON, \
+        O diff é `git diff \(base.isEmpty ? "origin/HEAD" : base)...HEAD` — use essa base.\n        Explore o repositório o quanto precisar. Responda SOMENTE com este JSON, \
         sem cerca de código:
 
         {"proposta":"...",

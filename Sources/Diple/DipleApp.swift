@@ -18,6 +18,12 @@ final class Delegate: NSObject, NSApplicationDelegate, ObservableObject {
         notch.montar(modelo: modelo)
         modelo.iniciar()
         conferirTela()
+        Task { await Worktree.limparOrfaos() }
+
+        // `open -a Diple --args --janela` sobe já com a janela aberta.
+        if CommandLine.arguments.contains("--janela") {
+            Janelas.compartilhado.abrirPrincipal(modelo)
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -47,24 +53,9 @@ struct DipleApp: App {
             Text(modelo.contador > 0 ? "⟩ \(modelo.contador)" : "⟩")
         }
         .menuBarExtraStyle(.window)
-
-        Window("Diple", id: Janela.principal) {
-            JanelaView(modelo: modelo)
-        }
-        .defaultSize(width: 1320, height: 820)
-        .windowToolbarStyle(.unified)
-
-        Window("Ajustes do Diple", id: Janela.ajustes) {
-            AjustesView(modelo: modelo)
-        }
-        .windowResizability(.contentSize)
     }
 }
 
-enum Janela {
-    static let principal = "principal"
-    static let ajustes = "ajustes"
-}
 
 // MARK: - Ponto de entrada
 // `Diple --probe` roda o cliente no terminal; sem argumento sobe a UI.

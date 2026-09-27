@@ -217,11 +217,18 @@ final class Modelo: ObservableObject {
 
         var destino: URL?
         do {
+            passoIA = .preparando("buscando a base do diff")
+            let (base, _) = try await cliente.baseEModulos(repo: pr.repo, pr: pr.numero)
+
             passoIA = .preparando("preparando worktree descartável")
-            let w = try await Worktree.preparar(origem: origem, repo: pr.repo, pr: pr.numero)
+            let w = try await Worktree.preparar(
+                origem: origem, repo: pr.repo, pr: pr.numero, base: base
+            )
             destino = w
 
-            for await passo in RevisorIA().revisar(pr: pr, em: w, modelo: config.modeloIA) {
+            for await passo in RevisorIA().revisar(
+                pr: pr, base: base, em: w, modelo: config.modeloIA
+            ) {
                 passoIA = passo
                 if case .pronto(let lista) = passo { achados[pr.chave] = lista }
             }
@@ -246,12 +253,14 @@ final class Modelo: ObservableObject {
 
         var destino: URL?
         do {
-            let alterados = try await cliente.modulosAlterados(repo: pr.repo, pr: pr.numero)
-            let w = try await Worktree.preparar(origem: origem, repo: pr.repo, pr: pr.numero)
+            let (base, alterados) = try await cliente.baseEModulos(repo: pr.repo, pr: pr.numero)
+            let w = try await Worktree.preparar(
+                origem: origem, repo: pr.repo, pr: pr.numero, base: base
+            )
             destino = w
 
             if let m = await MapaIA().desenhar(
-                pr: pr, alterados: alterados, em: w, modelo: config.modeloIA
+                pr: pr, base: base, alterados: alterados, em: w, modelo: config.modeloIA
             ) {
                 mapas[pr.chave] = m
             } else {

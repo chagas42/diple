@@ -35,14 +35,20 @@ struct Mapa: Codable, Sendable, Equatable {
 // MARK: - A parte determinística
 
 extension GitHubClient {
-    /// Arquivos do PR, agrupados por módulo. Isto não precisa de IA.
-    func modulosAlterados(repo: String, pr: Int) async throws -> [Modulo] {
+    /// Arquivos do PR agrupados por módulo, mais a base do diff.
+    ///
+    /// A base importa: `origin/HEAD` local costuma estar desatualizado, e
+    /// diferenciar contra ele devolve o repositório inteiro em vez do PR.
+    /// `baseRefOid` é o commit exato de onde o PR saiu.
+    func baseEModulos(repo: String, pr: Int) async throws -> (base: String, modulos: [Modulo]) {
         let partes = repo.split(separator: "/")
-        guard partes.count == 2 else { return [] }
+        guard partes.count == 2 else { return ("", []) }
 
         let json = try await bruto("""
         { repository(owner: "\(partes[0])", name: "\(partes[1])") {
             pullRequest(number: \(pr)) {
+              baseRefOid
+              baseRefName
               files(first: 100) { nodes { path additions deletions } }
             }
         } }
@@ -53,6 +59,8 @@ extension GitHubClient {
         let pull = repositorio?["pullRequest"] as? [String: Any]
         let arquivos = pull?["files"] as? [String: Any]
         let nos = arquivos?["nodes"] as? [[String: Any]] ?? []
+        let base = (pull?["baseRefOid"] as? String) ?? ""
+
 
         var porModulo: [String: (mais: Int, menos: Int, arquivos: Int)] = [:]
         for f in nos {
@@ -65,7 +73,7 @@ extension GitHubClient {
             porModulo[chave] = atual
         }
 
-        return porModulo
+        let modulos = porModulo
             .map { chave, v in
                 Modulo(
                     nome: chave.split(separator: "/").last.map(String.init) ?? chave,
@@ -77,6 +85,7 @@ extension GitHubClient {
             .sorted { ($0.mais + $0.menos) > ($1.mais + $1.menos) }
             .prefix(4)
             .map { $0 }
+        return (base, modulos)
     }
 
     /// Agrupa por diretório, ignorando o arquivo. Dois níveis costumam ser o
