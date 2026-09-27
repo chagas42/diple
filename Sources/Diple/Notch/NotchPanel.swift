@@ -20,6 +20,9 @@ final class NotchPanel: NSPanel {
         hidesOnDeactivate = false
         isMovableByWindowBackground = false
         acceptsMouseMovedEvents = true
+        // Sem isto, um painel que não ativa exige um clique só pra "acordar"
+        // antes de o botão receber o segundo. É o clique que não pega.
+        becomesKeyOnlyIfNeeded = true
         animationBehavior = .none
     }
 
