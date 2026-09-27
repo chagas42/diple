@@ -160,7 +160,13 @@ struct NotchView: View {
                 if model.loading || model.refreshingTab != nil {
                     ProgressView().controlSize(.small).tint(.white).frame(width: 22)
                 } else {
-                    iconButton("arrow.clockwise") { Task { await model.refresh() } }
+                    iconButton("arrow.clockwise") {
+                        let tab = model.notchTab
+                        Task {
+                            await model.refresh()
+                            model.loadTab(tab, force: true)
+                        }
+                    }
                 }
                 iconButton("gearshape") {
                     Windows.compartilhado.openSettings(model)
@@ -301,17 +307,29 @@ struct NotchView: View {
                             Button { model.open(pr) } label: {
                                 HStack(spacing: 10) {
                                     Circle()
-                                        .fill(pr.checks == .failing ? Color.red : .orange)
+                                        .fill(.orange)
                                         .frame(width: 7, height: 7)
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(pr.title)
                                             .font(.system(size: 12.5, weight: .medium))
                                             .foregroundStyle(.white)
                                             .lineLimit(1)
-                                        Text(meta(pr))
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.white.opacity(0.45))
-                                            .lineLimit(1)
+                                        HStack(spacing: 6) {
+                                            if let r = model.needsReason(pr) {
+                                                Text(r.label)
+                                                    .font(.system(size: 9.5, weight: .medium))
+                                                    .foregroundStyle(.orange.opacity(0.95))
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 1.5)
+                                                    .background(
+                                                        Capsule().fill(.orange.opacity(0.14))
+                                                    )
+                                            }
+                                            Text(meta(pr))
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(.white.opacity(0.45))
+                                                .lineLimit(1)
+                                        }
                                     }
                                     Spacer(minLength: 8)
                                     Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
