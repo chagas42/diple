@@ -30,6 +30,11 @@ final class AppModel: ObservableObject {
     @Published private(set) var reviewingKey: String?
     @Published private(set) var maps: [String: PRMap] = [:]
     @Published private(set) var mappingKey: String?
+    @Published private(set) var mapRun: MapRun?
+    @Published private(set) var mapRunKeys: Set<String> = []
+    @Published private(set) var mapNotice: String?
+    @Published private(set) var mapLayouts: [String: [String: CGPoint]] = [:]
+    private var mapRoots: [String: [URL]] = [:]
 
     @Published var settings = Settings() {
         didSet {
@@ -351,7 +356,7 @@ final class AppModel: ObservableObject {
         var target: URL?
         do {
             note("fetching the diff base from GitHub")
-            let (base, _) = try await client.baseAndModules(repo: pr.repo, pr: pr.number)
+            let base = try await client.changedFiles(repo: pr.repo, pr: pr.number).base
 
             note("preparing the worktree")
             let w = try await Worktree.prepare(
@@ -394,44 +399,127 @@ final class AppModel: ObservableObject {
         if reviewProgress.count > 14 { reviewProgress.removeFirst() }
     }
 
+    func stackOf(_ pr: PR) -> [PR] {
+        queue.all.groupedIntoStacks().first { s in s.prs.contains { $0.key == pr.key } }?.prs ?? [pr]
+    }
+
     func buildMap(_ pr: PR) async {
         guard mappingKey == nil else { return }
+        let prs = stackOf(pr)
+        let keys = Set(prs.map(\.key))
+        let started = Date()
         mappingKey = pr.key
-        defer { mappingKey = nil }
+        mapRunKeys = keys
+        mapNotice = nil
+        mapRun = MapRun(
+            phase: "reading the diff",
+            startedAt: started,
+            estimate: MapTiming.estimate(size: MapSize(), worktreeReady: true),
+            expectedTools: 6
+        )
+        defer {
+            mappingKey = nil
+            mapRun = nil
+            mapRunKeys = []
+        }
 
-        guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
-            errorMessage = "could not find \(pr.repo) on this machine. Point at the folder in Settings."
+        var map: PRMap
+        var changedPaths = Set<String>()
+        do {
+            let scans = try await withThrowingTaskGroup(of: PRFiles.self) { group in
+                for p in prs {
+                    group.addTask { [client] in try await client.changedFiles(repo: p.repo, pr: p.number) }
+                }
+                var all: [PRFiles] = []
+                for try await s in group { all.append(s) }
+                let order = prs.map(\.number)
+                return all.sorted { (order.firstIndex(of: $0.number) ?? 0) < (order.firstIndex(of: $1.number) ?? 0) }
+            }
+            map = MapScan.build(repo: pr.repo, prs: scans)
+            changedPaths = Set(scans.flatMap { $0.files.map(\.path) })
+        } catch {
+            mapNotice = "could not read the diff: \(error.localizedDescription)"
             return
         }
+        for k in keys { maps[k] = map }
 
-        var target: URL?
+        guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+            mapNotice = "only the diff layer: \(pr.repo) is not on this machine. Point at the folder in Settings."
+            return
+        }
+        mapRoots[map.layoutKey] = [origin]
+
+        let top = prs.last ?? pr
+        let estimate = MapTiming.estimate(
+            size: map.size,
+            worktreeReady: Worktree.existing(repo: pr.repo, pr: top.number) != nil
+        )
+        mapRun = MapRun(
+            phase: "preparing the worktree",
+            startedAt: started,
+            estimate: estimate,
+            expectedTools: MapTiming.expectedTools(map.size)
+        )
+
         do {
-            let (base, changed) = try await client.baseAndModules(repo: pr.repo, pr: pr.number)
-            let w = try await Worktree.prepare(
-                origin: origin, repo: pr.repo, pr: pr.number, base: base
-            )
-            target = w
+            let w = try await Worktree.prepare(origin: origin, repo: pr.repo, pr: top.number, base: map.base)
+            mapRoots[map.layoutKey] = [w, origin]
 
-            if let m = await MapBuilder().build(
-                pr: pr, base: base, changed: changed, in: w, model: settings.aiModel,
-                language: settings.reviewLanguage
+            let titles = Dictionary(prs.map { ($0.number, $0.title) }, uniquingKeysWith: { f, _ in f })
+            mapRun?.phase = "finding who depends on the change"
+            let candidates = await Dependents.find(
+                changed: changedPaths,
+                modules: Set(map.nodes(.changed).map(\.id)),
+                in: w
+            )
+            mapRun?.phase = "Claude is reading the code"
+            var answered = false
+            for await step in MapBuilder().enrich(
+                map: map, titles: titles, candidates: candidates,
+                in: w, model: settings.mapAIModel, language: settings.reviewLanguage
             ) {
-                maps[pr.key] = m
-            } else {
-                maps[pr.key] = PRMap(
-                    intent: pr.title,
-                    deltas: [],
-                    changed: changed,
-                    affected: [],
-                    context: []
-                )
-                errorMessage = "the map only has what the diff gives; the session did not answer in JSON"
+                switch step {
+                case .session(let s):
+                    mapRun?.phase = s
+                case .tool(let t):
+                    mapRun?.toolCalls += 1
+                    mapRun?.lastTool = t
+                    mapRun?.phase = "Claude is reading the code"
+                case .thinking:
+                    break
+                case .done(let answer):
+                    if let a = answer {
+                        answered = true
+                        let fm = FileManager.default
+                        map = map.merged(a) { fm.fileExists(atPath: w.appendingPathComponent($0).path) }
+                        for k in keys { maps[k] = map }
+                    } else {
+                        mapNotice = "only the diff layer: the session did not answer in the map's JSON"
+                    }
+                case .failed(let m):
+                    mapNotice = "only the diff layer: \(m)"
+                }
+            }
+            if answered {
+                MapTiming.record(raw: estimate.raw, actual: Date().timeIntervalSince(started), size: map.size)
             }
         } catch {
-            errorMessage = error.localizedDescription
+            mapNotice = "only the diff layer: \(error.localizedDescription)"
         }
+    }
 
-        if let d = target { await Worktree.discard(origin: origin, target: d) }
+    func saveLayout(_ positions: [String: CGPoint], for map: PRMap) {
+        mapLayouts[map.layoutKey] = positions
+    }
+
+    func openNode(_ node: MapNode, in map: PRMap, forceWeb: Bool) {
+        let fallback = Worktree.localPath(map.repo, configured: settings.repoPaths).map { [$0] } ?? []
+        if let message = Opener.open(
+            node, in: map, editor: settings.openIn,
+            roots: mapRoots[map.layoutKey] ?? fallback, forceWeb: forceWeb
+        ) {
+            mapNotice = message
+        }
     }
 
     func sendTestEvent(_ kind: EventKind) async {

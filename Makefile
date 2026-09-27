@@ -14,6 +14,7 @@ app: build
 	@cp $(BUILD)/$(APP) $(DEST)/Contents/MacOS/$(APP)
 	@cp Resources/Info.plist $(DEST)/Contents/Info.plist
 	@cp Resources/Diple.icns $(DEST)/Contents/Resources/Diple.icns
+	@cp -R Resources/plugin $(DEST)/Contents/Resources/plugin
 	@codesign --force --sign - --identifier $(BUNDLE) $(DEST) 2>/dev/null
 	@echo "bundled  $(DEST)"
 
