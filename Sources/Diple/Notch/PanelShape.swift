@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct FormaPainel: Shape {
+struct PanelShape: Shape {
     var flare: CGFloat
 
     var base: CGFloat

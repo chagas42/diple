@@ -2,63 +2,63 @@ import SwiftUI
 import AppKit
 
 @MainActor
-final class Delegate: NSObject, NSApplicationDelegate, ObservableObject {
-    let notch = Notch()
+final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+    let notch = NotchController()
 
-    @Published var naBarraDeMenu = true
+    @Published var showsMenuBarItem = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let modelo = Modelo.compartilhado
-        modelo.aoEvento = { [weak self] evento in self?.notch.alertar(evento) }
-        modelo.aoContadorMudar = { [weak self] in self?.notch.revisarRepouso() }
-        notch.montar(modelo: modelo)
-        modelo.iniciar()
-        conferirTela()
-        Task { await Worktree.limparOrfaos() }
+        let model = AppModel.compartilhado
+        model.onEvent = { [weak self] evento in self?.notch.alertar(evento) }
+        model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
+        notch.mount(model: model)
+        model.start()
+        checkScreen()
+        Task { await Worktree.pruneStale() }
 
-        if CommandLine.arguments.contains("--janela") {
-            Janelas.compartilhado.abrirPrincipal(modelo)
+        if CommandLine.arguments.contains("--windowFrame") {
+            Windows.compartilhado.openMain(model)
         }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.conferirTela() }
+            Task { @MainActor in self?.checkScreen() }
         }
     }
 
-    private func conferirTela() {
-        naBarraDeMenu = !Geometria.atual().temNotch
+    private func checkScreen() {
+        showsMenuBarItem = !NotchGeometry.current().hasNotch
     }
 }
 
 struct DipleApp: App {
-    @NSApplicationDelegateAdaptor(Delegate.self) private var delegate
-    @ObservedObject private var modelo = Modelo.compartilhado
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @ObservedObject private var model = AppModel.compartilhado
 
     var body: some Scene {
         MenuBarExtra(isInserted: Binding(
-            get: { delegate.naBarraDeMenu },
+            get: { delegate.showsMenuBarItem },
             set: { _ in }
         )) {
-            PopoverView(modelo: modelo)
+            PopoverView(model: model)
         } label: {
-            Text(modelo.contador > 0 ? "⟩ \(modelo.contador)" : "⟩")
+            Text(model.count > 0 ? "⟩ \(model.count)" : "⟩")
         }
         .menuBarExtraStyle(.window)
     }
 }
 
 @main
-struct Entrada {
+struct Main {
     static func main() async {
         if CommandLine.arguments.contains("--notch") {
-            await MainActor.run { ProbeNotch.rodar() }
+            await MainActor.run { NotchProbe.run() }
             exit(0)
         }
         if CommandLine.arguments.contains("--probe") {
-            await Probe.rodar()
+            await Probe.run()
             exit(0)
         }
         DipleApp.main()

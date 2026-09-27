@@ -1,137 +1,137 @@
 import Foundation
 
-struct Instantaneo: Codable, Sendable, Equatable {
-    var atualizadoEm: Date
-    var ci: String
-    var aprovado: Bool
-    var ultimoComentarioEm: Date?
-    var emRevisar: Bool
+struct Snapshot: Codable, Sendable, Equatable {
+    var updatedAt: Date
+    var checks: String
+    var approved: Bool
+    var lastCommentAt: Date?
+    var reviewRequested: Bool
 }
 
-struct EstadoSalvo: Codable, Sendable {
-    var prs: [String: Instantaneo] = [:]
-    var naoLidos: Set<String> = []
+struct StoredState: Codable, Sendable {
+    var prs: [String: Snapshot] = [:]
+    var unread: Set<String> = []
 
-    var jaRodouUmaVez: Bool = false
+    var hasRunBefore: Bool = false
 
-    var seguindo: Set<String> = []
-    var config = Config()
+    var following: Set<String> = []
+    var settings = Settings()
 }
 
 @MainActor
 final class Store {
-    private(set) var estado = EstadoSalvo()
+    private(set) var state = StoredState()
 
-    private let arquivo: URL = {
+    private let path: URL = {
         let base = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Diple", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base.appendingPathComponent("estado.json")
+        return base.appendingPathComponent("state.json")
     }()
 
-    init() { carregar() }
+    init() { load() }
 
-    private func carregar() {
-        guard let d = try? Data(contentsOf: arquivo),
-              let e = try? JSONDecoder().decode(EstadoSalvo.self, from: d) else { return }
-        estado = e
+    private func load() {
+        guard let d = try? Data(contentsOf: path),
+              let e = try? JSONDecoder().decode(StoredState.self, from: d) else { return }
+        state = e
     }
 
-    private func salvar() {
+    private func save() {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try? enc.encode(estado).write(to: arquivo, options: .atomic)
+        try? enc.encode(state).write(to: path, options: .atomic)
     }
 
-    func marcarLido(_ chave: String) {
-        estado.naoLidos.remove(chave)
-        salvar()
+    func markRead(_ key: String) {
+        state.unread.remove(key)
+        save()
     }
 
-    func guardarConfig(_ c: Config) {
-        estado.config = c
-        salvar()
+    func saveSettings(_ c: Settings) {
+        state.settings = c
+        save()
     }
 
-    func alternarSeguir(_ login: String) {
-        if estado.seguindo.contains(login) { estado.seguindo.remove(login) }
-        else { estado.seguindo.insert(login) }
-        salvar()
+    func toggleFollow(_ login: String) {
+        if state.following.contains(login) { state.following.remove(login) }
+        else { state.following.insert(login) }
+        save()
     }
 
-    func marcarTudoLido() {
-        estado.naoLidos.removeAll()
-        salvar()
+    func markAllRead() {
+        state.unread.removeAll()
+        save()
     }
 
-    func diferenca(_ fila: Fila, meuLogin: String) -> [Evento] {
-        var eventos: [Evento] = []
-        var novos: [String: Instantaneo] = [:]
-        let estreia = !estado.jaRodouUmaVez
+    func diff(_ queue: Queue, meuLogin: String) -> [Event] {
+        var events: [Event] = []
+        var next: [String: Snapshot] = [:]
+        let estreia = !state.hasRunBefore
 
-        let emRevisar = Set(fila.revisar.map(\.chave))
+        let reviewRequested = Set(queue.toReview.map(\.key))
 
-        for pr in fila.todos {
-            let agora = Instantaneo(
-                atualizadoEm: pr.atualizadoEm,
-                ci: pr.ci.rawValue,
-                aprovado: pr.aprovado,
-                ultimoComentarioEm: pr.ultimoComentario?.quando,
-                emRevisar: emRevisar.contains(pr.chave)
+        for pr in queue.all {
+            let now = Snapshot(
+                updatedAt: pr.updatedAt,
+                checks: pr.checks.rawValue,
+                approved: pr.approved,
+                lastCommentAt: pr.lastComment?.at,
+                reviewRequested: reviewRequested.contains(pr.key)
             )
-            novos[pr.chave] = agora
+            next[pr.key] = now
 
             guard !estreia else { continue }
-            let antes = estado.prs[pr.chave]
+            let before = state.prs[pr.key]
 
-            if agora.emRevisar, antes?.emRevisar != true {
-                eventos.append(Evento(
-                    id: "\(pr.chave)/review/\(pr.atualizadoEm.timeIntervalSince1970)",
-                    tipo: .pediramReview, chave: pr.chave, url: pr.url,
-                    titulo: "\(pr.autor) pediu sua review",
-                    corpo: "\(pr.chave) · \(pr.titulo)"
+            if now.reviewRequested, before?.reviewRequested != true {
+                events.append(Event(
+                    id: "\(pr.key)/review/\(pr.updatedAt.timeIntervalSince1970)",
+                    kind: .reviewRequested, key: pr.key, url: pr.url,
+                    title: "\(pr.author) requested your review",
+                    body: "\(pr.key) · \(pr.title)"
                 ))
             }
 
-            if pr.souEuOAutor, agora.ci == EstadoCI.falhou.rawValue,
-               let a = antes, a.ci != EstadoCI.falhou.rawValue {
-                eventos.append(Evento(
-                    id: "\(pr.chave)/ci/\(pr.atualizadoEm.timeIntervalSince1970)",
-                    tipo: .checkFalhou, chave: pr.chave, url: pr.url,
-                    titulo: "Um check falhou no seu PR",
-                    corpo: "\(pr.chave) · \(pr.titulo)"
+            if pr.isMine, now.checks == CheckState.failing.rawValue,
+               let a = before, a.checks != CheckState.failing.rawValue {
+                events.append(Event(
+                    id: "\(pr.key)/checks/\(pr.updatedAt.timeIntervalSince1970)",
+                    kind: .checkFailed, key: pr.key, url: pr.url,
+                    title: "A check failed on your PR",
+                    body: "\(pr.key) · \(pr.title)"
                 ))
             }
 
-            if let c = pr.ultimoComentario,
-               antes?.ultimoComentarioEm != c.quando,
-               antes != nil {
-                let citou = c.trecho.localizedCaseInsensitiveContains("@\(meuLogin)")
-                eventos.append(Evento(
-                    id: "\(pr.chave)/msg/\(c.quando.timeIntervalSince1970)",
-                    tipo: citou ? .responderamVoce : .comentaram,
-                    chave: pr.chave, url: pr.url,
-                    titulo: citou ? "\(c.autor) respondeu você" : "\(c.autor) comentou no seu PR",
-                    corpo: c.onde.map { "\($0) — \(c.trecho)" } ?? c.trecho,
+            if let c = pr.lastComment,
+               before?.lastCommentAt != c.at,
+               before != nil {
+                let mentionsYou = c.excerpt.localizedCaseInsensitiveContains("@\(meuLogin)")
+                events.append(Event(
+                    id: "\(pr.key)/message/\(c.at.timeIntervalSince1970)",
+                    kind: mentionsYou ? .repliedToYou : .commented,
+                    key: pr.key, url: pr.url,
+                    title: mentionsYou ? "\(c.author) replied to you" : "\(c.author) commented on your PR",
+                    body: c.location.map { "\($0) — \(c.excerpt)" } ?? c.excerpt,
                     threadId: c.threadId
                 ))
             }
 
-            if pr.souEuOAutor, agora.aprovado, antes?.aprovado == false {
-                eventos.append(Evento(
-                    id: "\(pr.chave)/ok/\(pr.atualizadoEm.timeIntervalSince1970)",
-                    tipo: .aprovaram, chave: pr.chave, url: pr.url,
-                    titulo: "Seu PR foi aprovado",
-                    corpo: "\(pr.chave) · \(pr.titulo)"
+            if pr.isMine, now.approved, before?.approved == false {
+                events.append(Event(
+                    id: "\(pr.key)/ok/\(pr.updatedAt.timeIntervalSince1970)",
+                    kind: .approved, key: pr.key, url: pr.url,
+                    title: "Your PR was approved",
+                    body: "\(pr.key) · \(pr.title)"
                 ))
             }
         }
 
-        estado.prs = novos
-        estado.jaRodouUmaVez = true
-        for e in eventos { estado.naoLidos.insert(e.chave) }
-        salvar()
-        return eventos
+        state.prs = next
+        state.hasRunBefore = true
+        for e in events { state.unread.insert(e.key) }
+        save()
+        return events
     }
 }

@@ -1,49 +1,49 @@
 import Foundation
 
-struct Resposta: Decodable, Sendable {
-    let data: Dados?
-    let errors: [ErroGraphQL]?
+struct RawResponse: Decodable, Sendable {
+    let data: RawData?
+    let errors: [GraphQLError]?
 
-    struct Dados: Decodable, Sendable {
-        let viewer: Viewer
-        let meus: Busca
-        let revisar: Busca
-        let envolvido: Busca
-        let rateLimit: Cota?
+    struct RawData: Decodable, Sendable {
+        let viewer: RawViewer
+        let mine: RawSearch
+        let toReview: RawSearch
+        let following: RawSearch
+        let rateLimit: RawRateLimit?
     }
 
-    struct Viewer: Decodable, Sendable { let login: String }
+    struct RawViewer: Decodable, Sendable { let login: String }
 
-    struct Busca: Decodable, Sendable {
-        let nodes: [PRCru?]
+    struct RawSearch: Decodable, Sendable {
+        let nodes: [RawPR?]
     }
 
-    struct Cota: Decodable, Sendable {
+    struct RawRateLimit: Decodable, Sendable {
         let remaining: Int
         let resetAt: Date
     }
 }
 
-struct ErroGraphQL: Decodable, Sendable {
+struct GraphQLError: Decodable, Sendable {
     let message: String
 }
 
-struct Ator: Decodable, Sendable {
+struct GHActor: Decodable, Sendable {
     let login: String
     let __typename: String
     let avatarUrl: URL?
 
-    var ehBot: Bool {
-        __typename == "Bot" || login.hasSuffix("[bot]") || Ator.conhecidos.contains(login)
+    var isBot: Bool {
+        __typename == "Bot" || login.hasSuffix("[bot]") || GHActor.knownBots.contains(login)
     }
 
-    private static let conhecidos: Set<String> = [
+    private static let knownBots: Set<String> = [
         "github-actions", "coderabbitai", "dependabot", "renovate",
         "codecov", "sonarcloud", "vercel", "sentry-io",
     ]
 }
 
-struct PRCru: Decodable, Sendable {
+struct RawPR: Decodable, Sendable {
     let id: String
     let number: Int
     let title: String
@@ -52,45 +52,45 @@ struct PRCru: Decodable, Sendable {
     let isDraft: Bool
     let headRefName: String
     let baseRefName: String
-    let repository: Repo
-    let author: Ator?
+    let repository: RawRepo
+    let author: GHActor?
     let reviewDecision: String?
-    let comments: Comentarios
-    let reviewThreads: Threads
-    let commits: Commits
+    let comments: RawComments
+    let reviewThreads: RawThreads
+    let commits: RawCommits
 
-    struct Repo: Decodable, Sendable { let nameWithOwner: String }
-    struct Comentarios: Decodable, Sendable { let nodes: [Comentario?] }
-    struct Comentario: Decodable, Sendable {
-        let author: Ator?
+    struct RawRepo: Decodable, Sendable { let nameWithOwner: String }
+    struct RawComments: Decodable, Sendable { let nodes: [RawComment?] }
+    struct RawComment: Decodable, Sendable {
+        let author: GHActor?
         let createdAt: Date
         let bodyText: String
 
         let diffHunk: String?
     }
-    struct Threads: Decodable, Sendable { let nodes: [Thread?] }
-    struct Thread: Decodable, Sendable {
+    struct RawThreads: Decodable, Sendable { let nodes: [RawReviewThread?] }
+    struct RawReviewThread: Decodable, Sendable {
         let id: String
         let isResolved: Bool
         let path: String?
         let line: Int?
-        let comments: Comentarios
+        let comments: RawComments
     }
-    struct Commits: Decodable, Sendable { let nodes: [CommitNode?] }
-    struct CommitNode: Decodable, Sendable { let commit: Commit }
-    struct Commit: Decodable, Sendable { let statusCheckRollup: Rollup? }
-    struct Rollup: Decodable, Sendable { let state: String }
+    struct RawCommits: Decodable, Sendable { let nodes: [RawCommitNode?] }
+    struct RawCommitNode: Decodable, Sendable { let commit: RawCommit }
+    struct RawCommit: Decodable, Sendable { let statusCheckRollup: RawRollup? }
+    struct RawRollup: Decodable, Sendable { let state: String }
 }
 
-enum EstadoCI: String, Sendable {
-    case passou, falhou, rodando, nenhum
+enum CheckState: String, Sendable {
+    case passing, failing, running, none
 
-    init(_ bruto: String?) {
-        switch bruto {
-        case "SUCCESS":  self = .passou
-        case "FAILURE", "ERROR": self = .falhou
-        case "PENDING", "EXPECTED": self = .rodando
-        default: self = .nenhum
+    init(_ raw: String?) {
+        switch raw {
+        case "SUCCESS":  self = .passing
+        case "FAILURE", "ERROR": self = .failing
+        case "PENDING", "EXPECTED": self = .running
+        default: self = .none
         }
     }
 }
@@ -98,132 +98,132 @@ enum EstadoCI: String, Sendable {
 struct PR: Identifiable, Sendable, Equatable {
     let id: String
     let repo: String
-    let numero: Int
-    let titulo: String
+    let number: Int
+    let title: String
     let url: URL
-    let atualizadoEm: Date
-    let rascunho: Bool
-    let autor: String
-    let avatarAutor: URL?
-    let souEuOAutor: Bool
+    let updatedAt: Date
+    let draft: Bool
+    let author: String
+    let authorAvatar: URL?
+    let isMine: Bool
 
-    let ramo: String
-    let ramoBase: String
-    let ci: EstadoCI
-    let aprovado: Bool
+    let headRef: String
+    let baseRef: String
+    let checks: CheckState
+    let approved: Bool
 
-    let threads: [ThreadPR]
+    let threads: [ReviewThread]
 
-    let ultimoComentario: ComentarioHumano?
+    let lastComment: HumanComment?
 
-    struct ThreadPR: Identifiable, Sendable, Equatable {
+    struct ReviewThread: Identifiable, Sendable, Equatable {
         let id: String
-        let arquivo: String
-        let linha: Int?
+        let path: String
+        let line: Int?
         let diffHunk: String?
-        let comentarios: [Fala]
+        let comments: [ThreadComment]
 
-        var onde: String {
-            let nome = arquivo.split(separator: "/").last.map(String.init) ?? arquivo
-            return linha.map { "\(nome):\($0)" } ?? nome
+        var location: String {
+            let name = path.split(separator: "/").last.map(String.init) ?? path
+            return line.map { "\(name):\($0)" } ?? name
         }
     }
 
-    struct Fala: Identifiable, Sendable, Equatable {
+    struct ThreadComment: Identifiable, Sendable, Equatable {
         let id: String
-        let autor: String
-        let quando: Date
-        let texto: String
-        let ehBot: Bool
+        let author: String
+        let at: Date
+        let text: String
+        let isBot: Bool
     }
 
-    struct ComentarioHumano: Sendable, Equatable {
-        let autor: String
-        let quando: Date
-        let trecho: String
+    struct HumanComment: Sendable, Equatable {
+        let author: String
+        let at: Date
+        let excerpt: String
 
-        let onde: String?
+        let location: String?
 
         let threadId: String?
     }
 
-    var chave: String { "\(repo)#\(numero)" }
+    var key: String { "\(repo)#\(number)" }
 
-    init?(_ c: PRCru?, meuLogin: String) {
+    init?(_ c: RawPR?, meuLogin: String) {
         guard let c else { return nil }
         id = c.id
         repo = c.repository.nameWithOwner
-        numero = c.number
-        titulo = c.title
+        number = c.number
+        title = c.title
         url = c.url
-        atualizadoEm = c.updatedAt
-        rascunho = c.isDraft
-        autor = c.author?.login ?? "?"
-        avatarAutor = c.author?.avatarUrl
-        souEuOAutor = c.author?.login == meuLogin
-        ramo = c.headRefName
-        ramoBase = c.baseRefName
-        ci = EstadoCI(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
-        aprovado = c.reviewDecision == "APPROVED"
+        updatedAt = c.updatedAt
+        draft = c.isDraft
+        author = c.author?.login ?? "?"
+        authorAvatar = c.author?.avatarUrl
+        isMine = c.author?.login == meuLogin
+        headRef = c.headRefName
+        baseRef = c.baseRefName
+        checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
+        approved = c.reviewDecision == "APPROVED"
 
-        func humano(_ com: PRCru.Comentario) -> Bool {
+        func humano(_ com: RawPR.RawComment) -> Bool {
             guard let a = com.author else { return false }
-            return !a.ehBot && a.login != meuLogin
+            return !a.isBot && a.login != meuLogin
         }
-        func limpar(_ t: String) -> String {
+        func clear(_ t: String) -> String {
             String(t.prefix(180)).replacingOccurrences(of: "\n", with: " ")
         }
 
-        var candidatos: [ComentarioHumano] = c.comments.nodes
+        var candidatos: [HumanComment] = c.comments.nodes
             .compactMap { $0 }
             .filter(humano)
-            .map { .init(autor: $0.author?.login ?? "?", quando: $0.createdAt,
-                         trecho: limpar($0.bodyText), onde: nil, threadId: nil) }
+            .map { .init(author: $0.author?.login ?? "?", at: $0.createdAt,
+                         excerpt: clear($0.bodyText), location: nil, threadId: nil) }
 
         for t in c.reviewThreads.nodes.compactMap({ $0 }) where !t.isResolved {
-            let onde = t.path.map { p in
-                let arquivo = p.split(separator: "/").last.map(String.init) ?? p
-                return t.line.map { "\(arquivo):\($0)" } ?? arquivo
+            let location = t.path.map { p in
+                let path = p.split(separator: "/").last.map(String.init) ?? p
+                return t.line.map { "\(path):\($0)" } ?? path
             }
             candidatos += t.comments.nodes
                 .compactMap { $0 }
                 .filter(humano)
-                .map { .init(autor: $0.author?.login ?? "?", quando: $0.createdAt,
-                             trecho: limpar($0.bodyText), onde: onde, threadId: t.id) }
+                .map { .init(author: $0.author?.login ?? "?", at: $0.createdAt,
+                             excerpt: clear($0.bodyText), location: location, threadId: t.id) }
         }
 
-        ultimoComentario = candidatos.max { $0.quando < $1.quando }
+        lastComment = candidatos.max { $0.at < $1.at }
 
         threads = c.reviewThreads.nodes.compactMap { $0 }
             .filter { !$0.isResolved }
             .compactMap { t in
                 let falas = t.comments.nodes.compactMap { $0 }.map { com in
-                    Fala(
+                    ThreadComment(
                         id: "\(t.id)/\(com.createdAt.timeIntervalSince1970)",
-                        autor: com.author?.login ?? "?",
-                        quando: com.createdAt,
-                        texto: com.bodyText,
-                        ehBot: com.author?.ehBot ?? false
+                        author: com.author?.login ?? "?",
+                        at: com.createdAt,
+                        text: com.bodyText,
+                        isBot: com.author?.isBot ?? false
                     )
                 }
-                guard falas.contains(where: { !$0.ehBot }) else { return nil }
-                return ThreadPR(
+                guard falas.contains(where: { !$0.isBot }) else { return nil }
+                return ReviewThread(
                     id: t.id,
-                    arquivo: t.path ?? "?",
-                    linha: t.line,
+                    path: t.path ?? "?",
+                    line: t.line,
                     diffHunk: t.comments.nodes.compactMap { $0?.diffHunk }.first,
-                    comentarios: falas
+                    comments: falas
                 )
             }
     }
 }
 
-struct Fila: Sendable, Equatable {
-    var eu: String = ""
-    var meus: [PR] = []
-    var revisar: [PR] = []
-    var envolvido: [PR] = []
-    var cotaRestante: Int = 0
+struct Queue: Sendable, Equatable {
+    var viewer: String = ""
+    var mine: [PR] = []
+    var toReview: [PR] = []
+    var following: [PR] = []
+    var rateLimitLeft: Int = 0
 
-    var todos: [PR] { meus + revisar + envolvido }
+    var all: [PR] { mine + toReview + following }
 }

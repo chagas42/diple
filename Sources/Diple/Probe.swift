@@ -2,57 +2,57 @@ import Foundation
 import AppKit
 
 enum Probe {
-    static func rodar() async {
+    static func run() async {
         do {
-            let fila = try await GitHubClient().buscarFila()
-            imprimir("MEUS PRS", fila.meus)
-            imprimir("PRA REVISAR", fila.revisar)
-            imprimir("ENVOLVIDO", fila.envolvido)
-            print("\ncota restante: \(fila.cotaRestante)")
+            let queue = try await GitHubClient().fetchQueue()
+            dump("MEUS PRS", queue.mine)
+            dump("PRA REVISAR", queue.toReview)
+            dump("ENVOLVIDO", queue.following)
+            print("\nrate limit left: \(queue.rateLimitLeft)")
         } catch {
-            FileHandle.standardError.write(Data("erro: \(error.localizedDescription)\n".utf8))
+            FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
             exit(1)
         }
     }
 
-    private static func imprimir(_ titulo: String, _ prs: [PR]) {
-        print("\n## \(titulo) (\(prs.count))")
+    private static func dump(_ title: String, _ prs: [PR]) {
+        print("\n## \(title) (\(prs.count))")
         for p in prs.prefix(6) {
-            let ci: String = switch p.ci {
-            case .passou: "verde" case .falhou: "VERMELHO"
-            case .rodando: "rodando" case .nenhum: "-"
+            let checks: String = switch p.checks {
+            case .passing: "green" case .failing: "RED"
+            case .running: "running" case .none: "-"
             }
-            var linha = "  \(p.chave.padding(toLength: min(34, max(p.chave.count, 34)), withPad: " ", startingAt: 0))"
-            linha += " ci=\(ci.padding(toLength: 9, withPad: " ", startingAt: 0))"
-            linha += p.aprovado ? " APROVADO" : "         "
-            linha += " \(p.titulo.prefix(46))"
-            print(linha)
-            if let c = p.ultimoComentario {
-                print("      ↳ \(c.autor)\(c.onde.map { " em \($0)" } ?? ""): \(c.trecho.prefix(64))")
+            var line = "  \(p.key.padding(toLength: min(34, max(p.key.count, 34)), withPad: " ", startingAt: 0))"
+            line += " checks=\(checks.padding(toLength: 9, withPad: " ", startingAt: 0))"
+            line += p.approved ? " APROVADO" : "         "
+            line += " \(p.title.prefix(46))"
+            print(line)
+            if let c = p.lastComment {
+                print("      ↳ \(c.author)\(c.location.map { " at \($0)" } ?? ""): \(c.excerpt.prefix(64))")
             }
         }
     }
 }
 
 @MainActor
-enum ProbeNotch {
-    static func rodar() {
+enum NotchProbe {
+    static func run() {
         for (i, t) in NSScreen.screens.enumerated() {
-            let g = Geometria(tela: t)
-            print("tela \(i): \(Int(t.frame.width))x\(Int(t.frame.height)) scale \(t.backingScaleFactor)")
+            let g = NotchGeometry(screen: t)
+            print("screen \(i): \(Int(t.frame.width))x\(Int(t.frame.height)) scale \(t.backingScaleFactor)")
             print("  safeAreaInsets.top: \(t.safeAreaInsets.top)")
-            print("  tem notch: \(g.temNotch)")
-            print("  altura do topo: \(g.alturaTopo)")
-            print("  largura do recorte: \(g.larguraNotch)")
+            print("  has notch: \(g.hasNotch)")
+            print("  altura do topo: \(g.topInset)")
+            print("  largura do recorte: \(g.notchWidth)")
             if let e = t.auxiliaryTopLeftArea, let d = t.auxiliaryTopRightArea {
-                print("  área à esquerda: \(Int(e.width))  à direita: \(Int(d.width))")
+                print("  left area: \(Int(e.width))  right area: \(Int(d.width))")
             } else {
-                print("  áreas auxiliares: nenhuma (tela sem recorte)")
+                print("  auxiliary areas: none (screen has no notch)")
             }
-            print("  fechado:   \(g.fechado)  -> \(g.retangulo(g.fechado))")
-            print("  atividade: \(g.atividade)  -> \(g.retangulo(g.atividade))")
-            print("  aberto:    \(g.aberto)  -> \(g.retangulo(g.aberto))")
-            print("  janela fixa: \(g.janela())")
+            print("  closed:   \(g.closed)  -> \(g.rect(g.closed))")
+            print("  active: \(g.active)  -> \(g.rect(g.active))")
+            print("  open:    \(g.open)  -> \(g.rect(g.open))")
+            print("  windowFrame fixa: \(g.windowFrame())")
         }
     }
 }

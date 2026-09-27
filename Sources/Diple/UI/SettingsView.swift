@@ -1,38 +1,38 @@
 import SwiftUI
 import AppKit
 
-struct AjustesView: View {
-    @ObservedObject var modelo: Modelo
+struct SettingsView: View {
+    @ObservedObject var model: AppModel
 
     var body: some View {
         TabView {
-            PainelNotificacoes(modelo: modelo)
-                .tabItem { Label("Notificações", systemImage: "bell") }
-            PainelRepositorios(modelo: modelo)
-                .tabItem { Label("Repositórios", systemImage: "book.closed") }
-            PainelClaude(modelo: modelo)
+            NotificationsPane(model: model)
+                .tabItem { Label("Notifications", systemImage: "bell") }
+            ReposPane(model: model)
+                .tabItem { Label("Repositories", systemImage: "book.closed") }
+            ClaudePane(model: model)
                 .tabItem { Label("Claude", systemImage: "sparkles") }
-            PainelConta(modelo: modelo)
-                .tabItem { Label("Conta", systemImage: "person.crop.circle") }
+            AccountPane(model: model)
+                .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
         .frame(width: 620, height: 460)
     }
 }
 
-struct PainelNotificacoes: View {
-    @ObservedObject var modelo: Modelo
+struct NotificationsPane: View {
+    @ObservedObject var model: AppModel
 
     var body: some View {
         Form {
-            if modelo.silenciandoAgora {
+            if model.isQuietNow {
                 Section {
                     HStack(spacing: 9) {
                         Image(systemName: "moon.fill").foregroundStyle(.indigo)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("O silêncio está valendo agora")
+                            Text("Quiet hours are on right now")
                                 .font(.system(size: 12.5, weight: .semibold))
-                            Text("Só quem responde você diretamente passa. "
-                                 + "Testar ignora isso de propósito.")
+                            Text("Only direct replies get through. "
+                                 + "Test ignores this on purpose.")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
                         }
@@ -42,20 +42,20 @@ struct PainelNotificacoes: View {
             }
 
             Section {
-                ForEach(TipoEvento.allCases, id: \.self) { t in
+                ForEach(EventKind.allCases, id: \.self) { t in
                     HStack(spacing: 12) {
                         Toggle("", isOn: Binding(
-                            get: { modelo.config.avisa(t) },
-                            set: { modelo.config.avisa[t.rawValue] = $0 }
+                            get: { model.settings.alerts(t) },
+                            set: { model.settings.alerts[t.rawValue] = $0 }
                         ))
                         .labelsHidden()
 
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(titulo(t)).font(.system(size: 12.5))
+                            Text(title(t)).font(.system(size: 12.5))
                             HStack(spacing: 5) {
-                                Text(dica(t))
-                                if modelo.config.som(t) == nil, modelo.config.avisa(t) {
-                                    Text("· chega sem som")
+                                Text(tooltip(t))
+                                if model.settings.sound(t) == nil, model.settings.alerts(t) {
+                                    Text("· arrives silent")
                                         .foregroundStyle(.orange)
                                 }
                             }
@@ -66,35 +66,35 @@ struct PainelNotificacoes: View {
                         Spacer()
 
                         Picker("", selection: Binding(
-                            get: { modelo.config.som(t) ?? "" },
-                            set: { modelo.config.sons[t.rawValue] = $0 }
+                            get: { model.settings.sound(t) ?? "" },
+                            set: { model.settings.sounds[t.rawValue] = $0 }
                         )) {
-                            Text("Nenhum").tag("")
+                            Text("None").tag("")
                             Divider()
-                            ForEach(Config.sonsDisponiveis, id: \.self) { s in
+                            ForEach(Settings.availableSounds, id: \.self) { s in
                                 Text(s).tag(s)
                             }
                         }
                         .labelsHidden()
                         .frame(width: 120)
-                        .disabled(!modelo.config.avisa(t))
+                        .disabled(!model.settings.alerts(t))
 
                         Button {
-                            if let s = modelo.config.som(t) { NSSound(named: s)?.play() }
+                            if let s = model.settings.sound(t) { NSSound(named: s)?.play() }
                         } label: { Image(systemName: "speaker.wave.2.fill") }
-                            .disabled(modelo.config.som(t) == nil)
-                            .help("Ouvir só o som")
+                            .disabled(model.settings.sound(t) == nil)
+                            .help("Play the sound only")
 
-                        Button("Testar") { Task { await modelo.testar(t) } }
-                            .help("Dispara um aviso de verdade, com banner, som e a animação da notch")
+                        Button("Test") { Task { await model.sendTestEvent(t) } }
+                            .help("Fires a real alert: banner, sound and the notch animation")
                     }
                     .padding(.vertical, 2)
                 }
                 HStack {
-                    Button("Testar todos em sequência") {
+                    Button("Test all in sequence") {
                         Task {
-                            for t in TipoEvento.allCases where modelo.config.avisa(t) {
-                                await modelo.testar(t)
+                            for t in EventKind.allCases where model.settings.alerts(t) {
+                                await model.sendTestEvent(t)
                                 try? await Task.sleep(for: .seconds(2.5))
                             }
                         }
@@ -102,31 +102,31 @@ struct PainelNotificacoes: View {
                     Spacer()
                 }
             } header: {
-                Text("Quando isto acontece")
+                Text("When this happens")
             } footer: {
-                Text("O que fica desligado continua entrando na fila — só não interrompe. "
-                     + "Testar dispara um aviso real: banner, som e a notch abrindo.")
+                Text("What is off still lands in the queue — it just will not interrupt. "
+                     + "Test fires a real alert: banner, sound and the notch opening.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
 
-            Section("Silêncio") {
-                Toggle("Silenciar fora do horário", isOn: $modelo.config.silencioLigado)
+            Section("Quiet hours") {
+                Toggle("Mute outside these hours", isOn: $model.settings.quietHoursOn)
                 HStack {
-                    Text("Das")
-                    Picker("", selection: $modelo.config.silencioDe) {
+                    Text("From")
+                    Picker("", selection: $model.settings.quietFrom) {
                         ForEach(0..<24, id: \.self) { Text(String(format: "%02d:00", $0)).tag($0) }
                     }.labelsHidden().frame(width: 90)
-                    Text("às")
-                    Picker("", selection: $modelo.config.silencioAte) {
+                    Text("to")
+                    Picker("", selection: $model.settings.quietUntil) {
                         ForEach(0..<24, id: \.self) { Text(String(format: "%02d:00", $0)).tag($0) }
                     }.labelsHidden().frame(width: 90)
                     Spacer()
                 }
-                .disabled(!modelo.config.silencioLigado)
-                Toggle("Também nos fins de semana", isOn: $modelo.config.silencioNoFimDeSemana)
-                    .disabled(!modelo.config.silencioLigado)
-                Text("Quem responde você diretamente fura o silêncio.")
+                .disabled(!model.settings.quietHoursOn)
+                Toggle("Weekends too", isOn: $model.settings.quietOnWeekends)
+                    .disabled(!model.settings.quietHoursOn)
+                Text("A direct reply to you always gets through.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -134,32 +134,32 @@ struct PainelNotificacoes: View {
         .formStyle(.grouped)
     }
 
-    private func titulo(_ t: TipoEvento) -> String {
+    private func title(_ t: EventKind) -> String {
         switch t {
-        case .responderamVoce: "Responderam você numa conversa"
-        case .comentaram:      "Comentaram num PR seu"
-        case .pediramReview:   "Pediram sua review"
-        case .checkFalhou:     "Um check falhou num PR seu"
-        case .aprovaram:       "Aprovaram um PR seu"
+        case .repliedToYou: "Someone replied to you in a thread"
+        case .commented:      "Someone commented on your PR"
+        case .reviewRequested:   "Someone requested your review"
+        case .checkFailed:     "A check failed on one of your PRs"
+        case .approved:       "Someone approved your PR"
         }
     }
 
-    private func dica(_ t: TipoEvento) -> String {
+    private func tooltip(_ t: EventKind) -> String {
         switch t {
-        case .responderamVoce: "O único que fura o silêncio."
-        case .comentaram:      "Conversa do PR e comentário inline no código."
-        case .pediramReview:   "Direto a você ou por um time seu."
-        case .checkFalhou:     "Só na primeira falha; retentativa não repete."
-        case .aprovaram:       "Costuma bastar ver quando abrir a fila."
+        case .repliedToYou: "The only one that breaks quiet hours."
+        case .commented:      "PR conversation and inline code comments."
+        case .reviewRequested:   "Directly to you, or through one of your teams."
+        case .checkFailed:     "Only on the first failure; retries do not repeat."
+        case .approved:       "Costuma bastar ver at open a queue."
         }
     }
 }
 
-struct PainelRepositorios: View {
-    @ObservedObject var modelo: Modelo
+struct ReposPane: View {
+    @ObservedObject var model: AppModel
 
     private var repos: [(String, Int)] {
-        Dictionary(grouping: modelo.fila.todos, by: \.repo)
+        Dictionary(grouping: model.queue.all, by: \.repo)
             .map { ($0.key, $0.value.count) }
             .sorted { $0.1 > $1.1 }
     }
@@ -168,30 +168,30 @@ struct PainelRepositorios: View {
         Form {
             Section {
                 if repos.isEmpty {
-                    Text("A fila ainda não carregou.").foregroundStyle(.secondary)
+                    Text("The queue has not loaded yet.").foregroundStyle(.secondary)
                 }
-                ForEach(repos, id: \.0) { nome, quantos in
+                ForEach(repos, id: \.0) { name, quantos in
                     HStack {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(nome).font(.system(size: 12.5, design: .monospaced))
-                            Text("\(quantos) na fila")
+                            Text(name).font(.system(size: 12.5, design: .monospaced))
+                            Text("\(quantos) na queue")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Toggle("Silenciado", isOn: Binding(
-                            get: { modelo.config.silenciados.contains(nome) },
+                        Toggle("Muted", isOn: Binding(
+                            get: { model.settings.mutedRepos.contains(name) },
                             set: { on in
-                                if on { modelo.config.silenciados.insert(nome) }
-                                else { modelo.config.silenciados.remove(nome) }
+                                if on { model.settings.mutedRepos.insert(name) }
+                                else { model.settings.mutedRepos.remove(name) }
                             }
                         ))
                     }
                 }
             } header: {
-                Text("Repositórios na sua fila")
+                Text("Repositories in your queue")
             } footer: {
-                Text("Silenciado continua aparecendo na lista; só não gera aviso.")
+                Text("Muted still shows in the list; it just stops alerting.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -200,45 +200,45 @@ struct PainelRepositorios: View {
     }
 }
 
-struct PainelConta: View {
-    @ObservedObject var modelo: Modelo
+struct AccountPane: View {
+    @ObservedObject var model: AppModel
 
     var body: some View {
         Form {
             Section("GitHub") {
-                LabeledContent("Conta", value: modelo.fila.eu.isEmpty ? "—" : modelo.fila.eu)
+                LabeledContent("Account", value: model.queue.viewer.isEmpty ? "—" : model.queue.viewer)
                 LabeledContent("Token") {
-                    Text("emprestado do gh")
+                    Text("borrowed from gh")
                         .foregroundStyle(.secondary)
                 }
-                LabeledContent("Cota restante") {
-                    Text("\(modelo.fila.cotaRestante) de 5000")
+                LabeledContent("RawRateLimit restante") {
+                    Text("\(model.queue.rateLimitLeft) de 5000")
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
-                Text("O Diple não guarda token. Ele chama `gh auth token` a cada requisição.")
+                Text("Diple stores no token. It calls `gh auth token` on every request.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
 
-            Section("Sincronização") {
-                Picker("A cada", selection: $modelo.config.intervalo) {
-                    Text("30 segundos").tag(TimeInterval(30))
-                    Text("1 minuto").tag(TimeInterval(60))
-                    Text("5 minutos").tag(TimeInterval(300))
-                    Text("15 minutos").tag(TimeInterval(900))
+            Section("Sync") {
+                Picker("Every", selection: $model.settings.interval) {
+                    Text("30 seconds").tag(TimeInterval(30))
+                    Text("1 minute").tag(TimeInterval(60))
+                    Text("5 minutes").tag(TimeInterval(300))
+                    Text("15 minutes").tag(TimeInterval(900))
                 }
-                Text("Uma sincronização custa 1 ponto dos 5000 por hora.")
+                Text("One sync costs 1 point of 5000 per hour.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
 
             Section {
                 HStack {
-                    Button("Sincronizar agora") { Task { await modelo.atualizar() } }
-                        .disabled(modelo.carregando)
+                    Button("Sincronizar now") { Task { await model.refresh() } }
+                        .disabled(model.loading)
                     Spacer()
-                    Button("Sair do Diple") { NSApplication.shared.terminate(nil) }
+                    Button("Quit Diple") { NSApplication.shared.terminate(nil) }
                 }
             }
         }
@@ -246,11 +246,11 @@ struct PainelConta: View {
     }
 }
 
-struct PainelClaude: View {
-    @ObservedObject var modelo: Modelo
+struct ClaudePane: View {
+    @ObservedObject var model: AppModel
 
     private var repos: [String] {
-        Array(Set(modelo.fila.todos.map(\.repo))).sorted()
+        Array(Set(model.queue.all.map(\.repo))).sorted()
     }
 
     var body: some View {
@@ -260,34 +260,34 @@ struct PainelClaude: View {
                     Circle()
                         .fill(temClaude ? .green : .orange)
                         .frame(width: 7, height: 7)
-                    Text(temClaude ? "claude encontrado no PATH"
-                                   : "claude não está no PATH")
+                    Text(temClaude ? "claude found on PATH"
+                                   : "claude is not on PATH")
                     Spacer()
                 }
-                Picker("Modelo", selection: $modelo.config.modeloIA) {
+                Picker("AppModel", selection: $model.settings.aiModel) {
                     Text("Opus").tag("opus")
                     Text("Sonnet").tag("sonnet")
                     Text("Haiku").tag("haiku")
                 }
-                Text("O Diple não tem IA própria. Ele chama o claude da sua máquina, "
-                     + "com a sua conta e as suas skills. Os tokens contam no seu plano.")
+                Text("Diple has no AI of its own. It runs the claude on your machine, "
+                     + "with your account and your skills. Tokens count against your plan.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             } header: {
-                Text("Sessão")
+                Text("Session")
             }
 
             Section {
                 HStack(spacing: 22) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("LIBERADO")
+                        Text("ALLOWED")
                             .font(.system(size: 9.5, weight: .bold))
                             .foregroundStyle(.green)
                         Text("Read · Grep · Glob\nBash(git diff/log/show/status)")
                             .font(.system(size: 10.5, design: .monospaced))
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("BLOQUEADO")
+                        Text("BLOCKED")
                             .font(.system(size: 9.5, weight: .bold))
                             .foregroundStyle(.red)
                         Text("Write · Edit · WebFetch\nBash(gh/push/commit/curl)")
@@ -296,37 +296,37 @@ struct PainelClaude: View {
                     Spacer()
                 }
             } header: {
-                Text("Limites da sessão")
+                Text("Session limits")
             } footer: {
-                Text("Não dá para desligar: a sessão nasce sem as ferramentas de escrita, "
-                     + "então a IA não tem como publicar nada.")
+                Text("Cannot be turned off: the session starts without write tools, "
+                     + "so the AI has no way to publish anything.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
 
             Section {
                 if repos.isEmpty {
-                    Text("A fila ainda não carregou.").foregroundStyle(.secondary)
+                    Text("The queue has not loaded yet.").foregroundStyle(.secondary)
                 }
                 ForEach(repos, id: \.self) { r in
                     HStack {
                         Text(r).font(.system(size: 12, design: .monospaced))
                         Spacer()
-                        if let u = Worktree.localDe(r, configurados: modelo.config.caminhos) {
+                        if let u = Worktree.localPath(r, configured: model.settings.repoPaths) {
                             Text(atalho(u.path))
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         } else {
-                            Button("Escolher…") { escolher(r) }
+                            Button("Choose…") { escolher(r) }
                         }
                     }
                 }
             } header: {
-                Text("Onde cada repositório está")
+                Text("Where each repository lives")
             } footer: {
-                Text("O Diple procura sozinho em @work, @studies, dev, work, Developer, "
-                     + "code e src. Cada review roda num worktree descartável em "
-                     + "~/.diple/worktrees — o seu checkout não é tocado.")
+                Text("Diple looks in @work, @studies, dev, work, Developer, "
+                     + "code and src. Each review runs in a throwaway worktree in "
+                     + "~/.diple/worktrees — your checkout is never touched.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -335,7 +335,7 @@ struct PainelClaude: View {
     }
 
     private var temClaude: Bool {
-        if ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+        if ["/opt/homebrew/bin/claude", "/usr/localPath/bin/claude"]
             .contains(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
             return true
         }
@@ -356,12 +356,12 @@ struct PainelClaude: View {
     }
 
     private func escolher(_ repo: String) {
-        let painel = NSOpenPanel()
-        painel.canChooseDirectories = true
-        painel.canChooseFiles = false
-        painel.prompt = "Usar esta pasta"
-        if painel.runModal() == .OK, let u = painel.url {
-            modelo.config.caminhos[repo] = u.path
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.prompt = "Usar esta folder"
+        if panel.runModal() == .OK, let u = panel.url {
+            model.settings.repoPaths[repo] = u.path
         }
     }
 }

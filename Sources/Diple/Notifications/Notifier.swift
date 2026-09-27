@@ -3,43 +3,43 @@ import UserNotifications
 import AppKit
 
 @MainActor
-final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDelegate {
-    private let centro = UNUserNotificationCenter.current()
+final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate {
+    private let center = UNUserNotificationCenter.current()
     private let cliente = GitHubClient()
 
-    var aoMudar: (() async -> Void)?
+    var onChange: (() async -> Void)?
 
-    var config = Config()
+    var settings = Settings()
 
     private enum Cat {
         static let thread = "THREAD"
         static let simples = "SIMPLES"
     }
     private enum Acao {
-        static let responder = "RESPONDER"
-        static let resolver  = "RESOLVER"
+        static let reply = "RESPONDER"
+        static let resolve  = "RESOLVER"
     }
 
-    func instalar() {
-        centro.delegate = self
+    func install() {
+        center.delegate = self
 
-        let responder = UNTextInputNotificationAction(
-            identifier: Acao.responder,
+        let reply = UNTextInputNotificationAction(
+            identifier: Acao.reply,
             title: "Responder",
             options: [],
             textInputButtonTitle: "Enviar",
-            textInputPlaceholder: "Escreva sua resposta…"
+            textInputPlaceholder: "Write your reply…"
         )
-        let resolver = UNNotificationAction(
-            identifier: Acao.resolver,
+        let resolve = UNNotificationAction(
+            identifier: Acao.resolve,
             title: "Resolver thread",
             options: []
         )
 
-        centro.setNotificationCategories([
+        center.setNotificationCategories([
             UNNotificationCategory(
                 identifier: Cat.thread,
-                actions: [responder, resolver],
+                actions: [reply, resolve],
                 intentIdentifiers: [],
                 options: []
             ),
@@ -53,42 +53,42 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
     }
 
     @discardableResult
-    func pedirPermissao() async -> Bool {
-        (try? await centro.requestAuthorization(options: [.alert, .sound])) ?? false
+    func requestPermission() async -> Bool {
+        (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
     }
 
-    func autorizado() async -> Bool {
-        await centro.notificationSettings().authorizationStatus == .authorized
+    func isAuthorized() async -> Bool {
+        await center.notificationSettings().authorizationStatus == .authorized
     }
 
-    func postar(_ eventos: [Evento], forcando: Bool = false) async {
-        for e in eventos where forcando || config.deixaPassar(e.tipo) {
+    func post(_ events: [Event], force: Bool = false) async {
+        for e in events where force || settings.shouldInterrupt(e.kind) {
             let c = UNMutableNotificationContent()
-            c.title = e.titulo
-            c.body = e.corpo
-            if let som = forcando ? (config.sons[e.tipo.rawValue] ?? e.tipo.som) ?? e.tipo.som
-                                   : config.som(e.tipo) {
-                c.sound = UNNotificationSound(named: UNNotificationSoundName("\(som).aiff"))
+            c.title = e.title
+            c.body = e.body
+            if let sound = force ? (settings.sounds[e.kind.rawValue] ?? e.kind.sound) ?? e.kind.sound
+                                   : settings.sound(e.kind) {
+                c.sound = UNNotificationSound(named: UNNotificationSoundName("\(sound).aiff"))
             }
 
-            c.threadIdentifier = e.chave
+            c.threadIdentifier = e.key
             c.categoryIdentifier = e.threadId == nil ? Cat.simples : Cat.thread
             c.userInfo = [
                 "url": e.url.absoluteString,
                 "threadId": e.threadId ?? "",
             ]
-            try? await centro.add(
+            try? await center.add(
                 UNNotificationRequest(identifier: e.id, content: c, trigger: nil)
             )
         }
     }
 
-    private func avisarFalha(_ oQue: String, _ erro: Error) async {
+    private func reportFailure(_ what: String, _ error: Error) async {
         let c = UNMutableNotificationContent()
-        c.title = "\(oQue) não foi enviado"
-        c.body = erro.localizedDescription
+        c.title = "\(what) was not sent"
+        c.body = error.localizedDescription
         c.sound = UNNotificationSound(named: UNNotificationSoundName("Basso.aiff"))
-        try? await centro.add(
+        try? await center.add(
             UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)
         )
     }
@@ -108,24 +108,24 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
         let thread = (info["threadId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
 
         switch response.actionIdentifier {
-        case Acao.responder:
-            guard let texto = (response as? UNTextInputNotificationResponse)?.userText
+        case Acao.reply:
+            guard let text = (response as? UNTextInputNotificationResponse)?.userText
                     .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !texto.isEmpty, let thread else { return }
+                  !text.isEmpty, let thread else { return }
             do {
-                try await cliente.responder(threadId: thread, corpo: texto)
-                await aoMudar?()
+                try await cliente.reply(threadId: thread, body: text)
+                await onChange?()
             } catch {
-                await avisarFalha("Seu comentário", error)
+                await reportFailure("Your comment", error)
             }
 
-        case Acao.resolver:
+        case Acao.resolve:
             guard let thread else { return }
             do {
-                try await cliente.resolver(threadId: thread)
-                await aoMudar?()
+                try await cliente.resolve(threadId: thread)
+                await onChange?()
             } catch {
-                await avisarFalha("O resolve da thread", error)
+                await reportFailure("Resolving the thread", error)
             }
 
         default:

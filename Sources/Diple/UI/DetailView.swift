@@ -1,13 +1,13 @@
 import SwiftUI
 
-struct DetalheView: View {
-    @ObservedObject var modelo: Modelo
+struct DetailView: View {
+    @ObservedObject var model: AppModel
     let pr: PR
 
     enum Secao: String, CaseIterable, Identifiable {
-        case conversa = "Conversa"
-        case mapa = "Visão geral"
-        case ia = "Review da IA"
+        case conversa = "Conversation"
+        case mapa = "Overview"
+        case ia = "AI review"
         var id: String { rawValue }
     }
     @State private var secao: Secao = .conversa
@@ -15,7 +15,7 @@ struct DetalheView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                cabecalho
+                header
                 Divider()
                 estatisticas
 
@@ -31,79 +31,79 @@ struct DetalheView: View {
                         semThreads
                     } else {
                         ForEach(pr.threads) { t in
-                            ThreadView(modelo: modelo, thread: t)
+                            ThreadView(model: model, thread: t)
                         }
                     }
                 case .mapa:
-                    MapaView(modelo: modelo, pr: pr)
+                    MapaView(model: model, pr: pr)
                 case .ia:
-                    RevisaoIAView(modelo: modelo, pr: pr)
+                    AIReviewView(model: model, pr: pr)
                 }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onChange(of: pr.chave) { secao = .conversa }
+        .onChange(of: pr.key) { secao = .conversa }
         .toolbar {
             ToolbarItem {
                 Button {
-                    modelo.abrir(pr)
+                    model.open(pr)
                 } label: {
-                    Label("Abrir no GitHub", systemImage: "arrow.up.forward.square")
+                    Label("Open on GitHub", systemImage: "arrow.up.forward.square")
                 }
-                .help("Abrir no GitHub")
+                .help("Open on GitHub")
             }
         }
     }
 
-    private var cabecalho: some View {
+    private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 selo
-                Text("\(pr.repo) #\(pr.numero)")
+                Text("\(pr.repo) #\(pr.number)")
                     .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
-            Text(pr.titulo)
+            Text(pr.title)
                 .font(.system(size: 20, weight: .semibold))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("\(pr.autor) abriu · atualizado \(pr.atualizadoEm.formatted(.relative(presentation: .numeric)))")
+            Text("\(pr.author) abriu · atualizado \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder private var selo: some View {
-        let (texto, cor): (String, Color) =
-            if pr.ci == .falhou { ("Check falhou", .red) }
-            else if pr.aprovado { ("Aprovado", .green) }
-            else if pr.rascunho { ("Rascunho", .secondary) }
-            else if !pr.threads.isEmpty { ("Conversa aberta", .orange) }
-            else { ("Aberto", .blue) }
-        Text(texto)
+        let (text, color): (String, Color) =
+            if pr.checks == .failing { ("Check failing", .red) }
+            else if pr.approved { ("Approved", .green) }
+            else if pr.draft { ("Draft", .secondary) }
+            else if !pr.threads.isEmpty { ("Open thread", .orange) }
+            else { ("Open", .blue) }
+        Text(text)
             .font(.system(size: 11, weight: .semibold))
             .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(cor.opacity(0.14), in: Capsule())
-            .foregroundStyle(cor)
+            .background(color.opacity(0.14), in: Capsule())
+            .foregroundStyle(color)
     }
 
     private var estatisticas: some View {
         HStack(spacing: 8) {
-            rotulo(pr.ci == .falhou ? "checks vermelhos" : pr.ci == .passou ? "checks verdes" : "checks rodando")
+            label(pr.checks == .failing ? "checks vermelhos" : pr.checks == .passing ? "checks verdes" : "checks running")
             Text("·").foregroundStyle(.tertiary)
-            rotulo("\(pr.threads.count) conversa\(pr.threads.count == 1 ? "" : "s") aberta\(pr.threads.count == 1 ? "" : "s")")
+            label("\(pr.threads.count) conversa\(pr.threads.count == 1 ? "" : "s") aberta\(pr.threads.count == 1 ? "" : "s")")
         }
         .font(.system(size: 12, design: .monospaced))
         .foregroundStyle(.secondary)
     }
 
-    private func rotulo(_ t: String) -> some View { Text(t) }
+    private func label(_ t: String) -> some View { Text(t) }
 
     private var semThreads: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle").foregroundStyle(.green)
-            Text("Nenhuma conversa de gente aberta neste PR.")
+            Text("No open human threads on this PR.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
@@ -112,11 +112,11 @@ struct DetalheView: View {
 }
 
 struct ThreadView: View {
-    @ObservedObject var modelo: Modelo
-    let thread: PR.ThreadPR
+    @ObservedObject var model: AppModel
+    let thread: PR.ReviewThread
 
-    @State private var resposta = ""
-    @State private var erro: String?
+    @State private var response = ""
+    @State private var error: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -124,20 +124,20 @@ struct ThreadView: View {
                 Image(systemName: "doc.text")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                Text(thread.arquivo)
+                Text(thread.path)
                     .font(.system(size: 11.5, design: .monospaced))
-                if let l = thread.linha {
-                    Text("linha \(l)")
+                if let l = thread.line {
+                    Text("line \(l)")
                         .font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
-                Button("Resolver") {
-                    Task { erro = await modelo.resolver(thread: thread.id) }
+                Button("Resolve") {
+                    Task { error = await model.resolve(thread: thread.id) }
                 }
                 .buttonStyle(.link)
                 .font(.system(size: 11.5))
-                .disabled(modelo.enviando)
+                .disabled(model.sending)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(.quaternary.opacity(0.4))
@@ -148,52 +148,52 @@ struct ThreadView: View {
                 Divider()
             }
 
-            ForEach(thread.comentarios) { fala in
+            ForEach(thread.comments) { fala in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 7) {
-                        Text(fala.autor)
+                        Text(fala.author)
                             .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundStyle(fala.ehBot ? .secondary : .primary)
-                        if fala.ehBot {
+                            .foregroundStyle(fala.isBot ? .secondary : .primary)
+                        if fala.isBot {
                             Text("bot")
                                 .font(.system(size: 9.5, weight: .bold))
                                 .padding(.horizontal, 5).padding(.vertical, 1)
                                 .background(.quaternary, in: Capsule())
                         }
-                        Text(fala.quando.formatted(.relative(presentation: .numeric)))
+                        Text(fala.at.formatted(.relative(presentation: .numeric)))
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                     }
-                    Text(fala.texto)
+                    Text(fala.text)
                         .font(.system(size: 13))
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .opacity(fala.ehBot ? 0.55 : 1)
+                .opacity(fala.isBot ? 0.55 : 1)
                 Divider()
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                if let e = erro {
+                if let e = error {
                     Label(e, systemImage: "exclamationmark.triangle")
                         .font(.system(size: 11.5))
                         .foregroundStyle(.orange)
                 }
                 HStack(spacing: 8) {
-                    TextField("Responder nesta thread…", text: $resposta, axis: .vertical)
+                    TextField("Reply in this thread…", text: $response, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(1...4)
-                    Button("Comentar") {
+                    Button("Comment") {
                         Task {
-                            erro = await modelo.responder(thread: thread.id, texto: resposta)
-                            if erro == nil { resposta = "" }
+                            error = await model.reply(thread: thread.id, text: response)
+                            if error == nil { response = "" }
                         }
                     }
                     .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(resposta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                              || modelo.enviando)
+                    .disabled(response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                              || model.sending)
                 }
             }
             .padding(12)

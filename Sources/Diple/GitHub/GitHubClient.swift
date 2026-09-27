@@ -1,15 +1,15 @@
 import Foundation
 
-enum ClienteErro: LocalizedError {
+enum ClientError: LocalizedError {
     case http(Int)
     case graphql([String])
-    case vazio
+    case empty
 
     var errorDescription: String? {
         switch self {
         case .http(let c):      "GitHub respondeu HTTP \(c)"
         case .graphql(let m):   m.joined(separator: " · ")
-        case .vazio:            "GitHub respondeu sem dados"
+        case .empty:            "GitHub answered with no data"
         }
     }
 }
@@ -17,9 +17,9 @@ enum ClienteErro: LocalizedError {
 struct GitHubClient: Sendable {
     private let endpoint = URL(string: "https://api.github.com/graphql")!
 
-    func buscarFila() async throws -> Fila {
+    func fetchQueue() async throws -> Queue {
         let token = try await Task.detached(priority: .utility) {
-            try Token.atual()
+            try Token.current()
         }.value
 
         var req = URLRequest(url: endpoint)
@@ -27,38 +27,38 @@ struct GitHubClient: Sendable {
         req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
-        req.httpBody = try JSONEncoder().encode(["query": Query.fila])
+        req.httpBody = try JSONEncoder().encode(["query": Query.queue])
         req.timeoutInterval = 20
 
-        let (dados, resposta) = try await URLSession.shared.data(for: req)
+        let (date, response) = try await URLSession.shared.data(for: req)
 
-        if let http = resposta as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ClienteErro.http(http.statusCode)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ClientError.http(http.statusCode)
         }
 
         let dec = JSONDecoder()
         dec.dateDecodingStrategy = .iso8601
-        let corpo = try dec.decode(Resposta.self, from: dados)
+        let body = try dec.decode(RawResponse.self, from: date)
 
-        if let erros = corpo.errors, !erros.isEmpty {
-            throw ClienteErro.graphql(erros.map(\.message))
+        if let erros = body.errors, !erros.isEmpty {
+            throw ClientError.graphql(erros.map(\.message))
         }
-        guard let d = corpo.data else { throw ClienteErro.vazio }
+        guard let d = body.data else { throw ClientError.empty }
 
-        let eu = d.viewer.login
-        return Fila(
-            eu: eu,
-            meus: d.meus.nodes.compactMap { PR($0, meuLogin: eu) },
-            revisar: d.revisar.nodes.compactMap { PR($0, meuLogin: eu) },
-            envolvido: d.envolvido.nodes.compactMap { PR($0, meuLogin: eu) },
-            cotaRestante: d.rateLimit?.remaining ?? 0
+        let viewer = d.viewer.login
+        return Queue(
+            viewer: viewer,
+            mine: d.mine.nodes.compactMap { PR($0, meuLogin: viewer) },
+            toReview: d.toReview.nodes.compactMap { PR($0, meuLogin: viewer) },
+            following: d.following.nodes.compactMap { PR($0, meuLogin: viewer) },
+            rateLimitLeft: d.rateLimit?.remaining ?? 0
         )
     }
 }
 
 extension GitHubClient {
-    func responder(threadId: String, corpo: String) async throws {
-        _ = try await mutar(
+    func reply(threadId: String, body: String) async throws {
+        _ = try await mutate(
             """
             mutation($t: ID!, $b: String!) {
               addPullRequestReviewThreadReply(
@@ -66,12 +66,12 @@ extension GitHubClient {
               ) { comment { id } }
             }
             """,
-            ["t": threadId, "b": corpo]
+            ["t": threadId, "b": body]
         )
     }
 
-    func resolver(threadId: String) async throws {
-        _ = try await mutar(
+    func resolve(threadId: String) async throws {
+        _ = try await mutate(
             """
             mutation($t: ID!) {
               resolveReviewThread(input: { threadId: $t }) { thread { id } }
@@ -81,8 +81,8 @@ extension GitHubClient {
         )
     }
 
-    private func mutar(_ query: String, _ variaveis: [String: String]) async throws -> Data {
-        let token = try await Task.detached(priority: .utility) { try Token.atual() }.value
+    private func mutate(_ query: String, _ variables: [String: String]) async throws -> Data {
+        let token = try await Task.detached(priority: .utility) { try Token.current() }.value
 
         var req = URLRequest(url: URL(string: "https://api.github.com/graphql")!)
         req.httpMethod = "POST"
@@ -90,19 +90,19 @@ extension GitHubClient {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
         req.httpBody = try JSONSerialization.data(
-            withJSONObject: ["query": query, "variables": variaveis]
+            withJSONObject: ["query": query, "variables": variables]
         )
         req.timeoutInterval = 20
 
-        let (dados, resposta) = try await URLSession.shared.data(for: req)
-        if let http = resposta as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ClienteErro.http(http.statusCode)
+        let (date, response) = try await URLSession.shared.data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw ClientError.http(http.statusCode)
         }
 
-        if let obj = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
+        if let obj = try? JSONSerialization.jsonObject(with: date) as? [String: Any],
            let erros = obj["errors"] as? [[String: Any]], !erros.isEmpty {
-            throw ClienteErro.graphql(erros.compactMap { $0["message"] as? String })
+            throw ClientError.graphql(erros.compactMap { $0["message"] as? String })
         }
-        return dados
+        return date
     }
 }

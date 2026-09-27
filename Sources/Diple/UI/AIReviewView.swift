@@ -1,28 +1,28 @@
 import SwiftUI
 import AppKit
 
-struct RevisaoIAView: View {
-    @ObservedObject var modelo: Modelo
+struct AIReviewView: View {
+    @ObservedObject var model: AppModel
     let pr: PR
 
-    private var achados: [Achado] { modelo.achados[pr.chave] ?? [] }
-    private var rodando: Bool { modelo.revisandoIA == pr.chave }
+    private var findings: [Finding] { model.findings[pr.key] ?? [] }
+    private var running: Bool { model.reviewingKey == pr.key }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            cabecalho
+            header
 
-            if rodando || !modelo.progressoIA.isEmpty {
+            if running || !model.reviewProgress.isEmpty {
                 progresso
             }
 
-            if !achados.isEmpty {
-                aviso
-                ForEach(achados) { a in
-                    CartaoAchado(achado: a) { modelo.descartarAchado(pr, a) }
+            if !findings.isEmpty {
+                notice
+                ForEach(findings) { a in
+                    FindingCard(finding: a) { model.discardFinding(pr, a) }
                 }
-            } else if !rodando, case .pronto = modelo.passoIA {
-                Label("A IA não encontrou nada que valesse apontar.",
+            } else if !running, case .pronto = model.reviewStep {
+                Label("The AI found nothing worth flagging.",
                       systemImage: "checkmark.circle")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
@@ -30,18 +30,18 @@ struct RevisaoIAView: View {
         }
     }
 
-    private var cabecalho: some View {
+    private var header: some View {
         HStack(spacing: 9) {
             Image(systemName: "sparkles").foregroundStyle(.purple)
-            Text("Review da IA").font(.system(size: 13, weight: .semibold))
+            Text("AI review").font(.system(size: 13, weight: .semibold))
             Spacer()
             Button {
-                Task { await modelo.revisarComIA(pr) }
+                Task { await model.runAIReview(pr) }
             } label: {
-                Label(achados.isEmpty ? "Revisar com IA" : "Revisar de novo",
+                Label(findings.isEmpty ? "Review with AI" : "Revisar de next",
                       systemImage: "play.fill")
             }
-            .disabled(modelo.revisandoIA != nil)
+            .disabled(model.reviewingKey != nil)
             .keyboardShortcut("r", modifiers: [.command, .option])
         }
     }
@@ -49,17 +49,17 @@ struct RevisaoIAView: View {
     private var progresso: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                if rodando {
+                if running {
                     ProgressView().controlSize(.small)
-                    Text("Revisando")
+                    Text("Reviewing")
                         .font(.system(size: 12, weight: .semibold))
                 } else {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("Terminado")
+                    Text("Done")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 Spacer()
-                if let i = modelo.inicioIA {
+                if let i = model.reviewStartedAt {
                     Text(i, style: .timer)
                         .font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -68,19 +68,19 @@ struct RevisaoIAView: View {
             }
             .padding(.bottom, 8)
 
-            ForEach(modelo.progressoIA) { linha in
+            ForEach(model.reviewProgress) { line in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: linha.concluido ? "checkmark" : "circle.dotted")
+                    Image(systemName: line.done ? "checkmark" : "circle.dotted")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(linha.concluido ? .green : .secondary)
+                        .foregroundStyle(line.done ? .green : .secondary)
                         .frame(width: 12)
-                    Text(linha.texto)
+                    Text(line.text)
                         .font(.system(size: 11.5, design: .monospaced))
-                        .foregroundStyle(linha.concluido ? .secondary : .primary)
+                        .foregroundStyle(line.done ? .secondary : .primary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if linha.repeticoes > 1 {
-                        Text("×\(linha.repeticoes)")
+                    if line.repeats > 1 {
+                        Text("×\(line.repeats)")
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .foregroundStyle(.tertiary)
                     }
@@ -89,9 +89,9 @@ struct RevisaoIAView: View {
                 .padding(.vertical, 2)
             }
 
-            if rodando {
-                Text("O git leva uns 3 segundos. O resto é o Claude lendo o "
-                     + "repositório — costuma ir de 30 s a 2 min.")
+            if running {
+                Text("Git takes about 3 seconds. The rest is Claude reading the "
+                     + "repository — usually 30 s to 2 min.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
                     .padding(.top, 6)
@@ -102,10 +102,10 @@ struct RevisaoIAView: View {
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 9))
     }
 
-    private var aviso: some View {
+    private var notice: some View {
         HStack(spacing: 8) {
             Image(systemName: "lock.fill").font(.system(size: 10))
-            Text("Rascunho local. A sessão roda sem `gh` e sem escrita — publicar é sempre você.")
+            Text("Local draft. The session runs without `gh` and without write access — publishing is always you.")
                 .font(.system(size: 11))
             Spacer()
         }
@@ -115,35 +115,35 @@ struct RevisaoIAView: View {
     }
 }
 
-struct CartaoAchado: View {
-    let achado: Achado
+struct FindingCard: View {
+    let finding: Finding
     let aoDescartar: () -> Void
     @State private var copiado = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
-                selo(achado.categoria.rotulo, cor: corCategoria)
-                selo(achado.veredito.rotulo,
-                     cor: achado.veredito == .confirmado ? .green : .secondary)
+                selo(finding.category.label, color: corCategoria)
+                selo(finding.verdict.label,
+                     color: finding.verdict == .confirmado ? .green : .secondary)
                 Spacer()
-                Text(achado.onde)
+                Text(finding.location)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
 
-            Text(achado.resumo)
+            Text(finding.summary)
                 .font(.system(size: 13, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(achado.detalhe)
+            Text(finding.detail)
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let c = achado.cenario, !c.isEmpty {
+            if let c = finding.scenario, !c.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    Text("CENÁRIO")
+                    Text("SCENARIO")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.purple)
                         .padding(.top, 1)
@@ -159,14 +159,14 @@ struct CartaoAchado: View {
             HStack(spacing: 8) {
                 Button {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(achado.markdown, forType: .string)
+                    NSPasteboard.general.setString(finding.markdown, forType: .string)
                     copiado = true
                 } label: {
-                    Label(copiado ? "Copiado" : "Copiar comentário",
+                    Label(copiado ? "Copied" : "Copy comment",
                           systemImage: copiado ? "checkmark" : "doc.on.doc")
                 }
                 Spacer()
-                Button("Descartar", action: aoDescartar)
+                Button("Discard", action: aoDescartar)
                     .foregroundStyle(.secondary)
             }
             .font(.system(size: 12))
@@ -178,7 +178,7 @@ struct CartaoAchado: View {
     }
 
     private var corCategoria: Color {
-        switch achado.categoria {
+        switch finding.category {
         case .correcao:      .red
         case .simplificacao: .purple
         case .eficiencia:    .blue
@@ -187,11 +187,11 @@ struct CartaoAchado: View {
         }
     }
 
-    private func selo(_ t: String, cor: Color) -> some View {
+    private func selo(_ t: String, color: Color) -> some View {
         Text(t.uppercased())
             .font(.system(size: 9.5, weight: .bold))
             .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(cor.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-            .foregroundStyle(cor)
+            .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+            .foregroundStyle(color)
     }
 }

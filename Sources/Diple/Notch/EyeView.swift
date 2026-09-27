@@ -1,0 +1,55 @@
+import SwiftUI
+
+struct EyeShape: Shape {
+    var openness: CGFloat = 1
+
+    var animatableData: CGFloat {
+        get { openness }
+        set { openness = newValue }
+    }
+
+    func path(in r: CGRect) -> Path {
+        let cy = r.midY
+        let h = (r.height / 2) * max(0.04, openness)
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: cy))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: cy),
+                       control: CGPoint(x: r.midX, y: cy - h * 2))
+        p.addQuadCurve(to: CGPoint(x: r.minX, y: cy),
+                       control: CGPoint(x: r.midX, y: cy + h * 2))
+        p.closeSubpath()
+        return p
+    }
+}
+
+struct EyeView: View {
+    var gaze: CGPoint
+    var blinking: Bool
+    var largura: CGFloat = 15
+
+    private var openness: CGFloat { blinking ? 0.05 : 1 }
+    private var shape: EyeShape { EyeShape(openness: openness) }
+    private var pupil: CGFloat { largura * 0.30 }
+    private var range: CGFloat { largura * 0.17 }
+
+    var body: some View {
+        ZStack {
+            shape.fill(.white.opacity(0.94))
+            Circle()
+                .fill(Color(red: 0.07, green: 0.08, blue: 0.10))
+                .frame(width: pupil, height: pupil)
+                .offset(x: gaze.x * range, y: gaze.y * range * 0.55)
+                .overlay(
+                    Circle()
+                        .fill(.white.opacity(0.8))
+                        .frame(width: pupil * 0.34, height: pupil * 0.34)
+                        .offset(x: gaze.x * range - pupil * 0.22,
+                                y: gaze.y * range * 0.55 - pupil * 0.22)
+                )
+        }
+        .frame(width: largura, height: largura * 0.62)
+        .clipShape(shape)
+        .animation(.easeInOut(duration: 0.085), value: openness)
+        .animation(.spring(response: 0.24, dampingFraction: 0.6), value: gaze)
+    }
+}
