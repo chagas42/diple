@@ -25,33 +25,24 @@ struct Geometria {
 
     // MARK: - Molduras, em coordenadas de tela (origem embaixo à esquerda)
 
+    /// Zerado, o painel some mas continua existindo: um alvo invisível do
+    /// tamanho do recorte, só pra o hover ter onde acontecer.
     func repouso(pendencias: Int) -> NSRect {
-        if temNotch {
-            let extra: CGFloat = pendencias > 0 ? 18 : 0
-            let l = larguraNotch + (pendencias > 0 ? 48 : 0)
-            let a = alturaTopo + extra
-            return colado(largura: l, altura: a)
-        } else {
-            guard pendencias > 0 else { return solto(largura: 1, altura: 1) }
-            return solto(largura: 248, altura: 30)
-        }
+        guard pendencias > 0 else { return alvoInvisivel() }
+        return solto(largura: 248, altura: 30)
     }
 
-    func aberto() -> NSRect {
-        temNotch ? colado(largura: 620, altura: 300)
-                 : solto(largura: 620, altura: 300)
-    }
+    func aberto() -> NSRect { solto(largura: 620, altura: 300) }
 
-    func alerta() -> NSRect {
-        temNotch ? colado(largura: 580, altura: 190)
-                 : solto(largura: 580, altura: 190)
-    }
+    func alerta() -> NSRect { solto(largura: 580, altura: 190) }
 
-    /// Encostado no topo: só os cantos de baixo arredondam.
-    private func colado(largura: CGFloat, altura: CGFloat) -> NSRect {
-        NSRect(x: tela.frame.midX - largura / 2,
-               y: tela.frame.maxY - altura,
-               width: largura, height: altura)
+    /// Cobre exatamente o recorte (ou o centro da barra, sem recorte).
+    /// Nada é desenhado aqui — essa área não é clicável de todo jeito.
+    private func alvoInvisivel() -> NSRect {
+        let l = temNotch ? larguraNotch : 180
+        return NSRect(x: tela.frame.midX - l / 2,
+                      y: tela.frame.maxY - alturaTopo,
+                      width: l, height: alturaTopo)
     }
 
     /// Solto abaixo da barra de menu.

@@ -46,6 +46,10 @@ enum Janela {
 @main
 struct Entrada {
     static func main() async {
+        if CommandLine.arguments.contains("--notch") {
+            await MainActor.run { ProbeNotch.rodar() }
+            exit(0)
+        }
         if CommandLine.arguments.contains("--probe") {
             await Probe.rodar()
             exit(0)

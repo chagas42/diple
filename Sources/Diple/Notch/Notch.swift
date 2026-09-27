@@ -4,7 +4,6 @@ import AppKit
 @MainActor
 final class Notch: ObservableObject {
     @Published private(set) var estado: EstadoNotch = .repouso
-    @Published private(set) var colado = true
 
     private let painel = NotchPanel()
     private weak var modelo: Modelo?
@@ -72,7 +71,6 @@ final class Notch: ObservableObject {
 
     private func aplicar(animado: Bool) {
         let g = Geometria.atual()
-        colado = g.temNotch
 
         let alvo: NSRect = switch estado {
         case .repouso: g.repouso(pendencias: modelo?.contador ?? 0)
@@ -96,7 +94,6 @@ final class Notch: ObservableObject {
             NotchView(
                 modelo: modelo,
                 estado: notch.estado,
-                colado: notch.colado,
                 aoEntrar: { notch.abrir() },
                 aoSair: { notch.fechar() }
             )

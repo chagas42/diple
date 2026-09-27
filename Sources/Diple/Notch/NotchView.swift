@@ -17,42 +17,41 @@ enum EstadoNotch: Equatable {
 /// O painel é preto puro de propósito: é o preto que casa com o bezel e faz
 /// parecer que a própria notch cresceu. Por isso os cantos de cima ficam retos.
 struct NotchView: View {
+    /// Color.black passa por gerenciamento de cor e sai diferente do bezel.
+    /// Preto de dispositivo vai cru pro display.
+    static let pretoDeDispositivo = Color(
+        nsColor: NSColor(colorSpace: .deviceRGB, components: [0, 0, 0, 1], count: 4)
+    )
+
     @ObservedObject var modelo: Modelo
     let estado: EstadoNotch
-    let colado: Bool
     let aoEntrar: () -> Void
     let aoSair: () -> Void
 
     var body: some View {
         conteudo
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(Color.black)
+            .background(Self.pretoDeDispositivo)
             .clipShape(forma)
             .overlay(borda)
-            .shadow(color: .black.opacity(colado ? 0.45 : 0.5),
-                    radius: colado ? 18 : 12, y: colado ? 10 : 6)
+            .shadow(color: .black.opacity(0.5), radius: 14, y: 6)
             .contentShape(Rectangle())
             .onHover { $0 ? aoEntrar() : aoSair() }
     }
 
-    private var forma: AnyShape {
-        colado
-            ? AnyShape(UnevenRoundedRectangle(
-                bottomLeadingRadius: raio, bottomTrailingRadius: raio))
-            : AnyShape(RoundedRectangle(cornerRadius: raio, style: .continuous))
+    private var forma: RoundedRectangle {
+        RoundedRectangle(cornerRadius: raio, style: .continuous)
     }
 
     private var raio: CGFloat {
         switch estado {
-        case .repouso: colado ? 14 : 15
-        case .aberto, .alerta: colado ? 28 : 20
+        case .repouso: 15
+        case .aberto, .alerta: 20
         }
     }
 
-    @ViewBuilder private var borda: some View {
-        if !colado {
-            forma.stroke(Color.white.opacity(0.13), lineWidth: 1)
-        }
+    private var borda: some View {
+        forma.stroke(Color.white.opacity(0.13), lineWidth: 1)
     }
 
     @ViewBuilder private var conteudo: some View {
@@ -79,8 +78,7 @@ struct NotchView: View {
                     .font(.system(size: 11.5))
                     .foregroundStyle(.white.opacity(0.55))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, colado ? 6 : 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             Color.clear
         }

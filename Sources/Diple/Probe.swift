@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// `Diple --probe` imprime a fila no terminal. Serve pra depurar a camada
 /// de dados sem subir a UI.
@@ -31,6 +32,28 @@ enum Probe {
             if let c = p.ultimoComentario {
                 print("      ↳ \(c.autor)\(c.onde.map { " em \($0)" } ?? ""): \(c.trecho.prefix(64))")
             }
+        }
+    }
+}
+
+/// `Diple --notch` mede a tela: serve pra saber se o recorte existe e onde ele está.
+@MainActor
+enum ProbeNotch {
+    static func rodar() {
+        for (i, t) in NSScreen.screens.enumerated() {
+            let g = Geometria(tela: t)
+            print("tela \(i): \(Int(t.frame.width))x\(Int(t.frame.height)) scale \(t.backingScaleFactor)")
+            print("  safeAreaInsets.top: \(t.safeAreaInsets.top)")
+            print("  tem notch: \(g.temNotch)")
+            print("  altura do topo: \(g.alturaTopo)")
+            print("  largura do recorte: \(g.larguraNotch)")
+            if let e = t.auxiliaryTopLeftArea, let d = t.auxiliaryTopRightArea {
+                print("  área à esquerda: \(Int(e.width))  à direita: \(Int(d.width))")
+            } else {
+                print("  áreas auxiliares: nenhuma (tela sem recorte)")
+            }
+            print("  repouso com 3: \(g.repouso(pendencias: 3))")
+            print("  aberto:        \(g.aberto())")
         }
     }
 }
