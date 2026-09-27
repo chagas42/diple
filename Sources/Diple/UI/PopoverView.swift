@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LinhaPR: View {
     let pr: PR
-    let naoLido: Bool
+    let unread: Bool
     let acao: () -> Void
 
     var body: some View {
@@ -22,7 +22,7 @@ struct LinhaPR: View {
                             .font(.system(size: 10.5, design: .monospaced))
                             .foregroundStyle(.tertiary)
                         Spacer(minLength: 4)
-                        if naoLido {
+                        if unread {
                             Circle().fill(color).frame(width: 5, height: 5)
                         }
                         Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
@@ -31,7 +31,7 @@ struct LinhaPR: View {
                     }
 
                     Text(pr.title)
-                        .font(.system(size: 12.5, weight: naoLido ? .semibold : .regular))
+                        .font(.system(size: 12.5, weight: unread ? .semibold : .regular))
                         .multilineTextAlignment(.leading)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -52,7 +52,7 @@ struct LinhaPR: View {
 
     private var color: Color {
         if pr.checks == .failing { .red }
-        else if naoLido { .orange }
+        else if unread { .orange }
         else if pr.approved { .green }
         else { .secondary.opacity(0.35) }
     }
@@ -72,7 +72,7 @@ struct Secao: View {
                     .foregroundStyle(.tertiary)
                     .padding(.top, 4)
                 ForEach(prs) { pr in
-                    LinhaPR(pr: pr, naoLido: unread.contains(pr.key)) { open(pr) }
+                    LinhaPR(pr: pr, unread: unread.contains(pr.key)) { open(pr) }
                 }
             }
         }
@@ -155,7 +155,7 @@ struct PopoverView: View {
                     .foregroundStyle(.orange)
             }
             Spacer()
-            Button("Window") { Windows.compartilhado.openMain(model) }
+            Button("Window") { Windows.shared.openMain(model) }
             .buttonStyle(.borderless)
             .font(.system(size: 11))
             .keyboardShortcut("0", modifiers: .command)

@@ -147,6 +147,30 @@ struct PR: Identifiable, Sendable, Equatable {
         let threadId: String?
     }
 
+    init(
+        id: String, repo: String, number: Int, title: String, url: URL,
+        updatedAt: Date, draft: Bool, author: String, authorAvatar: URL?, isMine: Bool,
+        headRef: String, baseRef: String, checks: CheckState, approved: Bool,
+        threads: [ReviewThread], lastComment: HumanComment?
+    ) {
+        self.id = id
+        self.repo = repo
+        self.number = number
+        self.title = title
+        self.url = url
+        self.updatedAt = updatedAt
+        self.draft = draft
+        self.author = author
+        self.authorAvatar = authorAvatar
+        self.isMine = isMine
+        self.headRef = headRef
+        self.baseRef = baseRef
+        self.checks = checks
+        self.approved = approved
+        self.threads = threads
+        self.lastComment = lastComment
+    }
+
     var key: String { "\(repo)#\(number)" }
 
     init?(_ c: RawPR?, meuLogin: String) {

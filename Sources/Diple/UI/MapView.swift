@@ -14,7 +14,7 @@ struct MapaView: View {
                 if running, let run = model.mapRun { MapProgressView(run: run) }
                 if let n = model.mapNotice { notice(n) }
                 MapCanvasView(model: model, map: m, focus: pr.number) {
-                    Windows.compartilhado.openMap(model, pr)
+                    Windows.shared.openMap(model, pr)
                 }
                 MapLegend(map: m)
             } else if running, let run = model.mapRun {

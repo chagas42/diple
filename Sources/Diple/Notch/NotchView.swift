@@ -53,8 +53,8 @@ struct NotchView: View {
 
             .clipShape(shape)
             .contextMenu {
-                Button("Settings…") { Windows.compartilhado.openSettings(model) }
-                Button("Janela main") { Windows.compartilhado.openMain(model) }
+                Button("Settings…") { Windows.shared.openSettings(model) }
+                Button("Janela main") { Windows.shared.openMain(model) }
                 Divider()
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
@@ -158,7 +158,7 @@ struct NotchView: View {
             HStack(spacing: 7) {
                 Spacer(minLength: 0)
                 iconButton("macwindow") {
-                    Windows.compartilhado.openMain(model)
+                    Windows.shared.openMain(model)
                     onClose()
                 }
                 if model.loading || model.refreshingTab != nil {
@@ -173,7 +173,7 @@ struct NotchView: View {
                     }
                 }
                 iconButton("gearshape") {
-                    Windows.compartilhado.openSettings(model)
+                    Windows.shared.openSettings(model)
                     onClose()
                 }
                 iconButton("xmark") { onClose() }
@@ -269,7 +269,7 @@ struct NotchView: View {
                             Text("\(model.count(t))")
                                 .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                                 .foregroundStyle(
-                                    t == .esperando && model.count(t) > 0
+                                    t == .needsYou && model.count(t) > 0
                                         ? .orange : .white.opacity(on ? 0.5 : 0.3)
                                 )
                         }
@@ -314,7 +314,7 @@ struct NotchView: View {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 20))
                         .foregroundStyle(.white.opacity(0.4))
-                    Text(model.tab == .esperando ? "Nothing waiting on you" : "Nothing in \(model.tab.title)")
+                    Text(model.tab == .needsYou ? "Nothing waiting on you" : "Nothing in \(model.tab.title)")
                         .font(.system(size: 12.5))
                         .foregroundStyle(.white.opacity(0.45))
                 }

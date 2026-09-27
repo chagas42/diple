@@ -8,7 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     @Published var showsMenuBarItem = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let model = AppModel.compartilhado
+        let model = AppModel.shared
         model.onEvent = { [weak self] evento in self?.notch.alertar(evento) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
         notch.mount(model: model)
@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         Task { await Worktree.pruneStale() }
 
         if CommandLine.arguments.contains("--windowFrame") {
-            Windows.compartilhado.openMain(model)
+            Windows.shared.openMain(model)
         }
 
         NotificationCenter.default.addObserver(
@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
 struct DipleApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @ObservedObject private var model = AppModel.compartilhado
+    @ObservedObject private var model = AppModel.shared
 
     var body: some Scene {
         MenuBarExtra(isInserted: Binding(
@@ -57,6 +57,23 @@ struct Main {
             await MainActor.run { NotchProbe.run() }
             exit(0)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--alert"),
+           i + 1 < CommandLine.arguments.count {
+            let wanted = CommandLine.arguments[i + 1]
+            Task { @MainActor in
+                guard let kind = EventKind(rawValue: wanted) else {
+                    FileHandle.standardError.write(
+                        "unknown alert: \(wanted)\nuse one of: \(EventKind.allCases.map(\.rawValue).joined(separator: ", "))\n"
+                            .data(using: .utf8)!
+                    )
+                    exit(2)
+                }
+                await AppModel.shared.sendTestEvent(kind)
+                try? await Task.sleep(for: .seconds(6))
+                exit(0)
+            }
+        }
+
         if CommandLine.arguments.contains("--tools") {
             Probe.tools()
             exit(0)

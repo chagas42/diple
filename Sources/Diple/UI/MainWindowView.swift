@@ -162,7 +162,7 @@ struct MainWindowView: View {
                     .font(.system(size: 12))
             } else {
                 ForEach(model.repoPRsShown, id: \.key) { pr in
-                    PRRow(pr: pr, naoLido: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
                         .tag(pr.key)
                 }
             }
@@ -198,7 +198,7 @@ struct MainWindowView: View {
                         ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
                             PRRow(
                                 pr: pr,
-                                naoLido: model.unread.contains(pr.key),
+                                unread: model.unread.contains(pr.key),
                                 step: i + 1,
                                 steps: stack.prs.count
                             )
@@ -220,7 +220,7 @@ struct MainWindowView: View {
                         }
                     }
                 } else if let pr = stack.prs.first {
-                    PRRow(pr: pr, naoLido: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
                         .tag(pr.key)
                 }
             }
@@ -253,7 +253,7 @@ struct MainWindowView: View {
 
 struct PRRow: View {
     let pr: PR
-    let naoLido: Bool
+    let unread: Bool
     var step: Int? = nil
     var steps: Int? = nil
 
@@ -272,7 +272,7 @@ struct PRRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(pr.title)
-                    .font(.system(size: 13, weight: naoLido ? .semibold : .regular))
+                    .font(.system(size: 13, weight: unread ? .semibold : .regular))
                     .lineLimit(2)
                 HStack(spacing: 6) {
                     Image(systemName: glyph)
@@ -315,7 +315,7 @@ struct PRRow: View {
     private var color: Color {
         if pr.checks == .failing { .red }
         else if pr.approved { .green }
-        else if naoLido { .orange }
+        else if unread { .orange }
         else { .secondary }
     }
 }

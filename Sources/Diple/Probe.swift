@@ -9,6 +9,13 @@ enum Probe {
     }
 
     static func run() async {
+        if Demo.isOn {
+            let q = Demo.queue
+            dump("YOUR PRS", q.mine)
+            dump("TO REVIEW", q.toReview)
+            dump("FOLLOWING", q.following)
+            exit(0)
+        }
         do {
             let queue = try await GitHubClient().fetchQueue()
             dump("YOUR PRS", queue.mine)

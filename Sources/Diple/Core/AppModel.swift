@@ -4,7 +4,7 @@ import AppKit
 
 @MainActor
 final class AppModel: ObservableObject {
-    static let compartilhado = AppModel()
+    static let shared = AppModel()
 
     var onEvent: ((Event) -> Void)?
     var onCountChange: (() -> Void)?
@@ -66,27 +66,27 @@ final class AppModel: ObservableObject {
         }
     }
 
-    @Published var tab: Tab = .esperando
+    @Published var tab: Tab = .needsYou
     @Published var selected: PR?
     @Published private(set) var sending = false
 
     enum Tab: String, CaseIterable, Identifiable {
-        case esperando, mine, revisando, observando
+        case needsYou, mine, reviewing, following
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .esperando:  "Needs you"
+            case .needsYou:  "Needs you"
             case .mine:       "Your PRs"
-            case .revisando:  "Reviewing"
-            case .observando: "Following"
+            case .reviewing:  "Reviewing"
+            case .following: "Following"
             }
         }
         var icon: String {
             switch self {
-            case .esperando:  "tray.full"
+            case .needsYou:  "tray.full"
             case .mine:       "arrow.triangle.branch"
-            case .revisando:  "bubble.left.and.bubble.right"
-            case .observando: "eye"
+            case .reviewing:  "bubble.left.and.bubble.right"
+            case .following: "eye"
             }
         }
     }
@@ -94,7 +94,7 @@ final class AppModel: ObservableObject {
     var rankPeriod: RankPeriod = .month {
         didSet {
             guard rankPeriod != oldValue else { return }
-            ranking = store.state.cache.rank(rankPeriod)
+            ranking = Demo.isOn ? Demo.ranking(rankPeriod) : store.state.cache.rank(rankPeriod)
             loadTab(.ranking)
         }
     }
@@ -143,6 +143,19 @@ final class AppModel: ObservableObject {
     }
 
     func loadRepos(force: Bool = false) {
+        if Demo.isOn {
+            repos = Demo.team.isEmpty ? [] : [
+                RepoRef(nameWithOwner: "SalvyLTD/salvy-api", owner: "SalvyLTD", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "SalvyLTD/salvy-dashboard", owner: "SalvyLTD", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "SalvyLTD/salvy-emails", owner: "SalvyLTD", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "SalvyLTD/salvy-flutter-app", owner: "SalvyLTD", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "SalvyLTD/salvy-meltano", owner: "SalvyLTD", isOrg: true, isPrivate: true),
+                RepoRef(nameWithOwner: "chagas42/diple", owner: "chagas42", isOrg: false, isPrivate: true),
+                RepoRef(nameWithOwner: "chagas42/jsonl-inspect", owner: "chagas42", isOrg: false, isPrivate: false),
+            ]
+            watching = ["SalvyLTD/salvy-api"]
+            return
+        }
         let cache = store.state.cache
         if !force, let cached = cache.repos, !cached.isEmpty,
            !cache.isStale(cache.reposAt, after: 24 * 3600) {
@@ -170,6 +183,11 @@ final class AppModel: ObservableObject {
         repoPRs = []
         guard let full else { return }
         loadingRepo = true
+        if Demo.isOn {
+            repoPRs = Demo.queue.all.filter { $0.repo == full }
+            loadingRepo = false
+            return
+        }
         Task { [weak self] in
             guard let self else { return }
             defer { self.loadingRepo = false }
@@ -234,6 +252,17 @@ final class AppModel: ObservableObject {
     }
 
     func refresh() async {
+        if Demo.isOn {
+            queue = Demo.queue
+            unread = Demo.unread
+            team = Demo.team
+            ranking = Demo.ranking(rankPeriod)
+            activity = Demo.activity
+            lastSync = Date()
+            errorMessage = nil
+            onCountChange?()
+            return
+        }
         guard !loading else { return }
         loading = true
         defer { loading = false }
@@ -305,6 +334,12 @@ final class AppModel: ObservableObject {
     }
 
     private func fetchTab(_ tab: NotchTab) async {
+        if Demo.isOn {
+            team = Demo.team
+            ranking = Demo.ranking(rankPeriod)
+            activity = Demo.activity
+            return
+        }
         var cache = store.state.cache
         do {
             if cache.team.isEmpty || cache.isStale(cache.teamAt, after: 24 * 3600) {
@@ -600,10 +635,10 @@ final class AppModel: ObservableObject {
 
     func prs(_ tab: Tab) -> [PR] {
         switch tab {
-        case .esperando:  needsYou
+        case .needsYou:  needsYou
         case .mine:       queue.mine
-        case .revisando:  queue.toReview
-        case .observando: queue.following
+        case .reviewing:  queue.toReview
+        case .following: queue.following
         }
     }
 
