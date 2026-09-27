@@ -1,195 +1,214 @@
 <div align="center">
 
+<img src="docs/icon.png" width="128" alt="Diple" />
+
 # Diple
 
-**Your pull requests, in the notch.**
+**The pull requests waiting on you, one glance away.**
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000?style=flat-square)](https://www.apple.com/macos/)
-[![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
-[![No dependencies](https://img.shields.io/badge/dependencies-none-2DA44E?style=flat-square)](Package.swift)
+Lives in the MacBook notch. Stays invisible while there is nothing to do.
+Tells you when someone replies to you on a line of code — and lets you
+answer without opening anything.
+
+<img src="https://img.shields.io/badge/macOS-14%2B-000?style=flat-square" alt="macOS 14+" />
+<img src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square" alt="Swift 6" />
+<img src="https://img.shields.io/badge/dependencies-none-2ea043?style=flat-square" alt="no dependencies" />
+<img src="https://img.shields.io/badge/AI-your%20own%20Claude-8A63D2?style=flat-square" alt="your own Claude" />
+
+<br /><br />
+
+<!-- DEMO — 20-30s of the notch opening, a notification arriving, a reply sent.
+     Record it, open any GitHub issue, drag the file into the comment box, copy
+     the https://github.com/user-attachments/assets/… URL it hands back, then
+     delete these comment markers and paste it below.
+
+<img src="PASTE_URL" width="720" alt="Diple in the notch" />
+-->
 
 </div>
 
-Diple keeps the pull requests that are waiting on you one glance away. It lives
-in the MacBook notch, stays invisible while there is nothing to do, and grows
-out of the bezel when there is. When someone replies to you on a line of code,
-it tells you — and only then.
-
-It can also review a PR for you, using **your own Claude**, and draw a map of
-what the PR touches before you start reading it.
-
 ---
 
-## The name
+## Why
 
-A *diple* (διπλῆ) is the mark `⟩` that philologists at the Library of Alexandria
-drew in the margin of a manuscript to say **look at this line**. It is the
-oldest review annotation on record, and the ancestor of our quotation marks.
-Two thousand years later the job has not changed.
+Most review tools are a second inbox: everything is equally loud, nothing tells
+you what is actually waiting on you, and setting them up is its own afternoon.
+
+Diple takes one position — **a review queue is a list of obligations, not a
+list of events**. If nobody is waiting on you, it shows nothing. When somebody
+is, it grows out of the bezel and says who, where, and why.
 
 ---
 
 ## What it does
 
-### The notch
+### The notch is the app
 
-At rest with nothing pending, the panel is exactly the size of the notch and
-you cannot tell it is there. With something waiting, it grows two small wings
-at menu bar height: an eye that follows your pointer, and a count. Hover and it
-opens.
+Nothing waiting: an eye and a dimmed zero, sitting inside the bezel. Something
+waiting: the count lights up. Hover and it opens — four tabs, the queue, your
+team, the ranking, your streak.
 
-On a Mac without a notch it becomes a floating pill under the menu bar, and the
-menu bar item appears instead — you never get two icons saying the same thing.
+<!-- hover open/close, 8s loop
 
-### Four queues that mean different things
+<img src="PASTE_URL" width="640" alt="The notch opening" />
+-->
 
-| | |
-|---|---|
-| **Needs you** | A review was requested, a check broke on one of yours, or someone replied and you have not read it |
-| **Your PRs** | You opened them |
-| **To review** | Somebody asked you specifically |
-| **Following** | You are involved, but nobody asked you for anything |
+### Answer without leaving what you are doing
 
-### A sound per kind of event
+When someone replies to you on a line of code, the banner carries the reply box
+and a Resolve button. You answer from the notification; the thread updates on
+GitHub.
 
-| Event | Sound | Interrupts |
-|---|---|---|
-| Someone replied to you | Glass | yes, even during quiet hours |
-| Someone commented on your PR | Pop | yes |
-| Someone requested your review | Tink | yes |
-| A check failed on your PR | Basso | yes |
-| Someone approved your PR | — | no |
+<!-- notification arriving → typing a reply → thread resolved
 
-`Basso` is the classic macOS error sound: your ear already knows what it means.
-Alerts from the same PR are grouped by `threadIdentifier`, so three comments in
-a row arrive as one banner, and you can reply straight from it.
+<img src="PASTE_URL" width="640" alt="Replying from the banner" />
+-->
 
-Quiet hours mute everything outside your working hours except a direct reply to
-you — the only event worth waking someone for.
+### A different sound per kind of event
 
-### A window for actually reviewing
+Glass when someone replied to you. Pop for a comment. Purr for a review
+request. Basso when a check breaks. Approvals arrive silently. You learn what
+happened before you look.
 
-Three columns. The detail pane shows each open thread with the code excerpt
-around it, and you reply and resolve without leaving. Stacked PRs are grouped
-and numbered, because the reading order is the information a stack carries.
+<!-- settings screen, pressing the test buttons
 
-### Team, ranking, activity
+<img src="PASTE_URL" width="640" alt="Sound per event type" />
+-->
 
-Pick the teammates whose PRs matter to you. See who reviewed how much over the
-last three months, scoped to you and the people you picked. And a contribution
-grid of the days you actually reviewed — which, unlike GitHub's own, counts
-private repositories.
+### Review with your own Claude
 
----
+Diple has no AI of its own. It drives **your** Claude Code session, with your
+skills and your repository's CLAUDE.md, in a throwaway worktree. The findings
+come back anchored to the diff as drafts.
 
-## Review with your own Claude
-
-Diple has **no AI of its own and no server**. It runs the `claude` already
-installed on your machine, with your account and your skills — so the review
-knows your repository's `CLAUDE.md`, speaks in your voice, and your code never
-leaves your computer.
-
-Each review runs in a throwaway worktree under `~/.diple/worktrees`, created
-from `refs/pull/N/head` so it works even when the PR comes from a fork. Your
-checkout is never touched.
-
-**Nothing is ever published.** That is structural, not a promise:
+Nothing is published, and that is structural rather than a promise:
 
 ```
 --allowed-tools     Read Grep Glob Bash(git diff|log|show|status)
 --disallowed-tools  Write Edit Bash(gh) Bash(git push) Bash(git commit) WebFetch
 ```
 
-The session starts without the tools. It does not choose not to publish — it
-cannot. Findings come back as drafts with a category, a verdict, and the
-concrete scenario that breaks; you copy or discard each one yourself.
+It does not choose not to publish. It cannot.
 
-### The PR map
+<!-- pressing Review with AI → live progress → findings in the margin
 
-Before reading a diff, see what it touches. The **changed** layer is
-deterministic and comes from the diff at no token cost. Only the question that
-needs judgement goes to the model: what *feels* the change without changing,
-and what you need to know to judge it that is not in the diff at all — an
-implicit business rule, a vendor contract, a state machine the code assumes.
+<img src="PASTE_URL" width="640" alt="AI review in draft" />
+-->
+
+### A map before you start reading
+
+What the PR changes comes from the diff. What it does not change but will feel
+comes from reference search. Only the expensive question — *what would someone
+need to know to judge this, that is not here* — goes to the model.
+
+<!-- the PR map, connected boxes
+
+<img src="PASTE_URL" width="640" alt="The PR map" />
+-->
+
+### Every repository you belong to
+
+Grouped by organisation, searchable, each one opening its own list of open pull
+requests split into Ready and Draft. Star any of them to watch it.
+
+<!-- sidebar, picking a repo, ready/draft tabs
+
+<img src="PASTE_URL" width="640" alt="Browsing repositories" />
+-->
+
+### Your rhythm
+
+A ranking over the last week, month or quarter — you and the people you follow,
+not the whole company. A contribution grid of the days you reviewed, and the
+streak, with your own bar catching fire when it fills.
+
+<!-- the ranking animating, the streak flame
+
+<img src="PASTE_URL" width="640" alt="Ranking and streak" />
+-->
 
 ---
 
-## Requirements
+## Install
 
-- macOS 14 or later, Apple Silicon or Intel
-- [`gh`](https://cli.github.com) authenticated — Diple borrows its token and
-  stores none of its own
-- [`claude`](https://claude.com/claude-code) on your `PATH`, for the AI review
-  only. Everything else works without it.
+Requires **macOS 14+**, **Xcode 16+** and the [GitHub CLI](https://cli.github.com)
+already signed in (`gh auth login`). Diple borrows that token — there is no
+setup screen and nothing to paste.
 
-## Build and install
-
-There is no Xcode project. The bundle is assembled by a Makefile and ad-hoc
-signed, which means **no paid Apple Developer account is needed**.
-
-```sh
+```bash
 git clone https://github.com/chagas42/diple.git
 cd diple
-make install     # builds, bundles, signs, copies to /Applications
+make install
 ```
 
-> [!IMPORTANT]
-> Install to `/Applications` rather than running from `build/`. Notification
-> Center resolves an app's icon by bundle id and caches the path it found; a
-> bundle that is deleted and recreated on every compile leaves that record
-> pointing at a dead inode, and banners arrive with no icon.
+That builds, signs, copies to `/Applications` and prints where it found each
+tool it needs.
 
-For the fast development loop:
-
-```sh
-make run                    # build, bundle, sign, launch from build/
-make app                    # bundle only
-make icone                  # regenerate the .icns from the master PNG
-./.build/release/Diple --probe    # dump the queue in the terminal
-./.build/release/Diple --notch    # measure the screen: insets, notch width, frames
-```
-
-`--probe` and `--notch` exist to debug the data and geometry layers without
-bringing up the UI.
+> **The app is signed ad-hoc.** On a machine that did not build it, macOS will
+> refuse to open it the first time: right-click → Open, or
+> `xattr -dr com.apple.quarantine /Applications/Diple.app`. Notarising needs a
+> paid Apple Developer account, which this does not have.
 
 ---
 
-## How it works
+## Development
 
-One aggregated GraphQL query covers all three queues and costs **1 point** of
-the 5000 per hour, so polling every 60 seconds spends 60. Everything renders
-from a local cache first and refreshes behind it, so nothing blocks on the
-network.
+```bash
+make run        # build, bundle, launch — the fast loop
+make install    # /Applications; use this when testing notifications
+make tools      # show which binaries were found, and where
+make probe      # print the queue in the terminal, no UI
+make stop
+```
 
-A few things the GitHub API does not make obvious are written down in
-[NOTES.md](NOTES.md) — among them that review comments live in two separate
-places, and that reading only one of them makes the app blind to the case it
-exists for.
+No `.xcodeproj`. The whole project is Swift Package Manager plus a Makefile
+that assembles and signs the bundle, so everything is plain text.
 
-## Roadmap
+---
 
-- [x] Notch panel with queue, team, ranking and activity
-- [x] Sound per event kind, quiet hours, reply from the banner
-- [x] Three-column window with inline threads and stacked PR grouping
-- [x] AI review on your own Claude, draft-only
-- [x] PR map
-- [ ] OAuth device flow instead of borrowing the `gh` token
-- [ ] Signed and notarized release, so it installs without a Gatekeeper detour
-- [ ] Watched repositories: alert on new PRs in repos you choose
-- [ ] Per-repository review rules
+## How it is built
+
+| | |
+|---|---|
+| UI | SwiftUI, with AppKit for the panel and the windows |
+| Notch | `NSPanel`, non-activating, `.statusBar` level, `.fullScreenAuxiliary` |
+| Data | One aggregated GraphQL query, 1 point per sync |
+| Storage | A versioned JSON file in Application Support |
+| Auth | The token `gh` already holds |
+| AI | Your `claude` binary, `--output-format stream-json` |
+| Dependencies | None |
+
+`NOTES.md` carries the API traps this cost real time to find — `reviewThreads`
+being a separate channel from `comments`, `baseRefOid` versus a stale
+`origin/HEAD`, why a GUI app cannot see your `PATH`.
+
+---
 
 ## Not there yet
 
-The app is ad-hoc signed. On a machine that is not the one that built it,
-macOS will complain. Notarization needs a paid Apple Developer account, which
-this project deliberately does not require.
+- [ ] Device flow, so `gh` is not required
+- [ ] Watched repositories feeding new PRs into the queue
+- [ ] Rate-limit state when your Claude plan runs out mid-review
+- [ ] Sound for the streak animation, behind a switch
+- [ ] A license file — pick one before this goes public
 
-There is no license file yet. Decide on one before making the repository
-public.
+---
+
+## The name
+
+*Diple* (διπλῆ, "double") is the mark `⟩` that scholars at the Library of
+Alexandria drew in the margin of a manuscript to say **look at this line**.
+Aristarchus used it alongside the obelus † for a suspect line and the asterisk ※
+for a duplicate — the first formal system of review marks we know of, third
+century BC. Our quotation marks descend from it.
+
+The app does the same job: it points, in the margin, at what deserves your
+attention.
+
+---
 
 ## Credits
 
-The notch behaviour was learned by reading
-[boring.notch](https://github.com/TheBoredTeam/boring.notch), whose approach of
-keeping the window fixed and animating only the shape inside it is what makes
-the panel feel like it belongs to the hardware.
+The notch window architecture — a fixed-size panel with the shape animating
+inside it, rather than resizing the window — was learned by reading
+[boring.notch](https://github.com/TheBoredTeam/boring.notch).
