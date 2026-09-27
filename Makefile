@@ -3,7 +3,7 @@ BUNDLE := com.chagas42.diple
 BUILD  := .build/release
 DEST   := build/$(APP).app
 
-.PHONY: build app run stop clean
+.PHONY: build app run install stop clean
 
 build:
 	swift build -c release
@@ -24,6 +24,18 @@ run: app stop
 		-f $(DEST) 2>/dev/null || true
 	-@killall usernoted 2>/dev/null || true
 	open $(DEST)
+
+install: app
+	@# O Notification Center resolve o ícone por bundle id e guarda o caminho.
+	@# Em build/ o bundle é apagado e recriado a cada compilação, então o
+	@# registro aponta para um inode morto e o banner vem sem ícone.
+	rm -rf /Applications/$(APP).app
+	cp -R $(DEST) /Applications/$(APP).app
+	-@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+		-f /Applications/$(APP).app 2>/dev/null || true
+	-@killall usernoted 2>/dev/null || true
+	-@killall Dock 2>/dev/null || true
+	@echo "instalado em /Applications/$(APP).app"
 
 icone:
 	swift Resources/icone-fonte/gerar-icns.swift
