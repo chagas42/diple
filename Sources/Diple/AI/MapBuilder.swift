@@ -70,7 +70,7 @@ struct MapBuilder: Sendable {
         in folder: URL, model: String, language: String
     ) -> AsyncStream<MapStep> {
         let skill = MapSkill.resolve()
-        let prompt = prompt(map: map, titles: titles, candidates: candidates, language: language, skill: skill)
+        let prompt = self.prompt(map: map, titles: titles, candidates: candidates, language: language, skill: skill)
 
         return AsyncStream { cont in
             let task = Task {

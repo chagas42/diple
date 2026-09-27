@@ -1,27 +1,51 @@
 import Foundation
 
+enum DeepReview {
+    static let skill = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".claude/skills/diple-review/SKILL.md")
+
+    static var available: Bool { FileManager.default.fileExists(atPath: skill.path) }
+}
+
+private final class ReviewProcessBox: @unchecked Sendable {
+    let process: Process
+    init(_ process: Process) { self.process = process }
+}
+
 struct Reviewer: Sendable {
     private static let allowedTools = [
         "Read", "Grep", "Glob",
         "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git status:*)",
-    ].joined(separator: " ")
+    ]
+
+    private static let deepTools = ["Skill", "Agent"]
 
     private static let deniedTools = [
         "Write", "Edit", "MultiEdit", "NotebookEdit",
         "Bash(gh:*)", "Bash(git push:*)", "Bash(git commit:*)",
-        "Bash(curl:*)", "WebFetch",
+        "Bash(curl:*)", "WebFetch", "WebSearch",
     ].joined(separator: " ")
 
-    func review(pr: PR, base: String, in folder: URL, model: String, language: String) -> AsyncStream<ReviewStep> {
-        AsyncStream { cont in
+    func review(
+        pr: PR, context: ReviewContext, viewer: String,
+        in folder: URL, model: String, language: String
+    ) -> AsyncStream<ReviewStep> {
+        let deep = DeepReview.available
+        let prompt = deep
+            ? deepPrompt(pr: pr, context: context, viewer: viewer, language: language)
+            : self.prompt(pr: pr, base: context.base, language: language)
+        let allowed = (Self.allowedTools + (deep ? Self.deepTools : [])).joined(separator: " ")
+
+        return AsyncStream { cont in
             let task = Task {
                 guard let p = try? Tools.process("claude", [
-                    "-p", prompt(pr: pr, base: base, language: language),
+                    "-p",
                     "--output-format", "stream-json",
                     "--verbose",
                     "--permission-mode", "dontAsk",
-                    "--allowed-tools", Self.allowedTools,
+                    "--allowed-tools", allowed,
                     "--disallowed-tools", Self.deniedTools,
+                    "--strict-mcp-config",
                     "--model", model,
                 ]) else {
                     cont.yield(.failed(MissingTool(name: "claude").localizedDescription))
@@ -31,7 +55,9 @@ struct Reviewer: Sendable {
                 p.currentDirectoryURL = folder
 
                 let out = Pipe()
+                let input = Pipe()
                 p.standardOutput = out
+                p.standardInput = input
                 p.standardError = FileHandle.nullDevice
 
                 do { try p.run() } catch {
@@ -39,20 +65,26 @@ struct Reviewer: Sendable {
                     cont.finish()
                     return
                 }
+                input.fileHandleForWriting.write(Data(prompt.utf8))
+                try? input.fileHandleForWriting.close()
+                if deep { cont.yield(.preparing("deep review · ~/.claude/skills/diple-review")) }
 
+                let box = ReviewProcessBox(p)
                 var buffer = Data()
                 var result: String?
-
-                for try await chunk in out.fileHandleForReading.bytes.chunks() {
-                    guard !Task.isCancelled else { break }
-                    buffer.append(chunk)
-                    while let newline = buffer.firstIndex(of: 0x0A) {
-                        let line = buffer[..<newline]
-                        buffer = buffer[buffer.index(after: newline)...]
-                        if let passo = parse(line, result: &result) {
-                            cont.yield(passo)
+                await withTaskCancellationHandler {
+                    for await chunk in out.fileHandleForReading.bytes.chunks() {
+                        buffer.append(chunk)
+                        while let newline = buffer.firstIndex(of: 0x0A) {
+                            let line = buffer[..<newline]
+                            buffer = buffer[buffer.index(after: newline)...]
+                            if let step = parse(line, result: &result) {
+                                cont.yield(step)
+                            }
                         }
                     }
+                } onCancel: {
+                    box.process.terminate()
                 }
 
                 p.waitUntilExit()
@@ -62,7 +94,13 @@ struct Reviewer: Sendable {
                     cont.finish()
                     return
                 }
-                cont.yield(.done(Self.extract(text)))
+                switch Self.result(text) {
+                case .success(var r):
+                    r.deep = deep
+                    cont.yield(.done(r))
+                case .failure(let e):
+                    cont.yield(.failed(e.message))
+                }
                 cont.finish()
             }
             cont.onTermination = { _ in task.cancel() }
@@ -84,11 +122,14 @@ struct Reviewer: Sendable {
             let parts = ((o["message"] as? [String: Any])?["content"] as? [[String: Any]]) ?? []
             for c in parts where (c["type"] as? String) == "tool_use" {
                 let name = (c["name"] as? String) ?? "?"
-                let alvo = ((c["input"] as? [String: Any])?["file_path"] as? String)
-                    ?? ((c["input"] as? [String: Any])?["pattern"] as? String)
-                    ?? ((c["input"] as? [String: Any])?["command"] as? String)
-                let curto = alvo.map { String($0.split(separator: "/").last ?? "").prefix(40) }
-                return .tool(curto.map { "\(name) \($0)" } ?? name)
+                let input = c["input"] as? [String: Any]
+                let target = (input?["file_path"] as? String)
+                    ?? (input?["pattern"] as? String)
+                    ?? (input?["command"] as? String)
+                    ?? (input?["skill"] as? String)
+                    ?? (input?["description"] as? String)
+                let short = target.map { String($0.split(separator: "/").last ?? "").prefix(40) }
+                return .tool(short.map { "\(name) \($0)" } ?? name)
             }
             return .thinking
 
@@ -101,14 +142,77 @@ struct Reviewer: Sendable {
         }
     }
 
-    static func extract(_ text: String) -> [Finding] {
+    struct Unusable: Error {
+        let message: String
+    }
+
+    static func result(_ text: String) -> Result<ReviewResult, Unusable> {
         guard let start = text.firstIndex(of: "{"),
-              let end = text.lastIndex(of: "}") else { return [] }
-        let body = String(text[start...end])
-        struct Envelope: Decodable { let findings: [Finding] }
-        guard let date = body.data(using: .utf8),
-              let env = try? JSONDecoder().decode(Envelope.self, from: date) else { return [] }
-        return env.findings
+              let end = text.lastIndex(of: "}"),
+              let data = String(text[start...end]).data(using: .utf8),
+              let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .failure(Unusable(message: "the review did not answer in JSON"))
+        }
+        if let e = o["error"] as? String, !e.isEmpty {
+            return .failure(Unusable(message: "the review stopped: \(e)"))
+        }
+        guard o["findings"] != nil || o["threads"] != nil else {
+            return .failure(Unusable(message: "the review answered without findings or threads"))
+        }
+
+        func each<T: Decodable>(_ key: String, as _: T.Type) -> [T] {
+            ((o[key] as? [Any]) ?? []).compactMap { item in
+                guard let d = try? JSONSerialization.data(withJSONObject: item) else { return nil }
+                return try? JSONDecoder().decode(T.self, from: d)
+            }
+        }
+
+        return .success(ReviewResult(
+            summary: (o["summary"] as? String) ?? "",
+            findings: each("findings", as: Finding.self),
+            threads: each("threads", as: ThreadVerdict.self),
+            clean: (o["clean"] as? [String]) ?? [],
+            dropped: (o["dropped"] as? [String]) ?? [],
+            deep: false
+        ))
+    }
+
+    private func deepPrompt(pr: PR, context: ReviewContext, viewer: String, language: String) -> String {
+        func note(_ n: ReviewContext.Note) -> [String: Any] {
+            ["id": n.id, "author": n.author, "bot": n.isBot, "at": n.at, "body": n.body]
+        }
+        let input: [String: Any] = [
+            "repo": pr.repo,
+            "language": language,
+            "viewer": viewer,
+            "base": context.base,
+            "pr": [
+                "number": pr.number, "title": pr.title, "url": pr.url.absoluteString,
+                "author": context.author.isEmpty ? pr.author : context.author,
+                "head": context.head, "body": context.body,
+            ] as [String: Any],
+            "stack": [["number": pr.number, "title": pr.title, "head": context.head] as [String: Any]],
+            "threads": context.threads.map { t in
+                [
+                    "id": t.id, "path": t.path, "line": t.line.map { $0 as Any } ?? NSNull(),
+                    "resolved": t.isResolved, "outdated": t.isOutdated,
+                    "comments": t.comments.map(note),
+                ] as [String: Any]
+            },
+            "conversation": context.conversation.map(note),
+            "reviews": context.reviews.map {
+                ["id": $0.id, "author": $0.author, "bot": $0.isBot, "state": $0.state, "body": $0.body] as [String: Any]
+            },
+        ]
+        let json = (try? JSONSerialization.data(withJSONObject: input, options: [.prettyPrinted, .sortedKeys]))
+            .map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+
+        return """
+        /diple-review
+
+        Input:
+        \(json)
+        """
     }
 
     private func prompt(pr: PR, base: String, language: String) -> String {

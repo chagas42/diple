@@ -132,6 +132,29 @@ the pace measured in tool calls against the expected budget.
 whole decode, which moves the file aside as unreadable. Every field added after
 the first release is optional with a computed accessor.
 
+## The deep review
+
+**It exists only where the skill does.** When `~/.claude/skills/diple-review/SKILL.md`
+is on the machine, the AI review runs it; otherwise it falls back to the plain
+prompt. The skill is not in this repository on purpose: the feature is for the
+people who have it, and shipping the app does not ship it.
+
+**The app fetches the comments, not the model.** The session has no `gh`, so
+the PR body, every review thread (resolved and outdated included), the
+conversation and the reviews come from one GraphQL query and go in the input.
+Reading them in the session would mean giving it a token.
+
+**`Skill` and `Agent` are allowed only in deep mode.** The skill runs
+`mattpocock-skills:code-review`, which fans the two axes out as subagents. The
+disallowed list still applies to them, so they stay read-only.
+
+**A bad entry never sinks the answer.** Findings and verdicts are decoded one
+by one, so a single malformed item is dropped instead of failing the whole
+review into an empty list. The enums read the exact values the prompts ask
+for and fall back to a neutral case on anything else. Before, the prompt asked
+for `correctness`/`confirmed` while the enums held other raw values, and every
+review decoded to nothing.
+
 ## Signing
 
 The bundle is assembled by hand and ad-hoc signed, with no Xcode project and no
