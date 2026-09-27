@@ -17,6 +17,7 @@ struct EstadoSalvo: Codable, Sendable {
     var jaRodouUmaVez: Bool = false
     /// Quem você escolheu acompanhar de perto.
     var seguindo: Set<String> = []
+    var config = Config()
 }
 
 @MainActor
@@ -47,6 +48,11 @@ final class Store {
 
     func marcarLido(_ chave: String) {
         estado.naoLidos.remove(chave)
+        salvar()
+    }
+
+    func guardarConfig(_ c: Config) {
+        estado.config = c
         salvar()
     }
 
