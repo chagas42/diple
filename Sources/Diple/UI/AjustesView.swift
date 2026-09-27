@@ -26,6 +26,23 @@ struct PainelNotificacoes: View {
 
     var body: some View {
         Form {
+            if modelo.silenciandoAgora {
+                Section {
+                    HStack(spacing: 9) {
+                        Image(systemName: "moon.fill").foregroundStyle(.indigo)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("O silêncio está valendo agora")
+                                .font(.system(size: 12.5, weight: .semibold))
+                            Text("Só quem responde você diretamente passa. "
+                                 + "Testar ignora isso de propósito.")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+
             Section {
                 ForEach(TipoEvento.allCases, id: \.self) { t in
                     HStack(spacing: 12) {
@@ -37,9 +54,15 @@ struct PainelNotificacoes: View {
 
                         VStack(alignment: .leading, spacing: 1) {
                             Text(titulo(t)).font(.system(size: 12.5))
-                            Text(dica(t))
-                                .font(.system(size: 10.5))
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 5) {
+                                Text(dica(t))
+                                if modelo.config.som(t) == nil, modelo.config.avisa(t) {
+                                    Text("· chega sem som")
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
                         }
 
                         Spacer()

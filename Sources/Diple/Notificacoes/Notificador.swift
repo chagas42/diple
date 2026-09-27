@@ -64,12 +64,15 @@ final class Notificador: NSObject, @preconcurrency UNUserNotificationCenterDeleg
         await centro.notificationSettings().authorizationStatus == .authorized
     }
 
-    func postar(_ eventos: [Evento]) async {
-        for e in eventos where config.deixaPassar(e.tipo) {
+    /// `forcando` ignora silêncio e liga/desliga. Só o teste usa: um botão de
+    /// teste que não toca por causa do horário parece app quebrado.
+    func postar(_ eventos: [Evento], forcando: Bool = false) async {
+        for e in eventos where forcando || config.deixaPassar(e.tipo) {
             let c = UNMutableNotificationContent()
             c.title = e.titulo
             c.body = e.corpo
-            if let som = config.som(e.tipo) {
+            if let som = forcando ? (config.sons[e.tipo.rawValue] ?? e.tipo.som) ?? e.tipo.som
+                                   : config.som(e.tipo) {
                 c.sound = UNNotificationSound(named: UNNotificationSoundName("\(som).aiff"))
             }
             // Agrupa tudo do mesmo PR num aviso só em vez de empilhar três.
