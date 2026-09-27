@@ -2,58 +2,172 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Force a bump instead of reading the commits"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  decide:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      release: ${{ steps.next.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Work out the next version
+        id: next
+        run: |
+          last=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          if [ -z "$last" ]; then
+            echo "no tag yet, starting at 0.1.0"
+            echo "version=0.1.0" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          subjects=$(git log "$last"..HEAD --format='%s')
+          bodies=$(git log "$last"..HEAD --format='%b')
+          forced='${{ inputs.bump }}'
+
+          if [ -z "$subjects" ]; then
+            echo "nothing since $last"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          bump=none
+          if echo "$subjects" | grep -qE '^[a-z]+(\(.+\))?!:'; then bump=major
+          elif echo "$bodies" | grep -q 'BREAKING CHANGE'; then bump=major
+          elif echo "$subjects" | grep -qE '^feat(\(.+\))?:'; then bump=minor
+          elif echo "$subjects" | grep -qE '^(fix|perf)(\(.+\))?:'; then bump=patch
+          fi
+
+          if [ "$forced" != "auto" ] && [ -n "$forced" ]; then bump=$forced; fi
+
+          if [ "$bump" = none ]; then
+            echo "only docs/ci/chore since $last — nothing to release"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS=. read -r ma mi pa <<< "${last#v}"
+          case "$bump" in
+            major) ma=$((ma+1)); mi=0; pa=0 ;;
+            minor) mi=$((mi+1)); pa=0 ;;
+            patch) pa=$((pa+1)) ;;
+          esac
+
+          echo "$last -> v$ma.$mi.$pa ($bump)"
+          echo "version=$ma.$mi.$pa" >> "$GITHUB_OUTPUT"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
   release:
+    needs: decide
+    if: needs.decide.outputs.release == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
       - name: Use the newest Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.app
-
-      - name: Version from the tag
-        id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: |
           swift build -c release
           make app
 
-      - name: Stamp the version into the bundle
+      - name: It has to actually launch
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.v.outputs.version }}" build/Diple.app/Contents/Info.plist
+          ./build/Diple.app/Contents/MacOS/Diple > /tmp/launch.log 2>&1 &
+          pid=$!
+          sleep 15
+          if ! kill -0 $pid 2>/dev/null; then
+            echo "::error::the app did not survive 15 seconds — not releasing this"
+            cat /tmp/launch.log
+            ls ~/Library/Logs/DiagnosticReports/Diple*.ips 2>/dev/null | head -1 | xargs -r cat | head -60
+            exit 1
+          fi
+          kill $pid
+
+      - name: Stamp the version
+        env:
+          V: ${{ needs.decide.outputs.version }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $V" build/Diple.app/Contents/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" build/Diple.app/Contents/Info.plist
           codesign --force --sign - --identifier com.chagas42.diple build/Diple.app
 
       - name: Zip it
+        env:
+          V: ${{ needs.decide.outputs.version }}
         run: |
           cd build
-          ditto -c -k --sequesterRsrc --keepParent Diple.app "Diple-${{ steps.v.outputs.version }}.zip"
-          shasum -a 256 "Diple-${{ steps.v.outputs.version }}.zip" | tee "Diple-${{ steps.v.outputs.version }}.zip.sha256"
+          ditto -c -k --sequesterRsrc --keepParent Diple.app "Diple-$V.zip"
+          shasum -a 256 "Diple-$V.zip" | tee "Diple-$V.zip.sha256"
+
+      - name: Tag it
+        env:
+          V: ${{ needs.decide.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$V" -m "v$V"
+          git push origin "v$V"
 
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.decide.outputs.version }}
           files: |
-            build/Diple-${{ steps.v.outputs.version }}.zip
-            build/Diple-${{ steps.v.outputs.version }}.zip.sha256
+            build/Diple-${{ needs.decide.outputs.version }}.zip
+            build/Diple-${{ needs.decide.outputs.version }}.zip.sha256
           generate_release_notes: true
           body: |
             ## Install
 
             ```bash
             brew install --cask chagas42/tap/diple
+            xattr -dr com.apple.quarantine /Applications/Diple.app
             ```
 
-            Or download the zip below, unpack it into `/Applications`, and on
-            first launch right-click → Open. The build is signed ad-hoc, so
-            macOS asks once; notarising needs a paid Apple Developer account.
+            Run that second line, or macOS will tell you Diple is malware: the
+            build is signed ad-hoc, not notarised, which needs a paid Apple
+            Developer account.
 
             Diple borrows the token `gh` already holds, so there is nothing to
-            paste after install — `gh auth login` is the only prerequisite.
+            paste after install.
+
+      - name: Point the Homebrew cask at it
+        env:
+          V: ${{ needs.decide.outputs.version }}
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::TAP_TOKEN is not set, so the cask still points at the previous version."
+            echo "Create a fine-grained PAT with Contents: write on chagas42/homebrew-tap and add it as TAP_TOKEN."
+            exit 0
+          fi
+          sha=$(awk '{print $1}' "build/Diple-$V.zip.sha256")
+          git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/chagas42/homebrew-tap.git" /tmp/tap
+          cd /tmp/tap
+          sed -i '' "s|  version \".*\"|  version \"$V\"|; s|  sha256 \".*\"|  sha256 \"$sha\"|" Casks/diple.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -qam "feat: v$V"
+          git push -q
+          echo "cask now on $V"
