@@ -131,7 +131,6 @@ struct LinhaJanela: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             if let d = degrau, let n = degraus {
-                // O número diz a ordem de leitura, que é o que a pilha carrega.
                 Text("\(d)/\(n)")
                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                     .foregroundStyle(.secondary)

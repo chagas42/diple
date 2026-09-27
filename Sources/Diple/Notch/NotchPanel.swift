@@ -1,7 +1,5 @@
 import AppKit
 
-/// Janela sem moldura que vive acima de tudo, inclusive de app em tela cheia,
-/// e que nunca rouba o foco do que você está fazendo.
 final class NotchPanel: NSPanel {
     init() {
         super.init(
@@ -12,7 +10,7 @@ final class NotchPanel: NSPanel {
         )
         isFloatingPanel = true
         level = .statusBar
-        // fullScreenAuxiliary é o que faz o painel sobreviver a app em tela cheia.
+
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         isOpaque = false
         backgroundColor = .clear
@@ -20,12 +18,11 @@ final class NotchPanel: NSPanel {
         hidesOnDeactivate = false
         isMovableByWindowBackground = false
         acceptsMouseMovedEvents = true
-        // Sem isto, um painel que não ativa exige um clique só pra "acordar"
-        // antes de o botão receber o segundo. É o clique que não pega.
+
         becomesKeyOnlyIfNeeded = true
         animationBehavior = .none
     }
 
-    override var canBecomeKey: Bool { true }   // aceita digitar a resposta
-    override var canBecomeMain: Bool { false } // mas nunca vira a janela principal
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }

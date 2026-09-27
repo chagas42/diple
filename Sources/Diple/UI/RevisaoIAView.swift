@@ -60,7 +60,6 @@ struct RevisaoIAView: View {
                 }
                 Spacer()
                 if let i = modelo.inicioIA {
-                    // Relógio vivo: sem ele a espera não tem escala nenhuma.
                     Text(i, style: .timer)
                         .font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(.secondary)

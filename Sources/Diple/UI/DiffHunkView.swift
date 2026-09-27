@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Desenha o trecho unificado que o GitHub já manda junto do comentário.
-/// O cabeçalho @@ -a,b +c,d @@ diz em que linha o trecho começa.
 struct DiffHunkView: View {
     let hunk: String
 
@@ -41,7 +39,6 @@ struct DiffHunkView: View {
         for bruta in hunk.split(separator: "\n", omittingEmptySubsequences: false) {
             let s = String(bruta)
             if s.hasPrefix("@@") {
-                // @@ -10,7 +24,9 @@ contexto  → a numeração segue o lado novo
                 if let mais = s.split(separator: "+").dropFirst().first,
                    let num = Int(mais.prefix(while: \.isNumber)) {
                     n = num

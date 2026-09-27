@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Resposta crua
-
 struct Resposta: Decodable, Sendable {
     let data: Dados?
     let errors: [ErroGraphQL]?
@@ -39,7 +37,6 @@ struct Ator: Decodable, Sendable {
         __typename == "Bot" || login.hasSuffix("[bot]") || Ator.conhecidos.contains(login)
     }
 
-    /// Bots que se apresentam como User e mesmo assim são ruído.
     private static let conhecidos: Set<String> = [
         "github-actions", "coderabbitai", "dependabot", "renovate",
         "codecov", "sonarcloud", "vercel", "sentry-io",
@@ -68,8 +65,7 @@ struct PRCru: Decodable, Sendable {
         let author: Ator?
         let createdAt: Date
         let bodyText: String
-        /// Só vem em comentário inline. É o trecho de código já recortado
-        /// pelo GitHub — o detalhe não precisa buscar o diff separado.
+
         let diffHunk: String?
     }
     struct Threads: Decodable, Sendable { let nodes: [Thread?] }
@@ -85,8 +81,6 @@ struct PRCru: Decodable, Sendable {
     struct Commit: Decodable, Sendable { let statusCheckRollup: Rollup? }
     struct Rollup: Decodable, Sendable { let state: String }
 }
-
-// MARK: - Modelo do app
 
 enum EstadoCI: String, Sendable {
     case passou, falhou, rodando, nenhum
@@ -112,14 +106,14 @@ struct PR: Identifiable, Sendable, Equatable {
     let autor: String
     let avatarAutor: URL?
     let souEuOAutor: Bool
-    /// As duas refs que revelam pilha: a base de um PR é o topo do anterior.
+
     let ramo: String
     let ramoBase: String
     let ci: EstadoCI
     let aprovado: Bool
-    /// Threads inline abertas, com o trecho de código de cada uma.
+
     let threads: [ThreadPR]
-    /// Último comentário de gente, já sem bot.
+
     let ultimoComentario: ComentarioHumano?
 
     struct ThreadPR: Identifiable, Sendable, Equatable {
@@ -147,9 +141,9 @@ struct PR: Identifiable, Sendable, Equatable {
         let autor: String
         let quando: Date
         let trecho: String
-        /// Preenchido quando veio de uma thread inline: "resend.ts:214".
+
         let onde: String?
-        /// Só existe em comentário inline — é o que permite responder de dentro do app.
+
         let threadId: String?
     }
 
@@ -172,8 +166,6 @@ struct PR: Identifiable, Sendable, Equatable {
         ci = EstadoCI(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         aprovado = c.reviewDecision == "APPROVED"
 
-        // Duas fontes distintas: a conversa do PR e as threads inline no código.
-        // Quase toda resposta de verdade é inline — sem as duas, o app fica cego.
         func humano(_ com: PRCru.Comentario) -> Bool {
             guard let a = com.author else { return false }
             return !a.ehBot && a.login != meuLogin
@@ -202,8 +194,6 @@ struct PR: Identifiable, Sendable, Equatable {
 
         ultimoComentario = candidatos.max { $0.quando < $1.quando }
 
-        // As threads inteiras, pro painel de detalhe: o diffHunk já vem aqui,
-        // então revisar não custa nenhuma chamada extra.
         threads = c.reviewThreads.nodes.compactMap { $0 }
             .filter { !$0.isResolved }
             .compactMap { t in

@@ -27,7 +27,7 @@ struct Achado: Identifiable, Codable, Sendable, Equatable {
     let veredito: Veredito
     let resumo: String
     let detalhe: String
-    /// O que quebra, com entrada concreta. É o que separa apontamento de palpite.
+
     let cenario: String?
 
     var onde: String {
@@ -35,7 +35,6 @@ struct Achado: Identifiable, Codable, Sendable, Equatable {
         return linha.map { "\(nome):\($0)" } ?? nome
     }
 
-    /// Pronto pra colar no GitHub.
     var markdown: String {
         var t = "**\(resumo)**\n\n\(detalhe)"
         if let c = cenario, !c.isEmpty { t += "\n\n> Cenário: \(c)" }
@@ -47,17 +46,14 @@ struct Achado: Identifiable, Codable, Sendable, Equatable {
     }
 }
 
-/// Uma linha do que já aconteceu. O progresso se acumula em vez de se
-/// substituir: uma linha só que troca de texto não dá noção de avanço.
 struct LinhaProgresso: Identifiable, Sendable, Equatable {
     let id = UUID()
     var texto: String
     var concluido: Bool
-    /// Quantas vezes seguidas a mesma coisa apareceu, pra não virar enxurrada.
+
     var repeticoes: Int = 1
 }
 
-/// Estado do que a sessão está fazendo, pra UI poder mostrar progresso.
 enum PassoIA: Sendable, Equatable {
     case preparando(String)
     case pensando

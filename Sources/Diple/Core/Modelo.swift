@@ -6,7 +6,6 @@ import AppKit
 final class Modelo: ObservableObject {
     static let compartilhado = Modelo()
 
-    /// A notch se pendura aqui pra abrir sozinha quando algo chega.
     var aoEvento: ((Evento) -> Void)?
     var aoContadorMudar: (() -> Void)?
 
@@ -17,14 +16,13 @@ final class Modelo: ObservableObject {
     @Published private(set) var permissao = false
     @Published private(set) var naoLidos: Set<String> = []
 
-    // Abas do painel expandido
     @Published var abaNotch: AbaNotch = .fila
     @Published private(set) var equipe: [Pessoa] = []
     @Published private(set) var rank: [LinhaRank] = []
     @Published private(set) var ritmo: [DiaRitmo] = []
     @Published private(set) var seguindo: Set<String> = []
     @Published private(set) var carregandoAba = false
-    // Review pela sua própria sessão do Claude
+
     @Published private(set) var achados: [String: [Achado]] = [:]
     @Published private(set) var passoIA: PassoIA?
     @Published private(set) var progressoIA: [LinhaProgresso] = []
@@ -63,7 +61,6 @@ final class Modelo: ObservableObject {
         }
     }
 
-    // Seleção da janela
     @Published var aba: Aba = .esperando
     @Published var selecionado: PR?
     @Published private(set) var enviando = false
@@ -94,8 +91,6 @@ final class Modelo: ObservableObject {
     private let notificador = Notificador()
     private var timer: Timer?
 
-
-
     private var iniciado = false
 
     func iniciar() {
@@ -116,7 +111,6 @@ final class Modelo: ObservableObject {
 
         religarTimer()
 
-        // Dormir e acordar deixa a fila velha; sincroniza ao voltar.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -124,7 +118,6 @@ final class Modelo: ObservableObject {
         }
     }
 
-    /// Uma sincronização custa 1 ponto dos 5000 por hora, então 60s gasta 60.
     private func religarTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: config.intervalo, repeats: true) { [weak self] _ in
@@ -161,8 +154,6 @@ final class Modelo: ObservableObject {
         }
     }
 
-    /// A organização sai dos repositórios que já estão na fila — nada fixo
-    /// no código.
     var org: String {
         let donos = fila.todos.compactMap { $0.repo.split(separator: "/").first.map(String.init) }
         let contagem = Dictionary(grouping: donos, by: { $0 }).mapValues(\.count)
@@ -174,8 +165,6 @@ final class Modelo: ObservableObject {
         seguindo = store.estado.seguindo
     }
 
-    /// Carrega o que a aba precisa, uma vez. Nada disso entra na sincronização
-    /// de 60s — é dado que muda devagar.
     func carregarAba(_ aba: AbaNotch) async {
         guard !org.isEmpty, !carregandoAba else { return }
         switch aba {
@@ -203,9 +192,6 @@ final class Modelo: ObservableObject {
         }
     }
 
-    /// Roda o Claude da SUA máquina, com a SUA conta, num worktree
-    /// descartável. Nada é publicado: a sessão nasce sem as ferramentas de
-    /// escrita e sem o gh.
     func revisarComIA(_ pr: PR) async {
         guard revisandoIA == nil else { return }
         revisandoIA = pr.chave
@@ -251,15 +237,9 @@ final class Modelo: ObservableObject {
             marcar(error.localizedDescription, fechando: true)
         }
 
-        // O worktree fica: refazer custa uns 3s de fetch e checkout, conferir
-        // custa 10ms. A limpeza do que envelhece roda no lançamento.
         _ = destino
     }
 
-    /// O que muda sai do diff, sem IA. Só a pergunta que exige julgamento —
-    /// o que sente a mudança e o que você precisa conhecer — vai pro Claude.
-    /// Acumula o progresso, fecha o passo anterior e agrupa repetição — uma
-    /// linha só que troca de texto não dá nenhuma noção de avanço.
     private func marcar(_ texto: String, fechando: Bool = false) {
         if var ultima = progressoIA.last, ultima.texto == texto {
             ultima.repeticoes += 1
@@ -294,7 +274,6 @@ final class Modelo: ObservableObject {
             ) {
                 mapas[pr.chave] = m
             } else {
-                // Sem julgamento a gente ainda mostra o que o diff dá.
                 mapas[pr.chave] = Mapa(
                     proposta: pr.titulo,
                     deltas: [],
@@ -311,9 +290,6 @@ final class Modelo: ObservableObject {
         if let d = destino { await Worktree.descartar(origem: origem, destino: d) }
     }
 
-    /// Dispara um aviso de mentira do tipo pedido, pra você ver a animação da
-    /// notch e ouvir o som sem esperar alguém comentar. Usa um PR de verdade
-    /// da sua fila quando existe, pra o texto sair realista.
     func testar(_ tipo: TipoEvento) async {
         let pr = fila.todos.first
         let evento = Evento(
@@ -328,8 +304,6 @@ final class Modelo: ObservableObject {
         await notificador.postar([evento], forcando: true)
     }
 
-    /// Verdadeiro quando o silêncio está valendo agora. A tela de ajustes
-    /// mostra isso, pra o comportamento não parecer defeito.
     var silenciandoAgora: Bool {
         guard config.silencioLigado else { return false }
         return !config.deixaPassar(.comentaram)
@@ -360,8 +334,6 @@ final class Modelo: ObservableObject {
         naoLidos = store.estado.naoLidos
     }
 
-    // MARK: - O que de fato espera por você
-
     var precisamDeVoce: [PR] {
         var vistos = Set<String>()
         var saida: [PR] = []
@@ -385,7 +357,6 @@ final class Modelo: ObservableObject {
 
     func contagem(_ aba: Aba) -> Int { prs(aba).count }
 
-    /// Responde numa thread pela janela. Recarrega a fila pra conversa refletir.
     func responder(thread: String, texto: String) async -> String? {
         let t = texto.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return nil }

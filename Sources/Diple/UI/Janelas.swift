@@ -1,12 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Janelas criadas em AppKit, não como cena do SwiftUI.
-///
-/// O painel da notch é um NSHostingView montado na mão, fora do grafo de
-/// cenas — então `@Environment(\.openWindow)` ali é um no-op silencioso, e o
-/// botão de janela não fazia nada. Com NSWindow a abertura é uma chamada de
-/// método, e funciona de qualquer lugar.
 @MainActor
 final class Janelas: NSObject, NSWindowDelegate {
     static let compartilhado = Janelas()
@@ -14,9 +8,6 @@ final class Janelas: NSObject, NSWindowDelegate {
     private var principal: NSWindow?
     private var ajustes: NSWindow?
 
-    /// O app vive na notch, então normalmente não ocupa lugar no Dock. Com
-    /// janela aberta ele vira app normal — e some de novo quando a última
-    /// fecha. É o que faz o ⌘Tab e o Dock se comportarem como você espera.
     private func ajustarDock() {
         let abertas = [principal, ajustes].contains { $0?.isVisible == true }
         NSApp.setActivationPolicy(abertas ? .regular : .accessory)
@@ -24,7 +15,6 @@ final class Janelas: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        // isVisible ainda é true durante o willClose; decide no próximo ciclo.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(60))
             self.ajustarDock()
@@ -87,7 +77,7 @@ final class Janelas: NSObject, NSWindowDelegate {
         j.title = titulo
         j.titlebarAppearsTransparent = false
         j.contentView = NSHostingView(rootView: conteudo)
-        j.isReleasedWhenClosed = false  // reabrir depois de fechar não pode crashar
+        j.isReleasedWhenClosed = false
         j.center()
         return j
     }
