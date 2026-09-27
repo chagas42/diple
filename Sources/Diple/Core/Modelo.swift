@@ -24,6 +24,11 @@ final class Modelo: ObservableObject {
     @Published private(set) var ritmo: [DiaRitmo] = []
     @Published private(set) var seguindo: Set<String> = []
     @Published private(set) var carregandoAba = false
+    // Review pela sua própria sessão do Claude
+    @Published private(set) var achados: [String: [Achado]] = [:]
+    @Published private(set) var passoIA: PassoIA?
+    @Published private(set) var revisandoIA: String?
+
     @Published var config = Config() {
         didSet {
             guard config != oldValue else { return }
@@ -192,6 +197,41 @@ final class Modelo: ObservableObject {
         } catch {
             erro = error.localizedDescription
         }
+    }
+
+    /// Roda o Claude da SUA máquina, com a SUA conta, num worktree
+    /// descartável. Nada é publicado: a sessão nasce sem as ferramentas de
+    /// escrita e sem o gh.
+    func revisarComIA(_ pr: PR) async {
+        guard revisandoIA == nil else { return }
+        revisandoIA = pr.chave
+        passoIA = .preparando("procurando o repositório")
+        defer { revisandoIA = nil }
+
+        guard let origem = Worktree.localDe(pr.repo, configurados: config.caminhos) else {
+            passoIA = .falhou("não achei \(pr.repo) na sua máquina. Aponte a pasta em Ajustes.")
+            return
+        }
+
+        var destino: URL?
+        do {
+            passoIA = .preparando("preparando worktree descartável")
+            let w = try await Worktree.preparar(origem: origem, repo: pr.repo, pr: pr.numero)
+            destino = w
+
+            for await passo in RevisorIA().revisar(pr: pr, em: w, modelo: config.modeloIA) {
+                passoIA = passo
+                if case .pronto(let lista) = passo { achados[pr.chave] = lista }
+            }
+        } catch {
+            passoIA = .falhou(error.localizedDescription)
+        }
+
+        if let d = destino { await Worktree.descartar(origem: origem, destino: d) }
+    }
+
+    func descartarAchado(_ pr: PR, _ a: Achado) {
+        achados[pr.chave]?.removeAll { $0.id == a.id }
     }
 
     func abrir(_ pr: PR) {
