@@ -4,6 +4,8 @@ import AppKit
 @MainActor
 final class Notch: ObservableObject {
     @Published private(set) var estado: EstadoNotch = .repouso
+    @Published private(set) var pendurado = true
+    @Published private(set) var larguraNotch: CGFloat = 209
 
     private let painel = NotchPanel()
     private weak var modelo: Modelo?
@@ -71,6 +73,8 @@ final class Notch: ObservableObject {
 
     private func aplicar(animado: Bool) {
         let g = Geometria.atual()
+        pendurado = g.temNotch
+        larguraNotch = g.larguraNotch
 
         let alvo: NSRect = switch estado {
         case .repouso: g.repouso(pendencias: modelo?.contador ?? 0)
@@ -94,6 +98,8 @@ final class Notch: ObservableObject {
             NotchView(
                 modelo: modelo,
                 estado: notch.estado,
+                pendurado: notch.pendurado,
+                larguraNotch: notch.larguraNotch,
                 aoEntrar: { notch.abrir() },
                 aoSair: { notch.fechar() }
             )

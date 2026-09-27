@@ -25,6 +25,9 @@ struct NotchView: View {
 
     @ObservedObject var modelo: Modelo
     let estado: EstadoNotch
+    /// Verdadeiro quando pendura no recorte físico.
+    let pendurado: Bool
+    let larguraNotch: CGFloat
     let aoEntrar: () -> Void
     let aoSair: () -> Void
 
@@ -34,13 +37,19 @@ struct NotchView: View {
             .background(Self.pretoDeDispositivo)
             .clipShape(forma)
             .overlay(borda)
-            .shadow(color: .black.opacity(0.5), radius: 14, y: 6)
+            // Pendurado, a sombra fica só embaixo: sombra na borda de cima
+            // desenha um degradê que o olho lê como um segundo preto.
+            .shadow(color: .black.opacity(pendurado ? 0.35 : 0.5),
+                    radius: pendurado ? 10 : 14,
+                    y: pendurado ? 8 : 6)
             .contentShape(Rectangle())
             .onHover { $0 ? aoEntrar() : aoSair() }
     }
 
-    private var forma: RoundedRectangle {
-        RoundedRectangle(cornerRadius: raio, style: .continuous)
+    private var forma: AnyShape {
+        pendurado
+            ? AnyShape(FormaNotch(larguraNotch: larguraNotch, base: raio))
+            : AnyShape(RoundedRectangle(cornerRadius: raio, style: .continuous))
     }
 
     private var raio: CGFloat {
@@ -50,8 +59,12 @@ struct NotchView: View {
         }
     }
 
-    private var borda: some View {
-        forma.stroke(Color.white.opacity(0.13), lineWidth: 1)
+    /// Só a pílula solta ganha contorno. Pendurado, um contorno claro no topo
+    /// denunciaria justamente a emenda que a forma esconde.
+    @ViewBuilder private var borda: some View {
+        if !pendurado {
+            forma.stroke(Color.white.opacity(0.13), lineWidth: 1)
+        }
     }
 
     @ViewBuilder private var conteudo: some View {
@@ -106,7 +119,7 @@ struct NotchView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 14)
+            .padding(.top, pendurado ? 20 : 14)
             .padding(.bottom, 10)
 
             ForEach(Array(modelo.precisamDeVoce.prefix(3))) { pr in
@@ -197,7 +210,7 @@ struct NotchView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 16)
+        .padding(.top, pendurado ? 22 : 16)
         .padding(.bottom, 14)
     }
 }

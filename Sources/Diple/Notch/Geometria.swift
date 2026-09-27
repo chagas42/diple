@@ -29,12 +29,27 @@ struct Geometria {
     /// tamanho do recorte, só pra o hover ter onde acontecer.
     func repouso(pendencias: Int) -> NSRect {
         guard pendencias > 0 else { return alvoInvisivel() }
-        return solto(largura: 248, altura: 30)
+        return temNotch ? pendurado(largura: larguraNotch + 56, altura: 26)
+                        : solto(largura: 248, altura: 30)
     }
 
-    func aberto() -> NSRect { solto(largura: 620, altura: 300) }
+    func aberto() -> NSRect {
+        temNotch ? pendurado(largura: 620, altura: 296)
+                 : solto(largura: 620, altura: 300)
+    }
 
-    func alerta() -> NSRect { solto(largura: 580, altura: 190) }
+    func alerta() -> NSRect {
+        temNotch ? pendurado(largura: 580, altura: 186)
+                 : solto(largura: 580, altura: 190)
+    }
+
+    /// Pendurado na borda de baixo do recorte: o topo do painel encosta
+    /// exatamente onde o bezel termina.
+    private func pendurado(largura: CGFloat, altura: CGFloat) -> NSRect {
+        NSRect(x: tela.frame.midX - largura / 2,
+               y: tela.frame.maxY - alturaTopo - altura,
+               width: largura, height: altura)
+    }
 
     /// Cobre exatamente o recorte (ou o centro da barra, sem recorte).
     /// Nada é desenhado aqui — essa área não é clicável de todo jeito.
