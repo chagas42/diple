@@ -16,6 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         checkScreen()
         Task { await Worktree.pruneStale() }
 
+        if Bench.scenario == "notch-idle" {
+            Task { @MainActor in await BenchScenarios.notchIdle(notch: notch) }
+        }
+
         if CommandLine.arguments.contains("--windowFrame") {
             Windows.shared.openMain(model)
         }
@@ -91,6 +95,9 @@ struct Main {
         if CommandLine.arguments.contains("--tools") {
             Probe.tools()
             exit(0)
+        }
+        if let scenario = Bench.scenario, scenario != "notch-idle" {
+            await BenchScenarios.runHeadless(scenario)
         }
         if CommandLine.arguments.contains("--probe") {
             await Probe.run()

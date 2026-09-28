@@ -36,6 +36,7 @@ struct NotchView: View {
     let onClose: () -> Void
 
     var body: some View {
+        let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 shape.fill(.black)
@@ -339,14 +340,7 @@ struct NotchView: View {
                                             .lineLimit(1)
                                         HStack(spacing: 6) {
                                             if let r = model.needsReason(pr) {
-                                                Text(r.label)
-                                                    .font(.system(size: 9.5, weight: .medium))
-                                                    .foregroundStyle(.orange.opacity(0.95))
-                                                    .padding(.horizontal, 5)
-                                                    .padding(.vertical, 1.5)
-                                                    .background(
-                                                        Capsule().fill(.orange.opacity(0.14))
-                                                    )
+                                                reasonChip(r)
                                             }
                                             Text(meta(pr))
                                                 .font(.system(size: 11))
@@ -387,6 +381,23 @@ struct NotchView: View {
         return base
     }
 
+    @ViewBuilder
+    private func soundNote(_ sound: Settings.AlertSound) -> some View {
+        let note: (String, String)? = switch sound {
+        case .plays(let name): ("speaker.wave.2.fill", name)
+        case .quietHours:      ("moon.fill", "silenced · quiet hours")
+        case .muted:           ("speaker.slash.fill", "muted in Settings")
+        case .silent:          nil
+        }
+        if let (icon, text) = note {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 8.5))
+                Text(text).font(.system(size: 10))
+            }
+            .foregroundStyle(.white.opacity(0.4))
+        }
+    }
+
     private func alert(_ e: Event) -> some View {
         VStack(spacing: 0) {
             alertStrip(e)
@@ -413,13 +424,7 @@ struct NotchView: View {
 
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
-                if let sound = e.kind.sound {
-                    HStack(spacing: 4) {
-                        Image(systemName: "speaker.wave.2.fill").font(.system(size: 8.5))
-                        Text(sound).font(.system(size: 10))
-                    }
-                    .foregroundStyle(.white.opacity(0.4))
-                }
+                soundNote(model.settings.alertSound(e))
                 iconButton("xmark") { onClose() }
             }
             .padding(.trailing, 14 + flare)
@@ -485,6 +490,17 @@ struct NotchView: View {
         .padding(.top, 12)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func reasonChip(_ r: AppModel.NeedsReason) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: r.kind.glyph).font(.system(size: 8, weight: .bold))
+            Text(r.label).font(.system(size: 9.5, weight: .medium))
+        }
+        .foregroundStyle(colorFor(r.kind).opacity(0.95))
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1.5)
+        .background(Capsule().fill(colorFor(r.kind).opacity(0.14)))
     }
 
     private func colorFor(_ t: EventKind) -> Color {

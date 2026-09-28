@@ -40,6 +40,23 @@ struct Settings: Codable, Sendable, Equatable {
         return s.isEmpty ? nil : s
     }
 
+    enum AlertSound: Equatable {
+        case plays(String)
+        case silent
+        case quietHours
+        case muted
+    }
+
+    func alertSound(_ e: Event, now: Date = Date()) -> AlertSound {
+        if e.isTest {
+            let name = sounds[e.kind.rawValue] ?? e.kind.sound
+            return name.flatMap { $0.isEmpty ? nil : AlertSound.plays($0) } ?? .silent
+        }
+        guard alerts(e.kind) else { return .muted }
+        guard shouldInterrupt(e.kind, now: now) else { return .quietHours }
+        return sound(e.kind).map(AlertSound.plays) ?? .silent
+    }
+
     func shouldInterrupt(_ t: EventKind, now: Date = Date()) -> Bool {
         guard alerts(t) else { return false }
         guard quietHoursOn else { return true }

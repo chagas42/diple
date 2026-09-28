@@ -603,7 +603,8 @@ final class AppModel: ObservableObject {
             key: pr?.key ?? "exemplo#1",
             url: pr?.url ?? URL(string: "https://github.com")!,
             title: testText(kind).0,
-            body: pr.map { "\($0.key) · \($0.title)" } ?? testText(kind).1
+            body: pr.map { "\($0.key) · \($0.title)" } ?? testText(kind).1,
+            isTest: true
         )
         onEvent?(event)
         await notificador.post([event], force: true)
@@ -639,22 +640,58 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
     }
 
-    enum NeedsReason: Sendable {
+    enum NeedsReason: Sendable, Equatable {
         case reviewRequested
         case replied
+        case commented
+        case checkFailed
+        case approved
+
+        init(_ kind: EventKind) {
+            switch kind {
+            case .repliedToYou:    self = .replied
+            case .commented:       self = .commented
+            case .reviewRequested: self = .reviewRequested
+            case .checkFailed:     self = .checkFailed
+            case .approved:        self = .approved
+            }
+        }
+
+        var kind: EventKind {
+            switch self {
+            case .replied:         .repliedToYou
+            case .commented:       .commented
+            case .reviewRequested: .reviewRequested
+            case .checkFailed:     .checkFailed
+            case .approved:        .approved
+            }
+        }
+
+        static func of(
+            _ key: String, unread: Set<String>, reasons: [String: EventKind], reviewRequested: Bool
+        ) -> NeedsReason? {
+            if unread.contains(key) { return reasons[key].map(NeedsReason.init) ?? .replied }
+            return reviewRequested ? .reviewRequested : nil
+        }
 
         var label: String {
             switch self {
             case .reviewRequested: "review requested"
             case .replied:         "replied to you"
+            case .commented:       "new comment"
+            case .checkFailed:     "check failing"
+            case .approved:        "approved"
             }
         }
     }
 
     func needsReason(_ pr: PR) -> NeedsReason? {
-        if unread.contains(pr.key) { return .replied }
-        if queue.toReview.contains(where: { $0.key == pr.key }) { return .reviewRequested }
-        return nil
+        NeedsReason.of(
+            pr.key,
+            unread: unread,
+            reasons: store.state.unreadReasons,
+            reviewRequested: queue.toReview.contains { $0.key == pr.key }
+        )
     }
 
     var needsYou: [PR] {

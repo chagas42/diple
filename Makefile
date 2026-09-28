@@ -3,7 +3,36 @@ BUNDLE := com.chagas42.diple
 BUILD  := .build/release
 DEST   := build/$(APP).app
 
-.PHONY: build app run install stop clean
+.PHONY: build app run install stop clean test bench bench-review bench-compare
+
+LABEL       ?= current
+BASE        ?= baseline
+BENCH_OUT   := bench/results/$(LABEL)
+BENCH_STATE := $(CURDIR)/build/bench-state
+BENCH_ENV   := DIPLE_STATE_DIR=$(BENCH_STATE) DIPLE_BENCH_COMMIT=$$(git rev-parse --short HEAD)
+BENCH_BIN   := $(DEST)/Contents/MacOS/$(APP)
+
+test:
+	swift test
+
+bench: app
+	@rm -rf $(BENCH_STATE) && mkdir -p $(BENCH_STATE) $(BENCH_OUT)
+	@echo "  refresh (real GitHub, 10 cycles)"
+	@$(BENCH_ENV) $(BENCH_BIN) --bench refresh --runs 10 --out $(BENCH_OUT)/refresh.json > /dev/null
+	@echo "  launch (5 cold starts over a primed state)"
+	@$(BENCH_ENV) $(BENCH_BIN) --bench launch --runs 5 --out $(BENCH_OUT)/launch.json > /dev/null
+	@echo "  notch-idle (--demo, synthetic pointer at 30 Hz, 20 s)"
+	@$(BENCH_ENV) $(BENCH_BIN) --demo --bench notch-idle --seconds 20 --runs 1 --out $(BENCH_OUT)/notch-idle.json > /dev/null
+	@echo "  results in $(BENCH_OUT)"
+
+bench-review: app
+	@test -n "$(PR)" || (echo "  pass PR=owner/repo#number" && exit 1)
+	@mkdir -p $(BENCH_OUT)
+	@$(BENCH_ENV) $(BENCH_BIN) --bench review-start --pr "$(PR)" --runs 5 --out $(BENCH_OUT)/review-start.json > /dev/null
+	@echo "  results in $(BENCH_OUT)/review-start.json"
+
+bench-compare:
+	@python3 tools/bench-compare.py bench/results/$(BASE) bench/results/$(LABEL)
 
 build:
 	@swift build -c release 2>&1 | grep -vE "^\\[|warning:|^ *[0-9]+ \\||^ *\\||^$$" || true
