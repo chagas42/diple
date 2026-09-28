@@ -218,8 +218,8 @@ struct AccountPane: View {
                     Text("borrowed from gh")
                         .foregroundStyle(.secondary)
                 }
-                LabeledContent("RawRateLimit restante") {
-                    Text("\(model.queue.rateLimitLeft) de 5000")
+                LabeledContent("Rate limit left") {
+                    Text("\(model.queue.rateLimitLeft) of 5000")
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -393,7 +393,7 @@ struct ClaudePane: View {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Usar esta folder"
+        panel.prompt = "Use This Folder"
         if panel.runModal() == .OK, let u = panel.url {
             model.settings.repoPaths[repo] = u.path
         }

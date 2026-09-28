@@ -26,14 +26,14 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
 
         let reply = UNTextInputNotificationAction(
             identifier: Acao.reply,
-            title: "Responder",
+            title: "Reply",
             options: [],
-            textInputButtonTitle: "Enviar",
+            textInputButtonTitle: "Send",
             textInputPlaceholder: "Write your reply…"
         )
         let resolve = UNNotificationAction(
             identifier: Acao.resolve,
-            title: "Resolver thread",
+            title: "Resolve thread",
             options: []
         )
 

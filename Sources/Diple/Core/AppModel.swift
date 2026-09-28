@@ -929,7 +929,7 @@ final class AppModel: ObservableObject {
         let event = Event(
             id: "teste/\(kind.rawValue)/\(Date().timeIntervalSince1970)",
             kind: kind,
-            key: pr?.key ?? "exemplo#1",
+            key: pr?.key ?? "example#1",
             url: pr?.url ?? URL(string: "https://github.com")!,
             title: testText(kind).0,
             body: pr.map { "\($0.key) · \($0.title)" } ?? testText(kind).1,
@@ -949,7 +949,7 @@ final class AppModel: ObservableObject {
         case .repliedToYou: ("Marina replied to you", "resend.ts:214 · what if the ticket already expired?")
         case .commented:      ("Ana commented on your PR", "send.ts:58 · this swallows the 429 silently")
         case .reviewRequested:   ("Rafael requested your review", "4 files · +94 −12")
-        case .checkFailed:     ("A check failed on your PR", "checks / test · 1 de 5 failing")
+        case .checkFailed:     ("A check failed on your PR", "checks / test · 1 of 5 failing")
         case .approved:       ("Your PR was approved", "ready to merge")
         case .newPullRequest: ("Lu opened a pull request", "console #4781 · in a repository you watch")
         }
