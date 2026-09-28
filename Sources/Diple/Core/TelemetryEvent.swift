@@ -23,11 +23,11 @@ enum TelemetryEvent: Sendable, Equatable {
     enum Outcome: String, Sendable { case done, failed }
     enum Source: String, Sendable { case notch, window, notification, menuBar = "menu_bar" }
     enum Rating: String, Sendable { case up, down }
-    enum RetryOutcome: String, Sendable { case recovered, failed }
+    enum RetryOutcome: String, Sendable { case recovered, failed, landed, lost }
 
     enum GitHubRequest: String, Sendable {
         case queueSection = "queue_section"
-        case detail, beat, other
+        case detail, beat, mutation, other
 
         init(query: String) {
             self =

@@ -11,7 +11,7 @@ struct PrivacyPane: View {
         "That you replied, resolved a thread, posted a finding or opened a pull request",
         "Which kind of notification was shown",
         "When something fails: which step, the error's type, code and name, the kind of network (Wi-Fi, wired…) and whether macOS saw it online, how many failed in a row — never its message",
-        "When GitHub times out and Diple tries again: the status, the kind of request and whether the retry worked",
+        "When GitHub times out and Diple tries again, or checks that a comment went through: the status, the kind of request and whether it worked",
     ]
 
     static let neverSent = [
