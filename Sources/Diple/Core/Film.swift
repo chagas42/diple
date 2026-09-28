@@ -29,6 +29,7 @@ enum Film {
         let beats: [Beat] = [
             Beat(name: "01-resting", seconds: 1.6) { notch.closeNow() },
             Beat(name: "02-open", seconds: 2.2) {
+                model.notchTab = .queue
                 model.tab = .needsYou
                 notch.open()
             },
