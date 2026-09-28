@@ -286,7 +286,7 @@ final class AppModel: ObservableObject {
     private func schedulePreload() {
         guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline, preloadTask == nil else { return }
         guard !ProcessInfo.processInfo.isLowPowerModeEnabled, !org.isEmpty else { return }
-        let stale = [NotchTab.ranking, .activity].filter(isStale)
+        let stale = [NotchTab.ranking, .activity].filter { isStale($0) }
         guard !stale.isEmpty else { return }
         preloadTask = Task(priority: .utility) { [weak self] in
             for tab in stale {
