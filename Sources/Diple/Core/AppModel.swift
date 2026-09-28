@@ -25,10 +25,23 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var reviewResults: [String: ReviewResult] = [:]
     @Published private(set) var reviewContexts: [String: ReviewContext] = [:]
-    @Published private(set) var reviewStep: ReviewStep?
-    @Published private(set) var reviewProgress: [ProgressLine] = []
-    @Published private(set) var reviewStartedAt: Date?
-    @Published private(set) var reviewingKey: String?
+    struct ReviewRun: Sendable {
+        var step: ReviewStep?
+        var progress: [ProgressLine] = []
+        var startedAt: Date?
+    }
+
+    @Published private(set) var runs: [String: ReviewRun] = [:]
+
+    func run(_ key: String) -> ReviewRun? { runs[key] }
+    func isReviewing(_ key: String) -> Bool { runs[key]?.step != nil && !finished(key) }
+
+    private func finished(_ key: String) -> Bool {
+        switch runs[key]?.step {
+        case .done, .failed, .none: true
+        default:                    false
+        }
+    }
     @Published private(set) var maps: [String: PRMap] = [:]
     @Published private(set) var mappingKey: String?
     @Published private(set) var mapRun: MapRun?
@@ -197,6 +210,25 @@ final class AppModel: ObservableObject {
             } catch {
                 self.errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    @Published private(set) var posting: Set<UUID> = []
+    @Published private(set) var posted: Set<UUID> = []
+
+    func postOnGitHub(_ finding: Finding, on pr: PR) async {
+        guard !posting.contains(finding.id), !posted.contains(finding.id) else { return }
+        posting.insert(finding.id)
+        defer { posting.remove(finding.id) }
+        do {
+            try await client.startThread(
+                prId: pr.id, path: finding.path, line: finding.line,
+                body: finding.comment ?? finding.summary
+            )
+            posted.insert(finding.id)
+            await refresh()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -378,66 +410,66 @@ final class AppModel: ObservableObject {
     }
 
     func runAIReview(_ pr: PR) async {
-        guard reviewingKey == nil else { return }
-        reviewingKey = pr.key
-        reviewProgress = []
-        reviewStartedAt = Date()
-        note("finding the repository")
-        defer { reviewingKey = nil }
+        guard !isReviewing(pr.key) else { return }
+        runs[pr.key] = ReviewRun(step: .preparing("starting"), startedAt: Date())
+        note(pr.key, "finding the repository")
 
         guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
-            reviewStep = .failed("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
-            note("repository not found", fechando: true)
+            runs[pr.key]?.step = .failed("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
+            note(pr.key, "repository not found", fechando: true)
             return
         }
 
         var target: URL?
         do {
-            note("reading the PR, its threads and comments from GitHub")
+            note(pr.key, "reading the PR, its threads and comments from GitHub")
             let context = try await client.reviewContext(repo: pr.repo, pr: pr.number)
 
-            note("preparing the worktree")
+            note(pr.key, "preparing the worktree")
             let w = try await Worktree.prepare(
                 origin: origin, repo: pr.repo, pr: pr.number, base: context.base
             )
             target = w
 
-            note(DeepReview.available
+            note(pr.key, DeepReview.available
                  ? "deep review: two axes, the value pass, then \(context.openThreads) open thread\(context.openThreads == 1 ? "" : "s")"
                  : "Claude is reading the code")
             for await step in Reviewer().review(
                 pr: pr, context: context, viewer: queue.viewer,
                 in: w, model: settings.aiModel, language: settings.reviewLanguage
             ) {
-                reviewStep = step
+                runs[pr.key]?.step = step
                 switch step {
-                case .preparing(let t), .tool(let t): note(t)
-                case .thinking: note("thinking")
+                case .preparing(let t), .tool(let t): note(pr.key, t)
+                case .thinking: note(pr.key, "thinking")
                 case .done(let r):
                     reviewContexts[pr.key] = context
                     reviewResults[pr.key] = r
                     let judged = r.threads.isEmpty ? "" : " · \(r.threads.count) thread\(r.threads.count == 1 ? "" : "s") judged"
-                    note("\(r.novel.count) finding\(r.novel.count == 1 ? "" : "s")\(judged)", fechando: true)
-                case .failed(let m): note(m, fechando: true)
+                    note(pr.key, "\(r.novel.count) finding\(r.novel.count == 1 ? "" : "s")\(judged)", fechando: true)
+                case .failed(let m): note(pr.key, m, fechando: true)
                 }
             }
         } catch {
-            reviewStep = .failed(error.localizedDescription)
-            note(error.localizedDescription, fechando: true)
+            runs[pr.key]?.step = .failed(error.localizedDescription)
+            note(pr.key, error.localizedDescription, fechando: true)
         }
 
         _ = target
     }
 
-    private func note(_ text: String, fechando: Bool = false) {
-        if var last = reviewProgress.last, last.text == text {
+    private func note(_ key: String, _ text: String, fechando: Bool = false) {
+        var r = runs[key] ?? ReviewRun()
+        if var last = r.progress.last, last.text == text {
             last.repeats += 1
-            reviewProgress[reviewProgress.count - 1] = last
+            r.progress[r.progress.count - 1] = last
+            runs[key] = r
             return
         }
-        if !reviewProgress.isEmpty { reviewProgress[reviewProgress.count - 1].done = true }
-        reviewProgress.append(ProgressLine(text: text, done: fechando))
-        if reviewProgress.count > 14 { reviewProgress.removeFirst() }
+        if !r.progress.isEmpty { r.progress[r.progress.count - 1].done = true }
+        r.progress.append(ProgressLine(text: text, done: fechando))
+        if r.progress.count > 14 { r.progress.removeFirst() }
+        runs[key] = r
     }
 
     func stackOf(_ pr: PR) -> [PR] {

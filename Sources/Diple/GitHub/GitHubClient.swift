@@ -79,6 +79,27 @@ struct GitHubClient: Sendable {
 }
 
 extension GitHubClient {
+    func startThread(prId: String, path: String, line: Int?, body: String) async throws {
+        let escaped = body
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        let side = line.map { "line: \($0), side: RIGHT," } ?? ""
+        let query = """
+        mutation {
+          addPullRequestReviewThread(input: {
+            pullRequestId: "\(prId)",
+            path: "\(path)",
+            \(side)
+            body: "\(escaped)"
+          }) { thread { id } }
+        }
+        """
+        struct Reply: Decodable, Sendable { let errors: [GraphQLError]? }
+        let r: Reply = try await send(query)
+        if let e = r.errors, !e.isEmpty { throw ClientError.graphql(e.map(\.message)) }
+    }
+
     func reply(threadId: String, body: String) async throws {
         _ = try await mutate(
             """

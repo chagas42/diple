@@ -78,3 +78,26 @@ extension AppModel {
         Editors.open(file: file, line: thread.line, using: editor)
     }
 }
+
+extension AppModel {
+    func openFinding(_ f: Finding, on pr: PR) {
+        var s = "https://github.com/\(pr.repo)/blob/\(pr.headRef)/\(f.path)"
+        if let l = f.line { s += "#L\(l)" }
+        guard let url = URL(string: s) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func openFindingInEditor(_ f: Finding, on pr: PR) {
+        guard let editor = Editors.named(settings.editor) else { return }
+        guard let root = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+            reportOpenFailure("No local checkout for \(pr.repo). Set one in Settings → Claude.")
+            return
+        }
+        let file = root.appendingPathComponent(f.path)
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            reportOpenFailure("\(f.path) is not in the checkout at \(root.path).")
+            return
+        }
+        Editors.open(file: file, line: f.line, using: editor)
+    }
+}

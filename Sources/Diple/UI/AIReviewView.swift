@@ -7,13 +7,35 @@ struct AIReviewView: View {
 
     private var result: ReviewResult? { model.reviewResults[pr.key] }
     private var context: ReviewContext? { model.reviewContexts[pr.key] }
-    private var running: Bool { model.reviewingKey == pr.key }
+    private var running: Bool { model.isReviewing(pr.key) }
+    private var steps: [ProgressLine] { model.run(pr.key)?.progress ?? [] }
+
+    private func byCategory(_ items: [Finding]) -> [(String, [Finding])] {
+        let groups = Dictionary(grouping: sorted(items)) { $0.axis ?? $0.category.label }
+        let rank: (String) -> Int = { name in
+            groups[name]?.compactMap { $0.severity.map(Self.weight) }.max() ?? 0
+        }
+        return groups
+            .map { ($0.key, $0.value) }
+            .sorted { a, b in
+                rank(a.0) == rank(b.0) ? a.0 < b.0 : rank(a.0) > rank(b.0)
+            }
+    }
+
+    private static func weight(_ s: Severity) -> Int {
+        switch s {
+        case .high:    3
+        case .medium:  2
+        case .low:     1
+        case .request: 0
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
-            if running || !model.reviewProgress.isEmpty {
+            if running || !steps.isEmpty {
                 progress
             }
 
@@ -29,8 +51,13 @@ struct AIReviewView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     section("NEW FINDINGS", count: r.novel.count)
-                    ForEach(sorted(r.novel)) { a in
-                        FindingCard(finding: a, stacked: false) { model.discardFinding(pr, a) }
+                    ForEach(byCategory(r.novel), id: \.0) { label, items in
+                        CategoryGroup(
+                            label: label,
+                            items: items,
+                            model: model,
+                            pr: pr
+                        )
                     }
                 }
 
@@ -44,7 +71,7 @@ struct AIReviewView: View {
                 if !r.alreadyRaised.isEmpty {
                     DisclosureGroup("Found too, but someone raised it already (\(r.alreadyRaised.count))") {
                         ForEach(r.alreadyRaised) { a in
-                            FindingCard(finding: a, stacked: true) { model.discardFinding(pr, a) }
+                            FindingCard(model: model, pr: pr, finding: a, stacked: true) { model.discardFinding(pr, a) }
                         }
                     }
                     .font(.system(size: 12))
@@ -100,7 +127,7 @@ struct AIReviewView: View {
             } label: {
                 Label(result == nil ? "Review with AI" : "Review again", systemImage: "play.fill")
             }
-            .disabled(model.reviewingKey != nil)
+            .disabled(running)
             .keyboardShortcut("r", modifiers: [.command, .option])
         }
     }
@@ -118,7 +145,7 @@ struct AIReviewView: View {
                         .font(.system(size: 12, weight: .semibold))
                 }
                 Spacer()
-                if let i = model.reviewStartedAt {
+                if let i = model.run(pr.key)?.startedAt {
                     Text(i, style: .timer)
                         .font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -127,7 +154,7 @@ struct AIReviewView: View {
             }
             .padding(.bottom, 8)
 
-            ForEach(model.reviewProgress) { line in
+            ForEach(steps) { line in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: line.done ? "checkmark" : "circle.dotted")
                         .font(.system(size: 9, weight: .bold))
@@ -212,66 +239,132 @@ struct SummaryCard: View {
 }
 
 struct FindingCard: View {
+    @ObservedObject var model: AppModel
+    let pr: PR
     let finding: Finding
     let stacked: Bool
     let onDiscard: () -> Void
+
     @State private var showWhy = false
+    @State private var copied = false
+
+    private var accent: Color {
+        guard let s = finding.severity else {
+            return finding.verdict == .confirmed ? .orange : .secondary
+        }
+        return color(s)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 7) {
-                if let s = finding.severity { badge(s.label, color: color(s)) }
-                badge(finding.axis ?? finding.category.label, color: .secondary)
-                badge(finding.verdict.label, color: finding.verdict == .confirmed ? .green : .secondary)
-                if finding.inline == false { badge("PR conversation", color: .teal) }
-                Spacer()
-                if let n = finding.pr {
-                    Text("#\(n)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+        HStack(alignment: .top, spacing: 0) {
+            Rectangle().fill(accent).frame(width: 3)
+
+            VStack(alignment: .leading, spacing: 9) {
+                header
+                Text(finding.summary)
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let c = finding.comment, !c.isEmpty {
+                    Text(c)
+                        .font(.system(size: 12.5))
+                        .textSelection(.enabled)
+                        .padding(11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 7))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    DisclosureGroup("Why it holds", isExpanded: $showWhy) {
+                        why.padding(.top, 4)
+                    }
+                    .font(.system(size: 11.5))
+                } else {
+                    why
                 }
+
+                if stacked {
+                    if let t = finding.raised {
+                        Text("raised in thread \(t)")
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                } else {
+                    actions
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var header: some View {
+        HStack(spacing: 7) {
+            if let s = finding.severity { badge(s.label, color: color(s)) }
+            badge(finding.verdict.label, color: finding.verdict == .confirmed ? .green : .secondary)
+            if finding.inline == false { badge("PR conversation", color: .teal) }
+            Spacer(minLength: 6)
+            if let n = finding.pr {
+                Text("#\(n)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+            }
+            Button {
+                model.openFinding(finding, on: pr)
+            } label: {
                 Text(finding.location)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
-
-            Text(finding.summary)
-                .font(.system(size: 13, weight: .semibold))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let c = finding.comment, !c.isEmpty {
-                Text(c)
-                    .font(.system(size: 12.5))
-                    .textSelection(.enabled)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                DisclosureGroup("Why it holds", isExpanded: $showWhy) {
-                    why.padding(.top, 4)
-                }
-                .font(.system(size: 11.5))
-            } else {
-                why
-            }
-
-            if !stacked {
-                HStack(spacing: 8) {
-                    CopyButton(text: finding.markdown)
-                    Spacer()
-                    Button("Discard", action: onDiscard)
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                }
-            } else if let t = finding.raised {
-                Text("raised in thread \(t)")
-                    .font(.system(size: 10.5, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
+            .buttonStyle(.plain)
+            .help("Open this line")
         }
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary, lineWidth: 1))
+    }
+
+    private var actions: some View {
+        HStack(spacing: 8) {
+            if model.posted.contains(finding.id) {
+                Label("Posted", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.green)
+            } else {
+                Button {
+                    Task { await model.postOnGitHub(finding, on: pr) }
+                } label: {
+                    if model.posting.contains(finding.id) {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Comment on the PR", systemImage: "bubble.left.and.text.bubble.right")
+                            .font(.system(size: 12))
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(model.posting.contains(finding.id))
+                .help("Posts this as your review comment at \(finding.location)")
+            }
+
+            CopyButton(text: finding.markdown, label: "Copy")
+
+            if model.localEditor != nil {
+                Button {
+                    model.openFindingInEditor(finding, on: pr)
+                } label: {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Open at this line in \(model.localEditor ?? "your editor")")
+            }
+
+            Spacer()
+
+            Button("Discard", action: onDiscard)
+                .buttonStyle(.plain)
+                .foregroundStyle(.tertiary)
+                .font(.system(size: 12))
+        }
     }
 
     private var why: some View {
@@ -387,5 +480,55 @@ struct ThreadVerdictCard: View {
             .font(.system(size: 9.5))
             .padding(.horizontal, 5).padding(.vertical, 1)
             .background(.quaternary, in: Capsule())
+    }
+}
+
+struct CategoryGroup: View {
+    let label: String
+    let items: [Finding]
+    @ObservedObject var model: AppModel
+    let pr: PR
+
+    @State private var open = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { open.toggle() }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: open ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                    Text(label.uppercased())
+                        .font(.system(size: 10.5, weight: .bold))
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
+                    Text("\(items.count)")
+                        .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    if !open {
+                        Text(items.compactMap(\.severity).map(\.label).joined(separator: " · "))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.quaternary)
+                            .lineLimit(1)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if open {
+                VStack(spacing: 10) {
+                    ForEach(items) { a in
+                        FindingCard(model: model, pr: pr, finding: a, stacked: false) {
+                            model.discardFinding(pr, a)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.bottom, 4)
     }
 }
