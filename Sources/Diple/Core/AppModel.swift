@@ -193,23 +193,30 @@ final class AppModel: ObservableObject {
     }
 
     func selectRepo(_ full: String?) {
+        repoTask?.cancel()
         selectedRepo = full
         repoPRs = []
-        guard let full else { return }
+        guard let full else {
+            loadingRepo = false
+            return
+        }
         loadingRepo = true
         if Demo.isOn {
             repoPRs = Demo.queue.all.filter { $0.repo == full }
             loadingRepo = false
             return
         }
-        Task { [weak self] in
+        repoTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.loadingRepo = false }
             do {
-                self.repoPRs = try await self.client.fetchRepoPRs(full)
+                let prs = try await self.client.fetchRepoPRs(full)
+                guard !Task.isCancelled, self.selectedRepo == full else { return }
+                self.repoPRs = prs
             } catch {
+                guard !Task.isCancelled, self.selectedRepo == full else { return }
                 self.errorMessage = error.localizedDescription
             }
+            self.loadingRepo = false
         }
     }
 
@@ -258,6 +265,9 @@ final class AppModel: ObservableObject {
     private var pendingFull = false
     private var notchOpen = false
     private var refreshTask: Task<Void, Never>?
+    private var refreshKey: String?
+    private var refreshGeneration = 0
+    private var repoTask: Task<Void, Never>?
 
     private var started = false
 
@@ -421,8 +431,9 @@ final class AppModel: ObservableObject {
 
     func loadTab(_ tab: NotchTab, force: Bool = false) {
         guard !org.isEmpty else { return }
-        guard force || refreshingTab == nil else { return }
         guard tab != .queue else { return }
+        let key = tab == .ranking ? "\(tab.rawValue)/\(rankPeriod.rawValue)" : tab.rawValue
+        guard force || refreshKey != key else { return }
 
         let cache = store.state.cache
         let stale: Bool = switch tab {
@@ -433,13 +444,17 @@ final class AppModel: ObservableObject {
         }
         guard force || stale else { return }
 
-        refreshingTab = tab
         refreshTask?.cancel()
-        _ = ()
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        refreshKey = key
+        refreshingTab = tab
         refreshTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.refreshingTab = nil }
             await self.fetchTab(tab)
+            guard self.refreshGeneration == generation else { return }
+            self.refreshingTab = nil
+            self.refreshKey = nil
         }
     }
 
@@ -450,29 +465,44 @@ final class AppModel: ObservableObject {
             activity = Demo.activity
             return
         }
-        var cache = store.state.cache
+        let org = self.org
+        let viewer = queue.viewer
+        let cache = store.state.cache
+        let teamIsStale = cache.team.isEmpty || cache.isStale(cache.teamAt, after: 24 * 3600)
+        let client = self.client
         do {
-            if cache.team.isEmpty || cache.isStale(cache.teamAt, after: 24 * 3600) {
-                cache.team = try await client.fetchTeam(org: org)
-                cache.teamAt = Date()
-                team = cache.team
-            }
+            async let freshTeam: [Person]? = teamIsStale ? client.fetchTeam(org: org) : nil
+            let people = cache.team.isEmpty ? (try await freshTeam ?? []) : cache.team
+
             switch tab {
             case .ranking:
                 let period = rankPeriod
                 let rows = try await client.fetchRanking(
-                    org: org, people: rankingScope(cache.team), from: period.since
+                    org: org, people: rankingScope(people), from: period.since
                 )
-                cache.setRank(rows, for: period)
+                guard !Task.isCancelled else { return }
+                store.updateCache { $0.setRank(rows, for: period) }
                 if period == rankPeriod { ranking = rows }
             case .activity:
-                cache.activity = try await client.fetchActivity(org: org, login: queue.viewer)
-                cache.activityAt = Date()
-                activity = cache.activity
+                let days = try await client.fetchActivity(org: org, login: viewer)
+                guard !Task.isCancelled else { return }
+                store.updateCache {
+                    $0.activity = days
+                    $0.activityAt = Date()
+                }
+                activity = days
             default: break
             }
-            store.saveCache(cache)
+
+            if let fetched = try await freshTeam, !Task.isCancelled {
+                store.updateCache {
+                    $0.team = fetched
+                    $0.teamAt = Date()
+                }
+                team = fetched
+            }
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
         }
     }

@@ -11,6 +11,8 @@ final class StubTransport: Transport, @unchecked Sendable {
     private let lock = NSLock()
     private var handler: @Sendable (String) -> Reply
     private var recorded: [String] = []
+    private var inFlight = 0
+    private var peak = 0
 
     init(_ handler: @escaping @Sendable (String) -> Reply) {
         self.handler = handler
@@ -21,6 +23,9 @@ final class StubTransport: Transport, @unchecked Sendable {
     }
 
     var queries: [String] { lock.withLock { recorded } }
+    var peakConcurrency: Int { lock.withLock { peak } }
+
+    func resetPeak() { lock.withLock { peak = 0 } }
 
     func respond(_ handler: @escaping @Sendable (String) -> Reply) {
         lock.withLock { self.handler = handler }
@@ -30,8 +35,11 @@ final class StubTransport: Transport, @unchecked Sendable {
         let query = Self.query(of: request)
         let reply = lock.withLock {
             recorded.append(query)
+            inFlight += 1
+            peak = max(peak, inFlight)
             return handler(query)
         }
+        defer { lock.withLock { inFlight -= 1 } }
         if reply.delay > .zero { try await Task.sleep(for: reply.delay) }
         let response = HTTPURLResponse(
             url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil
