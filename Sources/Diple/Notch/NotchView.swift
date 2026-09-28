@@ -31,6 +31,8 @@ struct NotchView: View {
     let size: CGSize
     let notchWidth: CGFloat
     let notchHeight: CGFloat
+    var countOnLeft = false
+    var shift: CGFloat = 0
     let eye: EyeState
     let onClose: () -> Void
 
@@ -52,6 +54,7 @@ struct NotchView: View {
             .frame(width: size.width, height: size.height)
 
             .clipShape(shape)
+            .offset(x: shift)
             .contextMenu {
                 Button("Settings…") { Windows.shared.openSettings(model) }
                 Button("Main Window") { Windows.shared.openMain(model) }
@@ -63,6 +66,7 @@ struct NotchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
         .animation(.spring(response: 0.3, dampingFraction: 0.72), value: size)
+        .animation(.spring(response: 0.3, dampingFraction: 0.72), value: shift)
         .animation(.easeOut(duration: 0.22), value: state.kind)
         .animation(.bouncy(duration: 0.35), value: model.count)
     }
@@ -100,22 +104,31 @@ struct NotchView: View {
 
     private var wings: some View {
         HStack(spacing: 0) {
-            EyeView(eye: eye, width: 15)
-                .opacity(model.count > 0 ? 1 : 0.42)
-                .animation(.easeOut(duration: 0.25), value: model.count > 0)
-                .frame(maxWidth: .infinity)
-            Spacer(minLength: notchWidth)
-                .frame(width: notchWidth)
-            Text("\(model.count)")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
-                .monospacedDigit()
-                .contentTransition(.numericText())
-                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
-                .contentTransition(.numericText(value: Double(model.count)))
-                .frame(maxWidth: .infinity)
+            if countOnLeft {
+                count.frame(maxWidth: .infinity)
+                Spacer(minLength: notchWidth)
+                    .frame(width: notchWidth)
+            } else {
+                EyeView(eye: eye, width: 15)
+                    .opacity(model.count > 0 ? 1 : 0.42)
+                    .animation(.easeOut(duration: 0.25), value: model.count > 0)
+                    .frame(maxWidth: .infinity)
+                Spacer(minLength: notchWidth)
+                    .frame(width: notchWidth)
+                count.frame(maxWidth: .infinity)
+            }
         }
         .frame(height: notchHeight)
+    }
+
+    private var count: some View {
+        Text("\(model.count)")
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
+            .monospacedDigit()
+            .contentTransition(.numericText())
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
+            .contentTransition(.numericText(value: Double(model.count)))
     }
 
     private var open: some View {
