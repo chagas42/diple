@@ -603,7 +603,8 @@ final class AppModel: ObservableObject {
             key: pr?.key ?? "exemplo#1",
             url: pr?.url ?? URL(string: "https://github.com")!,
             title: testText(kind).0,
-            body: pr.map { "\($0.key) · \($0.title)" } ?? testText(kind).1
+            body: pr.map { "\($0.key) · \($0.title)" } ?? testText(kind).1,
+            isTest: true
         )
         onEvent?(event)
         await notificador.post([event], force: true)
