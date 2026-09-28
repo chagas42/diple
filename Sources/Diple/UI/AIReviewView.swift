@@ -317,6 +317,7 @@ struct FindingCard: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .clickable()
             .help("Open this line")
         }
     }
@@ -442,6 +443,7 @@ struct ThreadVerdictCard: View {
                     Text(t.location).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                     if let u = t.url {
                         Button { NSWorkspace.shared.open(u) } label: { Image(systemName: "arrow.up.forward.square") }
+                            .clickable()
                             .buttonStyle(.plain)
                             .help("Open the thread on GitHub")
                     }

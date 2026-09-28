@@ -44,16 +44,6 @@ struct DetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onChange(of: pr.key) { section = .conversation }
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    model.open(pr)
-                } label: {
-                    Label("Open on GitHub", systemImage: "arrow.up.forward.square")
-                }
-                .help("Open on GitHub")
-            }
-        }
     }
 
     private var header: some View {
@@ -68,9 +58,27 @@ struct DetailView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("opened by \(pr.author) · updated \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Text("opened by \(pr.author) · updated \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    model.open(pr)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Open \(pr.repo.split(separator: "/").last.map(String.init) ?? "")#\(pr.number)")
+                            .font(.system(size: 12))
+                        Image(systemName: "arrow.up.forward.square")
+                            .font(.system(size: 10.5))
+                    }
+                }
+                .buttonStyle(.link)
+                .clickable()
+                .help("Open this pull request on GitHub")
+
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -145,6 +153,7 @@ struct ThreadView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .clickable()
                 .help("Open the whole file on GitHub")
 
                 Spacer()
@@ -158,6 +167,7 @@ struct ThreadView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
+                    .clickable()
                     .help("Open at this line in \(model.localEditor ?? "your editor")")
                 }
 
