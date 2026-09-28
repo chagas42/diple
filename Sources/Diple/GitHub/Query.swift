@@ -33,7 +33,14 @@ enum Query {
     }
     """
 
-    static let queue = prFragment + """
+    static func queue(watching: Set<String> = []) -> String {
+        let scope = watching.sorted().map { "repo:\($0)" }.joined(separator: " ")
+        let watched = scope.isEmpty ? "" : """
+              watched: search(query: "is:open is:pr -author:@me \(scope) sort:created-desc", type: ISSUE, first: 30) {
+                nodes { ...pr }
+              }
+            """
+        return prFragment + """
     query Queue {
       viewer { login }
       mine: search(query: "is:open is:pr author:@me sort:updated", type: ISSUE, first: 30) {
@@ -45,9 +52,11 @@ enum Query {
       following: search(query: "is:open is:pr involves:@me -author:@me sort:updated", type: ISSUE, first: 30) {
         nodes { ...pr }
       }
+      \(watched)
       rateLimit { remaining resetAt }
     }
     """
+    }
 
     static let beatFragment = """
     fragment beat on PullRequest {

@@ -9,6 +9,7 @@ struct RawResponse: Decodable, Sendable {
         let mine: RawSearch
         let toReview: RawSearch
         let following: RawSearch
+        let watched: RawSearch?
         let rateLimit: RawRateLimit?
     }
 
@@ -51,6 +52,7 @@ struct RawPR: Decodable, Sendable {
     let title: String
     let url: URL
     let updatedAt: Date
+    let createdAt: Date
     let isDraft: Bool
     let headRefName: String
     let baseRefName: String
@@ -105,6 +107,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     let title: String
     let url: URL
     let updatedAt: Date
+    let createdAt: Date
     let draft: Bool
     let author: String
     let authorAvatar: URL?
@@ -161,7 +164,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
 
     init(
         id: String, repo: String, number: Int, title: String, url: URL,
-        updatedAt: Date, draft: Bool, author: String, authorAvatar: URL?, isMine: Bool,
+        updatedAt: Date, createdAt: Date, draft: Bool, author: String, authorAvatar: URL?, isMine: Bool,
         headRef: String, baseRef: String, checks: CheckState, approved: Bool,
         threads: [ReviewThread], lastComment: HumanComment?
     ) {
@@ -171,6 +174,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         self.title = title
         self.url = url
         self.updatedAt = updatedAt
+        self.createdAt = createdAt
         self.draft = draft
         self.author = author
         self.authorAvatar = authorAvatar
@@ -193,6 +197,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         title = c.title
         url = c.url
         updatedAt = c.updatedAt
+        createdAt = c.createdAt
         draft = c.isDraft
         author = c.author?.login ?? "?"
         authorAvatar = c.author?.avatarUrl
@@ -260,8 +265,9 @@ struct Queue: Sendable, Equatable, Codable {
     var mine: [PR] = []
     var toReview: [PR] = []
     var following: [PR] = []
+    var watched: [PR] = []
     var rateLimitLeft: Int = 0
     var rateLimitResetAt: Date? = nil
 
-    var all: [PR] { mine + toReview + following }
+    var all: [PR] { mine + toReview + following + watched }
 }

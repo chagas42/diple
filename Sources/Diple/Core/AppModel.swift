@@ -438,6 +438,7 @@ final class AppModel: ObservableObject {
         defer { loading = false }
 
         do {
+            await sync.setWatching(watching)
             let wantsFull = full || pendingFull
             if let seed = pendingSeed {
                 pendingSeed = nil
@@ -789,6 +790,7 @@ final class AppModel: ObservableObject {
         case .reviewRequested:   ("Rafael requested your review", "4 files · +94 −12")
         case .checkFailed:     ("A check failed on your PR", "checks / test · 1 de 5 failing")
         case .approved:       ("Your PR was approved", "ready to merge")
+        case .newPullRequest: ("Lu opened a pull request", "console #4781 · in a repository you watch")
         }
     }
 
@@ -817,6 +819,7 @@ final class AppModel: ObservableObject {
         case commented
         case checkFailed
         case approved
+        case opened
 
         init(_ kind: EventKind) {
             switch kind {
@@ -825,6 +828,7 @@ final class AppModel: ObservableObject {
             case .reviewRequested: self = .reviewRequested
             case .checkFailed:     self = .checkFailed
             case .approved:        self = .approved
+            case .newPullRequest:  self = .opened
             }
         }
 
@@ -835,6 +839,7 @@ final class AppModel: ObservableObject {
             case .reviewRequested: .reviewRequested
             case .checkFailed:     .checkFailed
             case .approved:        .approved
+            case .opened:          .newPullRequest
             }
         }
 
@@ -852,6 +857,7 @@ final class AppModel: ObservableObject {
             case .commented:       "new comment"
             case .checkFailed:     "check failing"
             case .approved:        "approved"
+            case .opened:          "opened"
             }
         }
     }
