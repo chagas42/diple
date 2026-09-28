@@ -144,6 +144,7 @@ struct NotificationsPane: View {
         case .reviewRequested:   "Someone requested your review"
         case .checkFailed:     "A check failed on one of your PRs"
         case .approved:       "Someone approved your PR"
+        case .newPullRequest: "A pull request opened in a repository you watch"
         }
     }
 
@@ -154,6 +155,7 @@ struct NotificationsPane: View {
         case .reviewRequested:   "Directly to you, or through one of your teams."
         case .checkFailed:     "Only on the first failure; retries do not repeat."
         case .approved:       "Usually enough to see when you open the queue."
+        case .newPullRequest: "Only repositories you starred, only what opens from now on, and never a draft."
         }
     }
 }
