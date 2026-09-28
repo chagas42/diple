@@ -15,8 +15,9 @@ import Testing
             store: Store(directory: StoreDiffTests.tempDirectory(), metrics: metrics)
         )
         await model.refresh()
-        await model.settleState()
         await model.prefetchSettled()
+        await model.tabsSettled()
+        await model.settleState()
         metrics.reset()
 
         for _ in 0..<5 {

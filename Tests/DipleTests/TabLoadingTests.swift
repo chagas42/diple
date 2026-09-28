@@ -70,11 +70,13 @@ final class TabsGitHub: @unchecked Sendable {
 
 @MainActor
 @Suite struct TabLoadingTests {
-    static func model(_ gh: TabsGitHub, store: Store? = nil) -> AppModel {
-        AppModel(
+    static func model(_ gh: TabsGitHub, store: Store? = nil, preloading: Bool = false) -> AppModel {
+        let model = AppModel(
             client: GitHubClient(transport: gh.transport, tokens: CountingTokens(), metrics: Metrics()),
             store: store ?? Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
         )
+        model.preloadsTabs = preloading
+        return model
     }
 
     static func waitUntil(_ timeout: Duration = .seconds(5), _ done: () -> Bool) async {
@@ -148,5 +150,28 @@ final class TabsGitHub: @unchecked Sendable {
         #expect(model.team.count == TabsGitHub.people.count)
         #expect(model.ranking.count == TabsGitHub.people.count)
         #expect(gh.transport.peakConcurrency == 1)
+    }
+
+    @Test func tabsAreReadyBeforeTheyAreOpened() async {
+        let gh = TabsGitHub()
+        let model = Self.model(gh, preloading: true)
+        await model.refresh()
+        await model.tabsSettled()
+        #expect(model.team.count == TabsGitHub.people.count)
+        #expect(model.ranking.count == TabsGitHub.people.count)
+        #expect(model.refreshingTab == nil)
+
+        let before = gh.transport.queries.count
+        model.loadTab(.ranking)
+        model.loadTab(.activity)
+        #expect(model.refreshingTab == nil)
+        #expect(gh.transport.queries.count == before)
+    }
+}
+
+@MainActor
+@Suite struct LaunchLookTests {
+    @Test func theNotchShowsTheEyeAndCountFromTheStart() {
+        #expect(NotchController().state == .active)
     }
 }

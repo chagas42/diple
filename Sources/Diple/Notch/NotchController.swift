@@ -3,7 +3,7 @@ import AppKit
 
 @MainActor
 final class NotchController: ObservableObject {
-    @Published private(set) var state: NotchState = .hidden
+    @Published private(set) var state: NotchState = .active
     @Published private(set) var size: CGSize = .zero
     @Published private(set) var notchWidth: CGFloat = 185
     @Published private(set) var notchHeight: CGFloat = 32
