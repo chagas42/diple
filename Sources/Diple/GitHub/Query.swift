@@ -48,4 +48,44 @@ enum Query {
       rateLimit { remaining resetAt }
     }
     """
+
+    static let beatFragment = """
+    fragment beat on PullRequest {
+      id
+      updatedAt
+      isDraft
+      reviewDecision
+      commits(last: 1) {
+        nodes { commit { statusCheckRollup { state } } }
+      }
+    }
+    """
+
+    static let heartbeatSearches = [
+        "is:open is:pr author:@me sort:updated",
+        "is:open is:pr review-requested:@me sort:updated",
+        "is:open is:pr involves:@me -author:@me sort:updated",
+    ]
+
+    static func heartbeat(_ search: String) -> String {
+        beatFragment + """
+        query Beat {
+          viewer { login }
+          section: search(query: "\(search)", type: ISSUE, first: 30) {
+            nodes { ...beat }
+          }
+          rateLimit { remaining resetAt }
+        }
+        """
+    }
+
+    static func details(_ ids: [String]) -> String {
+        let list = ids.map { "\"\($0)\"" }.joined(separator: ", ")
+        return prFragment + """
+        query Detail {
+          viewer { login }
+          nodes(ids: [\(list)]) { ...pr }
+        }
+        """
+    }
 }

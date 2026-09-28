@@ -33,6 +33,27 @@ reviews in private repos. The activity grid is built from each review's real
 5000/hour. The reviewer ranking is one search per person, all aliased into a
 single request — thirty people still cost 1 point.
 
+**Points are not the problem, bytes are.** The full queue costs 1 point but
+weighs ~430 KB and takes 4–6 s, almost all of it comment bodies and diff
+hunks that did not change since the last minute. The refresh is therefore a
+heartbeat — ids, `updatedAt`, draft, review decision and the check rollup —
+and only pull requests whose heartbeat differs are fetched in full, by id,
+with `nodes(ids:)`. A steady cycle is ~6.7 KB.
+
+**A check finishing does not touch `updatedAt`.** Neither does a review
+decision computed from branch protection. Both are in the heartbeat for that
+reason. New comments, inline replies and pushes do move `updatedAt`: across
+36 real pull requests, no comment was newer than its PR's `updatedAt`, and on
+15 of them the latest activity was an inline comment.
+
+**The heartbeat is trusted for thirty minutes.** After that, and on wake, the
+sync does one full fetch anyway, so anything GitHub changes without moving
+`updatedAt` is at most half an hour stale.
+
+**Three small searches beat one aggregated one.** GitHub runs aliased searches
+one after another; three requests in parallel return in ~1.4 s instead of
+~2.4 s, for 3 points a cycle instead of 1 — about 180 of the 5000 an hour.
+
 ## The notch panel
 
 **The window never resizes.** It is always the open size, pinned to the top.

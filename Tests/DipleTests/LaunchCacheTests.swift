@@ -22,7 +22,7 @@ import Testing
         let relaunched = Self.model(dir, silent)
         relaunched.restoreCached()
         #expect(relaunched.queue.all.count == 36)
-        #expect(relaunched.queue == first.queue)
+        #expect(relaunched.queue.all == first.queue.all)
         #expect(silent.queries.isEmpty)
     }
 
@@ -41,20 +41,21 @@ import Testing
         stale.queue = nil
         stale.teamAt = Date()
         store.saveCache(stale)
-        #expect(store.state.cache.queue == q)
+        #expect(store.state.cache.queue?.all == q.all)
     }
 
     @Test func aRefreshReplacesTheCachedQueue() async {
         let dir = StoreDiffTests.tempDirectory()
-        let first = Self.model(dir, StubTransport(body: FakeWorld.realistic().queueResponse()))
+        let github = FakeGitHub(.realistic())
+        let first = Self.model(dir, github.transport)
         await first.refresh()
         await first.settleState()
 
-        var world = FakeWorld.realistic()
-        world.following.removeLast(8)
-        let second = Self.model(dir, StubTransport(body: world.queueResponse()))
+        github.edit { $0.following.removeLast(8) }
+        let second = Self.model(dir, github.transport)
         second.restoreCached()
         await second.refresh()
+        #expect(second.errorMessage == nil)
         #expect(second.queue.following.count == 10)
         await second.settleState()
 
