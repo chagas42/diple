@@ -48,6 +48,10 @@ struct MapRun: Sendable, Equatable {
     }
 
     func remaining(_ now: Date) -> Double { max(total(now) - elapsed(now), 0) }
+
+    var overdueAfter: Double { estimate.seconds * 2.5 }
+
+    func overdue(_ now: Date) -> Bool { elapsed(now) > overdueAfter }
 }
 
 enum MapTiming {
