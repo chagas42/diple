@@ -66,6 +66,11 @@ fires during the resize itself: open, layout changes, exit fires, close,
 re-enter. The 30 Hz tick that drives the eye also decides hover, with
 asymmetric hysteresis — enters tight, leaves with 14pt of slack.
 
+**Hovering an alert holds it, it does not open the panel.** Opening on hover
+replaced the alert with the queue before its buttons could be reached, and the
+event was gone from view. While the pointer is over an alert its 6 s timer is
+paused; leaving closes it 1.5 s later.
+
 **Never schedule the close from that tick.** Calling a delayed close 30 times a
 second cancels and reschedules it forever, so it never fires. The grace period
 is measured against a timestamp instead.

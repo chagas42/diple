@@ -19,7 +19,8 @@ final class NotchController: ObservableObject {
 
     private var outsideSince: Date?
 
-    private var pointerAnchor: CGPoint?
+    private var holdingAlert = false
+    var afterHover: Duration = .seconds(1.5)
     private var pointerTimer: Timer?
     private var blinkTask: Task<Void, Never>?
     private var wingTimer: Timer?
@@ -87,7 +88,7 @@ final class NotchController: ObservableObject {
         collapseTask?.cancel()
         collapseTask = nil
         outsideSince = nil
-        pointerAnchor = nil
+        holdingAlert = false
         state = idle()
         apply()
         model?.setNotchOpen(false)
@@ -95,13 +96,16 @@ final class NotchController: ObservableObject {
 
     func alert(_ e: Event) {
         guard e.kind.interrupts else { return }
-        collapseTask?.cancel()
-        pointerAnchor = pointer()
+        holdingAlert = false
         state = .alert(e)
         apply()
+        collapse(after: .seconds(6))
+    }
 
+    private func collapse(after delay: Duration) {
+        collapseTask?.cancel()
         collapseTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(6))
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self, self.state != .open else { return }
             self.closeNow()
         }
@@ -135,7 +139,7 @@ final class NotchController: ObservableObject {
         }
     }
 
-    private func checkPointer() {
+    func checkPointer() {
         if Film.isOn { return }
         let g = NotchGeometry.current()
         let shape = g.rect(size, shift: shift)
@@ -147,13 +151,19 @@ final class NotchController: ObservableObject {
         let inside = isOpen ? hotZone.insetBy(dx: -16, dy: -16).contains(m)
                             : hotZone.contains(m)
 
+        if case .alert = state {
+            if inside, !holdingAlert {
+                holdingAlert = true
+                collapseTask?.cancel()
+            } else if !inside, holdingAlert {
+                holdingAlert = false
+                collapse(after: afterHover)
+            }
+            return
+        }
+
         if inside {
             outsideSince = nil
-            if case .alert = state, let a = pointerAnchor {
-                let moved = hypot(m.x - a.x, m.y - a.y) > 8
-                guard moved else { return }
-            }
-            pointerAnchor = nil
             open()
             return
         }
