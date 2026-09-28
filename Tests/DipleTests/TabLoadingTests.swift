@@ -13,7 +13,7 @@ final class TabsGitHub: @unchecked Sendable {
     static let people = (0..<5).map { "p\($0)" }
 
     init() {
-        transport = StubTransport { [unowned self] q in self.reply(q) }
+        transport = StubTransport { [self] q in self.reply(q) }
     }
 
     func delay(repo: String, _ d: Duration) { lock.withLock { repoDelays[repo] = d } }
@@ -101,6 +101,7 @@ final class TabsGitHub: @unchecked Sendable {
         let gh = TabsGitHub()
         let model = Self.model(gh)
         await model.refresh()
+        await model.prefetchSettled()
         gh.delay(ranking: .milliseconds(250))
         model.loadTab(.ranking)
         try? await Task.sleep(for: .milliseconds(30))
@@ -122,6 +123,7 @@ final class TabsGitHub: @unchecked Sendable {
         }
         let model = Self.model(gh, store: store)
         await model.refresh()
+        await model.prefetchSettled()
         gh.delay(team: .milliseconds(400))
         gh.delay(ranking: .milliseconds(400))
 
@@ -138,6 +140,7 @@ final class TabsGitHub: @unchecked Sendable {
         let gh = TabsGitHub()
         let model = Self.model(gh)
         await model.refresh()
+        await model.prefetchSettled()
         gh.delay(team: .milliseconds(100))
         gh.transport.resetPeak()
         model.loadTab(.ranking)

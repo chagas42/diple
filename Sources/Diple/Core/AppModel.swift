@@ -252,11 +252,40 @@ final class AppModel: ObservableObject {
 
     private let sync: SyncEngine
     private var pendingSeed: Queue?
+    let prefetcher: Prefetcher
+    private var prefetchTask: Task<Void, Never>?
 
-    init(client: GitHubClient = GitHubClient(), store: Store = Store()) {
+    init(client: GitHubClient = GitHubClient(), store: Store = Store(), prefetcher: Prefetcher? = nil) {
         self.client = client
         self.store = store
         self.sync = SyncEngine(client: client)
+        self.prefetcher = prefetcher ?? Prefetcher(client: client)
+    }
+
+    func reviewContext(for pr: PR) async throws -> ReviewContext {
+        if let cached = await prefetcher.context(for: pr) { return cached }
+        return try await client.reviewContext(repo: pr.repo, pr: pr.number)
+    }
+
+    func prefetchTargets() -> [Prefetcher.Target] {
+        needsYou.prefix(Prefetcher.depth).map {
+            Prefetcher.Target(pr: $0, origin: Worktree.localPath($0.repo, configured: settings.repoPaths))
+        }
+    }
+
+    func prefetchSettled() async {
+        await prefetchTask?.value
+    }
+
+    private func schedulePrefetch() {
+        guard !Demo.isOn, !Bench.isOn, isOnline, !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        guard prefetchTask == nil else { return }
+        let targets = prefetchTargets()
+        guard !targets.isEmpty else { return }
+        prefetchTask = Task(priority: .utility) { [weak self, prefetcher] in
+            await prefetcher.warm(targets)
+            self?.prefetchTask = nil
+        }
     }
     private var pollTask: Task<Void, Never>?
     private let reachability = Reachability()
@@ -402,6 +431,7 @@ final class AppModel: ObservableObject {
             errorMessage = nil
             await notificador.post(events)
             onCountChange?()
+            schedulePrefetch()
             if let first = events.first(where: { $0.kind.interrupts }) {
                 onEvent?(first)
             }
@@ -528,11 +558,11 @@ final class AppModel: ObservableObject {
         var target: URL?
         do {
             note(pr.key, "reading the PR, its threads and comments from GitHub")
-            let context = try await client.reviewContext(repo: pr.repo, pr: pr.number)
+            let context = try await reviewContext(for: pr)
 
             note(pr.key, "preparing the worktree")
             let w = try await Worktree.prepare(
-                origin: origin, repo: pr.repo, pr: pr.number, base: context.base
+                origin: origin, repo: pr.repo, pr: pr.number, base: context.base, head: context.head
             )
             target = w
 
@@ -606,7 +636,10 @@ final class AppModel: ObservableObject {
         do {
             let scans = try await withThrowingTaskGroup(of: PRFiles.self) { group in
                 for p in prs {
-                    group.addTask { [client] in try await client.changedFiles(repo: p.repo, pr: p.number) }
+                    group.addTask { [client, prefetcher] in
+                        if let cached = await prefetcher.changedFiles(for: p) { return cached }
+                        return try await client.changedFiles(repo: p.repo, pr: p.number)
+                    }
                 }
                 var all: [PRFiles] = []
                 for try await s in group { all.append(s) }

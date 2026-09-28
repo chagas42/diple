@@ -63,28 +63,48 @@ enum Worktree {
     }
 
     @discardableResult
-    static func prepare(origin: URL, repo: String, pr: Int, base: String = "") async throws -> URL {
+    static func prepare(origin: URL, repo: String, pr: Int, base: String = "", head: String = "") async throws -> URL {
         await GitGate.shared.lock(origin.path)
         defer { Task { await GitGate.shared.unlock(origin.path) } }
 
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let name = "\(repo.replacingOccurrences(of: "/", with: "-"))-\(pr)"
         let target = root.appendingPathComponent(name)
+        let ref = "refs/diple/pr-\(pr)"
 
         if FileManager.default.fileExists(atPath: target.path) {
             let current = try? await git(["rev-parse", "HEAD"], in: target)
-            let alvo = try? await git(["rev-parse", "refs/diple/pr-\(pr)"], in: origin)
-            let mesmo = current?.trimmingCharacters(in: .whitespacesAndNewlines)
-                == alvo?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if mesmo, current?.isEmpty == false { return target }
+            let wanted = head.isEmpty ? try? await git(["rev-parse", ref], in: origin) : head
+            let same = current?.trimmingCharacters(in: .whitespacesAndNewlines)
+                == wanted?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if same, current?.isEmpty == false { return target }
             try? await git(["worktree", "remove", "--force", target.path], in: origin)
         }
-        var refs = ["+refs/pull/\(pr)/head:refs/diple/pr-\(pr)"]
+        if await !hasFetched(origin: origin, pr: pr, base: base, head: head) {
+            try await fetchPR(origin: origin, pr: pr, base: base)
+        }
+        _ = try await git(["worktree", "add", "--detach", target.path, ref], in: origin)
+        return target
+    }
 
+    static func prefetchPR(origin: URL, pr: Int, base: String) async throws {
+        await GitGate.shared.lock(origin.path)
+        defer { Task { await GitGate.shared.unlock(origin.path) } }
+        try await fetchPR(origin: origin, pr: pr, base: base)
+    }
+
+    static func fetchPR(origin: URL, pr: Int, base: String) async throws {
+        var refs = ["+refs/pull/\(pr)/head:refs/diple/pr-\(pr)"]
         if !base.isEmpty { refs.append(base) }
         _ = try await git(["fetch", "origin"] + refs + ["--force"], in: origin)
-        _ = try await git(["worktree", "add", "--detach", target.path, "refs/diple/pr-\(pr)"], in: origin)
-        return target
+    }
+
+    static func hasFetched(origin: URL, pr: Int, base: String, head: String) async -> Bool {
+        guard !head.isEmpty else { return false }
+        let local = try? await git(["rev-parse", "refs/diple/pr-\(pr)"], in: origin)
+        guard local?.trimmingCharacters(in: .whitespacesAndNewlines) == head else { return false }
+        guard !base.isEmpty else { return true }
+        return (try? await git(["cat-file", "-e", "\(base)^{commit}"], in: origin)) != nil
     }
 
     static func pruneStale() async {

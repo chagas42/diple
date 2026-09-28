@@ -120,25 +120,44 @@ enum BenchScenarios {
         let client = GitHubClient()
         let samples = Bench.Samples()
         let runs = Bench.runs
-        do {
-            for _ in 0..<runs {
-                if let old = Worktree.existing(repo: repo, pr: number) {
-                    await Worktree.discard(origin: origin, target: old)
-                    try? FileManager.default.removeItem(at: old)
-                }
-                let start = ContinuousClock.now
-                let context = try await client.reviewContext(repo: repo, pr: number)
-                let afterContext = ContinuousClock.now
-                _ = try await Worktree.prepare(origin: origin, repo: repo, pr: number, base: context.base)
-                let end = ContinuousClock.now
-                samples.add("context_ms", start.duration(to: afterContext).millis)
-                samples.add("worktree_cold_ms", afterContext.duration(to: end).millis)
-                samples.add("until_claude_cold_ms", start.duration(to: end).millis)
 
-                let warm = ContinuousClock.now
-                let warmContext = try await client.reviewContext(repo: repo, pr: number)
-                _ = try await Worktree.prepare(origin: origin, repo: repo, pr: number, base: warmContext.base)
-                samples.add("until_claude_warm_ms", warm.duration(to: .now).millis)
+        func removeWorktree() async {
+            guard let old = Worktree.existing(repo: repo, pr: number) else { return }
+            await Worktree.discard(origin: origin, target: old)
+            try? FileManager.default.removeItem(at: old)
+        }
+
+        func untilClaude(_ model: AppModel, _ pr: PR) async throws -> (context: Double, total: Double) {
+            let start = ContinuousClock.now
+            let context = try await model.reviewContext(for: pr)
+            let afterContext = ContinuousClock.now
+            _ = try await Worktree.prepare(
+                origin: origin, repo: repo, pr: number, base: context.base, head: context.head
+            )
+            return (start.duration(to: afterContext).millis, start.duration(to: .now).millis)
+        }
+
+        do {
+            guard let pr = try await client.fetchRepoPRs(repo).first(where: { $0.number == number }) else {
+                Bench.fail("\(target) is not an open pull request")
+            }
+            for _ in 0..<runs {
+                await removeWorktree()
+                let cold = try await untilClaude(AppModel(client: client), pr)
+                samples.add("context_ms", cold.context)
+                samples.add("worktree_cold_ms", cold.total - cold.context)
+                samples.add("until_claude_cold_ms", cold.total)
+
+                await removeWorktree()
+                let model = AppModel(client: client)
+                let warming = ContinuousClock.now
+                await model.prefetcher.warm([.init(pr: pr, origin: origin)])
+                samples.add("prefetch_background_ms", warming.duration(to: .now).millis)
+                let prefetched = try await untilClaude(model, pr)
+                samples.add("until_claude_prefetched_ms", prefetched.total)
+
+                let warm = try await untilClaude(model, pr)
+                samples.add("until_claude_warm_ms", warm.total)
             }
         } catch {
             Bench.fail(error.localizedDescription)

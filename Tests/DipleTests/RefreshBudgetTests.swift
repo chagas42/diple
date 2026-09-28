@@ -16,6 +16,7 @@ import Testing
         )
         await model.refresh()
         await model.settleState()
+        await model.prefetchSettled()
         metrics.reset()
 
         for _ in 0..<5 {
@@ -29,7 +30,7 @@ import Testing
         #expect(s.count(.storeWrites) == 0)
         #expect(s.count(.storeWritesOnMain) == 0)
         #expect(tokens.count == 1)
-        #expect(github.transport.queries.suffix(15).allSatisfy { FakeGitHub.kind($0) == "beat" })
+        #expect(FakeGitHub.syncKinds(github.transport.queries).suffix(15).allSatisfy { $0 == "beat" })
     }
 
     @Test func aRelaunchStartsWithAHeartbeatNotAFullFetch() async throws {
@@ -49,7 +50,7 @@ import Testing
         relaunched.restoreCached()
         let before = github.transport.queries.count
         await relaunched.refresh()
-        #expect(github.transport.queries.dropFirst(before).map(FakeGitHub.kind) == ["beat", "beat", "beat"])
+        #expect(FakeGitHub.syncKinds(github.transport.queries.dropFirst(before)) == ["beat", "beat", "beat"])
         #expect(relaunched.queue.all == first.queue.all)
     }
 
@@ -61,6 +62,6 @@ import Testing
         )
         await model.refresh()
         await model.refresh(full: true)
-        #expect(github.transport.queries.map(FakeGitHub.kind) == ["full", "full"])
+        #expect(FakeGitHub.syncKinds(github.transport.queries) == ["full", "full"])
     }
 }
