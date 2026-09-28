@@ -179,6 +179,7 @@ struct MapCanvasView: View {
                     }
                 }
                 .allowsHitTesting(false)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .clipShape(RoundedRectangle(cornerRadius: 12))

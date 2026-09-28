@@ -9,36 +9,59 @@ struct ScrollCatcher: NSViewRepresentable {
 
     let onMove: (Move) -> Void
 
-    func makeNSView(context: Context) -> Catcher {
-        let v = Catcher()
-        v.onMove = onMove
-        return v
+    func makeNSView(context: Context) -> NSView {
+        let anchor = NSView()
+        context.coordinator.watch(anchor)
+        return anchor
     }
 
-    func updateNSView(_ v: Catcher, context: Context) { v.onMove = onMove }
+    func updateNSView(_ v: NSView, context: Context) {
+        context.coordinator.onMove = onMove
+    }
 
-    final class Catcher: NSView {
-        var onMove: ((Move) -> Void)?
+    func makeCoordinator() -> Coordinator { Coordinator(onMove) }
 
-        override var acceptsFirstResponder: Bool { true }
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    static func dismantleNSView(_ v: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
 
-        override func scrollWheel(with event: NSEvent) {
-            let where_ = convert(event.locationInWindow, from: nil)
-            let at = CGPoint(x: where_.x, y: bounds.height - where_.y)
+    @MainActor
+    final class Coordinator {
+        var onMove: (Move) -> Void
+        private var monitor: Any?
+        private weak var anchor: NSView?
 
-            let wheel = !event.hasPreciseScrollingDeltas
-            let zooming = wheel || event.modifierFlags.contains(.command)
+        init(_ onMove: @escaping (Move) -> Void) { self.onMove = onMove }
 
-            if zooming {
-                let steps = event.scrollingDeltaY
-                guard steps != 0 else { return }
-                let factor = pow(1.0015, wheel ? steps * 6 : steps)
-                onMove?(.zoom(by: factor, at: at))
-            } else {
-                onMove?(.pan(by: CGSize(width: event.scrollingDeltaX,
-                                        height: event.scrollingDeltaY)))
+        func watch(_ view: NSView) {
+            anchor = view
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self, let anchor = self.anchor, let window = anchor.window,
+                      event.window === window
+                else { return event }
+
+                let inView = anchor.convert(event.locationInWindow, from: nil)
+                guard anchor.bounds.contains(inView) else { return event }
+
+                let at = CGPoint(x: inView.x, y: anchor.bounds.height - inView.y)
+                let wheel = !event.hasPreciseScrollingDeltas
+                let zooming = wheel || event.modifierFlags.contains(.command)
+
+                if zooming {
+                    let steps = event.scrollingDeltaY
+                    guard steps != 0 else { return nil }
+                    self.onMove(.zoom(by: pow(1.0015, wheel ? steps * 6 : steps), at: at))
+                } else {
+                    self.onMove(.pan(by: CGSize(width: event.scrollingDeltaX,
+                                                height: event.scrollingDeltaY)))
+                }
+                return nil
             }
+        }
+
+        func stop() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
         }
     }
 }
