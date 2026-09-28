@@ -5,19 +5,19 @@ struct MapaView: View {
     let pr: PR
 
     private var map: PRMap? { model.maps[pr.key] }
-    private var running: Bool { model.mappingKey != nil && model.mapRunKeys.contains(pr.key) }
+    private var running: Bool { model.isMapping(pr.key) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let m = map {
                 MapHeader(model: model, pr: pr, map: m, running: running)
-                if running, let run = model.mapRun { MapProgressView(run: run) }
-                if let n = model.mapNotice { notice(n) }
+                if let run = model.mapRun(pr.key) { MapProgressView(run: run) }
+                if let n = model.mapNotice(pr.key) { notice(n) }
                 MapCanvasView(model: model, map: m, focus: pr.number) {
                     Windows.shared.openMap(model, pr)
                 }
                 MapLegend(map: m)
-            } else if running, let run = model.mapRun {
+            } else if let run = model.mapRun(pr.key) {
                 MapProgressView(run: run)
             } else {
                 empty
@@ -45,7 +45,7 @@ struct MapaView: View {
                 Label(model.stackOf(pr).count > 1 ? "Draw the map of the stack" : "Draw the map",
                       systemImage: "point.topleft.down.to.point.bottomright.curvepath")
             }
-            .disabled(model.mappingKey != nil)
+            .disabled(model.isMapping(pr.key))
         }
     }
 }
@@ -75,7 +75,7 @@ struct MapHeader: View {
                 } label: { Label(map.enriched ? "Redraw" : "Draw with Claude", systemImage: "arrow.clockwise") }
                     .buttonStyle(.link)
                     .font(.system(size: 11.5))
-                    .disabled(model.mappingKey != nil)
+                    .disabled(model.isMapping(pr.key))
             }
             Text(map.intent.isEmpty ? pr.title : map.intent)
                 .font(.system(size: 15, weight: .medium))
@@ -227,8 +227,8 @@ struct MapWindowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let m = model.maps[pr.key] {
-                MapHeader(model: model, pr: pr, map: m, running: model.mapRunKeys.contains(pr.key))
-                if model.mapRunKeys.contains(pr.key), let run = model.mapRun { MapProgressView(run: run) }
+                MapHeader(model: model, pr: pr, map: m, running: model.isMapping(pr.key))
+                if let run = model.mapRun(pr.key) { MapProgressView(run: run) }
                 MapCanvasView(model: model, map: m, focus: pr.number, fill: true, onExpand: nil)
                 MapLegend(map: m)
             } else {
