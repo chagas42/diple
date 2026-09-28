@@ -1,23 +1,22 @@
 import AppKit
 import SwiftUI
 
-private struct PointerCursor: ViewModifier {
-    let active: Bool
+struct PointerArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Tracking() }
+    func updateNSView(_ v: NSView, context: Context) {}
 
-    func body(content: Content) -> some View {
-        content.onHover { inside in
-            guard active else { return }
-            if inside {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
+    final class Tracking: NSView {
+        override func resetCursorRects() {
+            discardCursorRects()
+            addCursorRect(bounds, cursor: .pointingHand)
         }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 
 extension View {
     func clickable(_ active: Bool = true) -> some View {
-        modifier(PointerCursor(active: active))
+        overlay { if active { PointerArea().allowsHitTesting(false) } }
     }
 }
