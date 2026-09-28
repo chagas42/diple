@@ -67,20 +67,9 @@ struct FakeWorld {
         }
         let human = FakeComment(author: "reviewer\(index % 5)", at: at.addingTimeInterval(-300),
                                 body: text(200, seed: index))
-        let threads = (0..<3).map { t in
-            FakeThread(
-                id: "T_\(index)_\(t)",
-                path: "src/module\(t)/file\(index).ts",
-                line: 10 + t,
-                comments: (0..<2).map { c in
-                    FakeComment(
-                        author: c == 0 ? "reviewer\(t)" : author,
-                        at: at.addingTimeInterval(Double(-900 - t * 60 - c * 30)),
-                        body: text(300, seed: index * 100 + t * 10 + c),
-                        hunk: hunk(lines: 8, seed: index + t)
-                    )
-                }
-            )
+        var threads: [FakeThread] = []
+        for t in 0..<3 {
+            threads.append(thread(index, t, author: author, at: at))
         }
         return FakePR(
             id: "PR_\(index)",
@@ -92,6 +81,18 @@ struct FakeWorld {
             conversation: [human] + bots,
             threads: threads
         )
+    }
+
+    static func thread(_ index: Int, _ t: Int, author: String, at: Date) -> FakeThread {
+        var comments: [FakeComment] = []
+        for c in 0..<2 {
+            let who: String = c == 0 ? "reviewer\(t)" : author
+            let offset = Double(-900 - t * 60 - c * 30)
+            let body: String = text(300, seed: index * 100 + t * 10 + c)
+            let diff: String = hunk(lines: 8, seed: index + t)
+            comments.append(FakeComment(author: who, at: at.addingTimeInterval(offset), body: body, hunk: diff))
+        }
+        return FakeThread(id: "T_\(index)_\(t)", path: "src/module\(t)/file\(index).ts", line: 10 + t, comments: comments)
     }
 
     static func realistic() -> FakeWorld {
