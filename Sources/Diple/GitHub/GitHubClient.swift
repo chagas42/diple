@@ -22,7 +22,7 @@ struct GitHubClient: Sendable {
 
     init(
         transport: any Transport = URLSessionTransport(),
-        tokens: any TokenSource = GHTokenSource(),
+        tokens: any TokenSource = CachedTokenSource.shared,
         metrics: Metrics = .shared
     ) {
         self.transport = transport
@@ -31,6 +31,19 @@ struct GitHubClient: Sendable {
     }
 
     func post(_ query: String, variables: [String: String]? = nil) async throws -> Data {
+        let body = try variables.map {
+            try JSONSerialization.data(withJSONObject: ["query": query, "variables": $0])
+        } ?? JSONEncoder().encode(["query": query])
+
+        do {
+            return try await attempt(body)
+        } catch ClientError.http(401) {
+            await tokens.invalidate()
+            return try await attempt(body)
+        }
+    }
+
+    private func attempt(_ body: Data) async throws -> Data {
         let token = try await tokens.current()
 
         var req = URLRequest(url: endpoint)
@@ -38,16 +51,14 @@ struct GitHubClient: Sendable {
         req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
-        req.httpBody = try variables.map {
-            try JSONSerialization.data(withJSONObject: ["query": query, "variables": $0])
-        } ?? JSONEncoder().encode(["query": query])
+        req.httpBody = body
         req.timeoutInterval = 20
 
         let (payload, response) = try await metrics.measure(.request) {
             try await transport.send(req)
         }
         metrics.count(.requests)
-        metrics.count(.bytesOut, by: req.httpBody?.count ?? 0)
+        metrics.count(.bytesOut, by: body.count)
         metrics.count(.bytesIn, by: payload.count)
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
