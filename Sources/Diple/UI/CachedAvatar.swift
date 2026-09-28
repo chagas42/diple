@@ -8,7 +8,7 @@ final class AvatarCache {
     typealias Loader = @Sendable (URL) async -> Data?
 
     private let images = NSCache<NSURL, NSImage>()
-    private var inFlight: [URL: Task<NSImage?, Never>] = [:]
+    private var inFlight: [URL: Task<Data?, Never>] = [:]
     private let load: Loader
     private(set) var loads = 0
 
@@ -23,13 +23,19 @@ final class AvatarCache {
 
     func image(for url: URL) async -> NSImage? {
         if let hit = cached(url) { return hit }
-        if let running = inFlight[url] { return await running.value }
-        loads += 1
-        let task = Task { [load] in await load(url).flatMap(NSImage.init(data:)) }
-        inFlight[url] = task
-        let image = await task.value
+        let task: Task<Data?, Never>
+        if let running = inFlight[url] {
+            task = running
+        } else {
+            loads += 1
+            task = Task { [load] in await load(url) }
+            inFlight[url] = task
+        }
+        let data = await task.value
         inFlight[url] = nil
-        if let image { images.setObject(image, forKey: url as NSURL) }
+        if let hit = cached(url) { return hit }
+        guard let data, let image = NSImage(data: data) else { return nil }
+        images.setObject(image, forKey: url as NSURL)
         return image
     }
 }
@@ -42,7 +48,7 @@ struct CachedAvatar<Placeholder: View>: View {
 
     var body: some View {
         Group {
-            if let image = image ?? url.flatMap(AvatarCache.shared.cached) {
+            if let image = image ?? url.flatMap({ AvatarCache.shared.cached($0) }) {
                 Image(nsImage: image).resizable().scaledToFill()
             } else {
                 placeholder()

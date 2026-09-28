@@ -72,7 +72,8 @@ import Testing
         async let b = cache.image(for: url)
         let (x, y) = await (a, b)
         #expect(x != nil && y != nil)
-        #expect(await cache.image(for: url) != nil)
+        let value1 = await cache.image(for: url)
+        #expect(value1 != nil)
         #expect(cache.cached(url) != nil)
         #expect(cache.loads == 1)
     }
@@ -80,8 +81,10 @@ import Testing
     @Test func aFailedDownloadIsNotCached() async {
         let cache = AvatarCache { _ in nil }
         let url = URL(string: "https://example.invalid/b.png")!
-        #expect(await cache.image(for: url) == nil)
-        #expect(await cache.image(for: url) == nil)
+        let value2 = await cache.image(for: url)
+        #expect(value2 == nil)
+        let value3 = await cache.image(for: url)
+        #expect(value3 == nil)
         #expect(cache.loads == 2)
     }
 }
