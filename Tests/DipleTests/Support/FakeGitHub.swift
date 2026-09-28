@@ -42,7 +42,7 @@ final class FakeGitHub: @unchecked Sendable {
 
     init(_ world: FakeWorld) {
         current = world
-        transport = StubTransport { [unowned self] query in self.reply(query) }
+        transport = StubTransport { [self] query in self.reply(query) }
     }
 
     var world: FakeWorld {
@@ -74,6 +74,11 @@ final class FakeGitHub: @unchecked Sendable {
     static func kind(_ query: String) -> String {
         if query.contains("query Beat") { return "beat" }
         if query.contains("query Detail") { return "detail" }
-        return "full"
+        if query.contains("query Queue") { return "full" }
+        return "other"
+    }
+
+    static func syncKinds<S: Sequence>(_ queries: S) -> [String] where S.Element == String {
+        queries.map(kind).filter { $0 != "other" }
     }
 }

@@ -87,8 +87,8 @@ import Testing
         model.isOnline = true
         let before = github.transport.queries.count
         await model.refresh()
-        #expect(github.transport.queries.dropFirst(before).map(FakeGitHub.kind) == ["full"])
+        #expect(FakeGitHub.syncKinds(github.transport.queries.dropFirst(before)) == ["full"])
         await model.refresh()
-        #expect(FakeGitHub.kind(github.transport.queries.last ?? "") == "beat")
+        #expect((FakeGitHub.syncKinds(github.transport.queries).last ?? "") == "beat")
     }
 }
