@@ -132,10 +132,10 @@ or press **Done**, open **System Settings → Privacy & Security**, scroll to
 
 ```bash
 brew install --cask chagas42/tap/diple
-xattr -dr com.apple.quarantine /Applications/Diple.app
 ```
 
-Homebrew does mark its downloads, so the second line is needed here too.
+Homebrew marks its downloads too, but the cask clears the flag after installing,
+so there is no dialog here either.
 
 ### From source
 
