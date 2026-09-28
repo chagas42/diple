@@ -381,6 +381,23 @@ struct NotchView: View {
         return base
     }
 
+    @ViewBuilder
+    private func soundNote(_ sound: Settings.AlertSound) -> some View {
+        let note: (String, String)? = switch sound {
+        case .plays(let name): ("speaker.wave.2.fill", name)
+        case .quietHours:      ("moon.fill", "silenced · quiet hours")
+        case .muted:           ("speaker.slash.fill", "muted in Settings")
+        case .silent:          nil
+        }
+        if let (icon, text) = note {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 8.5))
+                Text(text).font(.system(size: 10))
+            }
+            .foregroundStyle(.white.opacity(0.4))
+        }
+    }
+
     private func alert(_ e: Event) -> some View {
         VStack(spacing: 0) {
             alertStrip(e)
@@ -407,13 +424,7 @@ struct NotchView: View {
 
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
-                if let sound = e.kind.sound {
-                    HStack(spacing: 4) {
-                        Image(systemName: "speaker.wave.2.fill").font(.system(size: 8.5))
-                        Text(sound).font(.system(size: 10))
-                    }
-                    .foregroundStyle(.white.opacity(0.4))
-                }
+                soundNote(model.settings.alertSound(e))
                 iconButton("xmark") { onClose() }
             }
             .padding(.trailing, 14 + flare)

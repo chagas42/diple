@@ -64,4 +64,5 @@ struct Event: Identifiable, Sendable {
     let body: String
 
     var threadId: String? = nil
+    var isTest = false
 }
