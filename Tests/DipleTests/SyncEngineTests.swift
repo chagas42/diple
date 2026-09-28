@@ -46,7 +46,8 @@ final class FakeClock: @unchecked Sendable {
         let rig = Rig()
         let c = try await rig.cycle()
         #expect(c.kinds == ["full"])
-        #expect(c.queue == (try await rig.truth()))
+        let truth = try await rig.truth()
+        #expect(c.queue == truth)
     }
 
     @Test func aSteadyCycleIsOneSmallRequest() async throws {
@@ -57,7 +58,8 @@ final class FakeClock: @unchecked Sendable {
         #expect(c.kinds == ["beat"])
         #expect(rig.github.transport.queries.count - before == 3)
         #expect(c.bytes < 8_000)
-        #expect(c.queue == (try await rig.truth()))
+        let truth = try await rig.truth()
+        #expect(c.queue == truth)
     }
 
     @Test func onlyTheChangedPullRequestIsFetchedInFull() async throws {
@@ -73,7 +75,8 @@ final class FakeClock: @unchecked Sendable {
         #expect(c.kinds == ["beat", "detail"])
         #expect(FakeGitHub.ids(in: rig.github.transport.queries.last ?? "") == ["PR_3"])
         #expect(c.queue.mine.first { $0.id == "PR_3" }?.title == "Renamed")
-        #expect(c.queue == (try await rig.truth()))
+        let truth = try await rig.truth()
+        #expect(c.queue == truth)
     }
 
     @Test func aCheckThatFinishesWithoutTouchingUpdatedAtIsSeen() async throws {
@@ -94,7 +97,8 @@ final class FakeClock: @unchecked Sendable {
         }
         let c = try await rig.cycle()
         #expect(c.kinds == ["beat"])
-        #expect(c.queue == (try await rig.truth()))
+        let truth = try await rig.truth()
+        #expect(c.queue == truth)
     }
 
     @Test func aNewPullRequestIsFetchedAndAGoneOneDisappears() async throws {
@@ -107,7 +111,8 @@ final class FakeClock: @unchecked Sendable {
         let c = try await rig.cycle()
         #expect(c.kinds == ["beat", "detail"])
         #expect(FakeGitHub.ids(in: rig.github.transport.queries.last ?? "") == ["PR_77"])
-        #expect(c.queue == (try await rig.truth()))
+        let truth = try await rig.truth()
+        #expect(c.queue == truth)
     }
 
     @Test func aDetailThatDoesNotComeBackFallsBackToFull() async throws {
@@ -117,17 +122,21 @@ final class FakeClock: @unchecked Sendable {
         rig.github.hideFromDetails(["PR_5"])
         let c = try await rig.cycle()
         #expect(c.kinds == ["beat", "detail", "full"])
-        #expect(c.queue == (try await rig.truth()))
+        let truth = try await rig.truth()
+        #expect(c.queue == truth)
     }
 
     @Test func itReconcilesWithAFullFetchEveryHalfHour() async throws {
         let rig = Rig()
         _ = try await rig.cycle()
         rig.clock.advance(29 * 60)
-        #expect(try await rig.cycle().kinds == ["beat"])
+        let kinds7 = try await rig.cycle().kinds
+        #expect(kinds7 == ["beat"])
         rig.clock.advance(2 * 60)
-        #expect(try await rig.cycle().kinds == ["full"])
-        #expect(try await rig.cycle().kinds == ["beat"])
+        let kinds8 = try await rig.cycle().kinds
+        #expect(kinds8 == ["full"])
+        let kinds9 = try await rig.cycle().kinds
+        #expect(kinds9 == ["beat"])
     }
 
     @Test func aForcedSyncIsFull() async throws {
@@ -142,7 +151,8 @@ final class FakeClock: @unchecked Sendable {
         await rig.engine.seed(try await rig.truth())
         let c = try await rig.cycle()
         #expect(c.kinds == ["beat"])
-        #expect(c.queue == (try await rig.truth()))
+        let truth = try await rig.truth()
+        #expect(c.queue == truth)
     }
 
     @Test(arguments: [1, 2, 3, 4, 5])
@@ -180,7 +190,8 @@ final class FakeClock: @unchecked Sendable {
                 }
             }
             let c = try await rig.cycle()
-            #expect(c.queue == (try await rig.truth()))
+            let truth = try await rig.truth()
+            #expect(c.queue == truth)
             #expect(!c.kinds.contains("full"))
         }
     }
