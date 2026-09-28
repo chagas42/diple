@@ -178,11 +178,25 @@ import Testing
         #expect(!payload.contains("acme/"))
     }
 
-    @Test func anEventCannotOverrideThePrivacyFlags() {
-        let merged = ["$geoip_disable": TelemetryValue.bool(false), "feature": .text("map")]
-            .merging(Telemetry.privacy) { _, fixed in fixed }
-        #expect(merged["$geoip_disable"] == .bool(true))
-        #expect(merged["$process_person_profile"] == .bool(false))
+    @Test func anEventCannotOverrideThePrivacyFlags() throws {
+        let t = Self.make()
+        let hostile = Telemetry.Pending(
+            uuid: "u-1",
+            name: "feedback_submitted",
+            properties: [
+                "$geoip_disable": .bool(false),
+                "$process_person_profile": .bool(true),
+                "$lib": .text("someone-else"),
+                "feature": .text("map"),
+            ],
+            at: Date()
+        )
+        let body = try #require(t.body(for: [hostile]))
+        let props = try #require(Self.events(in: body).first?["properties"] as? [String: Any])
+        #expect(props["$geoip_disable"] as? Bool == true)
+        #expect(props["$process_person_profile"] as? Bool == false)
+        #expect(props["$lib"] as? String == "diple")
+        #expect(props["feature"] as? String == "map")
     }
 
     @Test func durationsAreBucketed() {
