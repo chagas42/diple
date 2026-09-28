@@ -22,6 +22,7 @@ struct Settings: Codable, Sendable, Equatable {
     var attribution: String = Attribution.onMyOwn.rawValue
     var mapModel: String? = nil
     var shareUsage = true
+    var reviewFilter = ReviewFilter.everyone
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -96,6 +97,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.attribution = try c.decodeIfPresent(String.self, forKey: .attribution) ?? d.attribution
         d.mapModel = try c.decodeIfPresent(String.self, forKey: .mapModel) ?? d.mapModel
         d.shareUsage = try c.decodeIfPresent(Bool.self, forKey: .shareUsage) ?? d.shareUsage
+        d.reviewFilter = (try? c.decodeIfPresent(ReviewFilter.self, forKey: .reviewFilter)) ?? d.reviewFilter
         self = d
     }
 
@@ -132,4 +134,45 @@ enum Attribution: String, CaseIterable, Identifiable, Sendable {
 
 extension Settings {
     var attributionMode: Attribution { Attribution(rawValue: attribution) ?? .onMyOwn }
+}
+
+enum ReviewFilter: String, Codable, Sendable, CaseIterable, Identifiable {
+    case everyone, pickedFirst, onlyPicked
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .everyone:    "Everyone"
+        case .pickedFirst: "Picked first"
+        case .onlyPicked:  "Only picked"
+        }
+    }
+
+    var label: String { "Reviews: \(title.lowercased())" }
+
+    var detail: String {
+        switch self {
+        case .everyone:    "Every review request counts and alerts."
+        case .pickedFirst: "Review requests from picked people come first."
+        case .onlyPicked:  "Others stay in Reviewing, quietly. Asked by name still alerts."
+        }
+    }
+
+    static func isPicked(_ pr: PR, picked: Set<String>) -> Bool {
+        pr.asksYouByName || picked.contains(pr.author)
+    }
+
+    func order(_ prs: [PR], picked: Set<String>) -> [PR] {
+        guard self != .everyone, !picked.isEmpty else { return prs }
+        return prs.filter { Self.isPicked($0, picked: picked) } + prs.filter { !Self.isPicked($0, picked: picked) }
+    }
+
+    func quiets(_ pr: PR, picked: Set<String>) -> Bool {
+        self == .onlyPicked && !picked.isEmpty && !Self.isPicked(pr, picked: picked)
+    }
+
+    static func staysQuiet(unread: Bool, reason: EventKind?) -> Bool {
+        !unread || reason == nil || reason == .reviewRequested
+    }
 }

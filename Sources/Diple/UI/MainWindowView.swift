@@ -205,6 +205,7 @@ struct MainWindowView: View {
                                 step: i + 1,
                                 steps: stack.prs.count
                             )
+                            .opacity(model.dims(pr) ? 0.45 : 1)
                             .tag(pr.key)
                         }
                     } header: {
@@ -224,6 +225,7 @@ struct MainWindowView: View {
                     }
                 } else if let pr = stack.prs.first {
                     PRRow(pr: pr, unread: model.unread.contains(pr.key))
+                        .opacity(model.dims(pr) ? 0.45 : 1)
                         .tag(pr.key)
                 }
             }
