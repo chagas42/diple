@@ -264,7 +264,9 @@ struct PRRow: View {
                 Text("\(d)/\(n)")
                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                     .foregroundStyle(.secondary)
-                    .frame(width: 22)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(minWidth: 22, alignment: .trailing)
                     .padding(.top, 3)
             }
 
