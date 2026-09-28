@@ -158,7 +158,7 @@ import Testing
         await t.flush()
         let events = Self.events(in: try #require(stub.bodies.first))
         let allowed: Set<String> = [
-            "app_version", "$lib", "$process_person_profile",
+            "app_version", "$lib", "$process_person_profile", "$geoip_disable",
             "needs_you", "mine", "to_review", "deep", "outcome", "findings", "threads_judged",
             "duration", "prs_in_stack", "source", "kind",
             "$exception_list", "$exception_level", "$exception_fingerprint",
@@ -169,11 +169,20 @@ import Testing
             #expect(Set(props.keys).isSubset(of: allowed))
             #expect(e["distinct_id"] as? String == "install-1")
             #expect(props["$process_person_profile"] as? Bool == false)
+            #expect(props["$geoip_disable"] as? Bool == true)
+            #expect(!props.keys.contains { $0.hasPrefix("$geoip_") && $0 != "$geoip_disable" })
         }
         #expect(events.map { $0["event"] as! String } == every.map(\.name))
         let payload = String(decoding: try #require(stub.bodies.first), as: UTF8.self)
         #expect(payload.contains("\"api_key\":\"phc_test\""))
         #expect(!payload.contains("acme/"))
+    }
+
+    @Test func anEventCannotOverrideThePrivacyFlags() {
+        let merged = ["$geoip_disable": TelemetryValue.bool(false), "feature": .text("map")]
+            .merging(Telemetry.privacy) { _, fixed in fixed }
+        #expect(merged["$geoip_disable"] == .bool(true))
+        #expect(merged["$process_person_profile"] == .bool(false))
     }
 
     @Test func durationsAreBucketed() {

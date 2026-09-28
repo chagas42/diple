@@ -17,6 +17,7 @@ struct PrivacyPane: View {
         "Your GitHub login, name or e-mail",
         "Repository names, pull request numbers or titles",
         "Code, diffs, comments or file paths",
+        "Your location: no IP geolocation, no city or region",
     ]
 
     var body: some View {

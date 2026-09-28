@@ -173,8 +173,9 @@ What is sent:
 - when something fails: which step (a sync, a reply, a map…), the error's type and numeric code — never its message
 
 What is never sent: your GitHub login, name or e-mail; repository names, pull
-request numbers or titles; code, diffs, comments or file paths. Events carry
-no person profile, and the project discards IP addresses.
+request numbers or titles; code, diffs, comments or file paths; your location. Events carry
+no person profile, and every event asks PostHog to skip IP geolocation, so
+no city, region or coordinates are attached to it.
 
 ## Development
 

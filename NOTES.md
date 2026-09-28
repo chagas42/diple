@@ -238,3 +238,9 @@ log keeps it as `.private`, so `log stream --predicate 'subsystem ==
 not an error: restarting the poll timer while a sync is in flight cancels its
 request, and that used to put "cancelled" on screen and count as a failure for
 the backoff.
+
+**PostHog adds location unless told not to.** GeoIP runs on the server, from the
+request's IP, and fills `$geoip_city_name`, postal code, latitude and more —
+none of it sent by the app. `$geoip_disable: true` on every event turns it off
+at the source; it is merged last, so no event can switch it back on. The
+project's "Discard client IP data" setting is still worth turning on.
