@@ -1,0 +1,39 @@
+{
+  "commit" : "6dc8bb4",
+  "date" : "2026-09-28T00:28:25Z",
+  "machine" : "Mac16,12 · Version 26.5.1 (Build 25F80)",
+  "metrics" : {
+    "requests_before_queue" : {
+      "max" : 3,
+      "mean" : 1.4,
+      "min" : 1,
+      "p50" : 1,
+      "p95" : 3
+    },
+    "time_to_queue_ms" : {
+      "max" : 5130.61775,
+      "mean" : 4661.939550000001,
+      "min" : 4321.548209,
+      "p50" : 4578.489708,
+      "p95" : 5130.61775
+    }
+  },
+  "runs" : 5,
+  "samples" : {
+    "requests_before_queue" : [
+      3,
+      1,
+      1,
+      1,
+      1
+    ],
+    "time_to_queue_ms" : [
+      4527.1675,
+      4751.874583,
+      4321.548209,
+      5130.61775,
+      4578.489708
+    ]
+  },
+  "scenario" : "launch"
+}

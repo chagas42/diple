@@ -33,6 +33,7 @@ struct EyeView: View {
     private var range: CGFloat { width * 0.17 }
 
     var body: some View {
+        let _ = Metrics.shared.body("EyeView")
         ZStack {
             shape.fill(.white.opacity(0.94))
             Circle()

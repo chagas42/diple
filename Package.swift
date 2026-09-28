@@ -9,6 +9,12 @@ let package = Package(
             name: "Diple",
             path: "Sources/Diple",
             swiftSettings: [.swiftLanguageMode(.v6)]
-        )
+        ),
+        .testTarget(
+            name: "DipleTests",
+            dependencies: ["Diple"],
+            path: "Tests/DipleTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
     ]
 )
