@@ -57,7 +57,7 @@ actor Prefetcher {
     private func isStale(_ t: Target) -> Bool {
         let at = t.pr.updatedAt
         guard attempted[t.pr.key] != at else { return false }
-        return contexts[t.pr.key]?.0 != at
+        return (t.pr.isMine && contexts[t.pr.key]?.0 != at)
             || files[t.pr.key]?.0 != at
             || (t.origin != nil && refs[t.pr.key] != at)
     }
@@ -66,19 +66,22 @@ actor Prefetcher {
         let pr = t.pr
         attempted[pr.key] = pr.updatedAt
         let client = self.client
-        async let context = try? client.reviewContext(repo: pr.repo, pr: pr.number)
         async let scan = try? client.changedFiles(repo: pr.repo, pr: pr.number)
-
-        if let c = await context {
-            contexts[pr.key] = (pr.updatedAt, c)
-            if let origin = t.origin, refs[pr.key] != pr.updatedAt {
-                if (try? await fetchRefs(origin, pr.number, c.base)) != nil {
-                    refs[pr.key] = pr.updatedAt
-                }
-            }
+        var context: ReviewContext?
+        if pr.isMine {
+            context = try? await client.reviewContext(repo: pr.repo, pr: pr.number)
         }
-        if let s = await scan {
+        if let context {
+            contexts[pr.key] = (pr.updatedAt, context)
+        }
+        let s = await scan
+        if let s {
             files[pr.key] = (pr.updatedAt, s)
+        }
+        if let origin = t.origin, refs[pr.key] != pr.updatedAt, let base = context?.base ?? s?.base {
+            if (try? await fetchRefs(origin, pr.number, base)) != nil {
+                refs[pr.key] = pr.updatedAt
+            }
         }
     }
 }

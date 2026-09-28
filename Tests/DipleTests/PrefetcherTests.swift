@@ -51,6 +51,10 @@ final class ReviewGitHub: @unchecked Sendable {
     }
 
     func prs() async throws -> [PR] {
+        try await GitHubClient(transport: transport, tokens: CountingTokens(), metrics: Metrics()).fetchQueue().mine
+    }
+
+    func othersPRs() async throws -> [PR] {
         try await GitHubClient(transport: transport, tokens: CountingTokens(), metrics: Metrics()).fetchQueue().toReview
     }
 }
@@ -124,11 +128,19 @@ final class ReviewGitHub: @unchecked Sendable {
         _ = prefetcher
     }
 
+    @Test func someoneElsesPullRequestGetsItsFilesButNoReviewContext() async throws {
+        let (gh, prefetcher) = Self.rig()
+        let theirs = try await gh.othersPRs()[0]
+        await prefetcher.warm([.init(pr: theirs, origin: URL(fileURLWithPath: "/tmp/nowhere"))])
+        #expect(await prefetcher.context(for: theirs) == nil)
+        #expect(await prefetcher.changedFiles(for: theirs) != nil)
+        #expect(Self.count(gh, "context") == 0)
+        #expect(gh.fetchedRefs == [theirs.number])
+    }
+
     @Test func noMoreThanThreePullRequestsWarmAtOnce() async throws {
         let (gh, prefetcher) = Self.rig()
-        var prs = try await gh.prs()
-        prs += try await GitHubClient(transport: gh.transport, tokens: CountingTokens(), metrics: Metrics())
-            .fetchQueue().following.prefix(4)
+        let prs = Array(try await gh.prs().prefix(8))
         gh.delay(.milliseconds(60))
         gh.transport.resetPeak()
         await prefetcher.warm(prs.map { .init(pr: $0, origin: nil) })
@@ -141,7 +153,7 @@ final class ReviewGitHub: @unchecked Sendable {
 
 @MainActor
 @Suite struct PrefetchIntegrationTests {
-    @Test func aRefreshWarmsWhatNeedsYouAndTheReviewUsesIt() async throws {
+    @Test func aRefreshWarmsWhatNeedsYouForTheMapButNotForAReview() async throws {
         let gh = ReviewGitHub()
         let client = GitHubClient(transport: gh.transport, tokens: CountingTokens(), metrics: Metrics())
         let model = AppModel(
@@ -149,15 +161,16 @@ final class ReviewGitHub: @unchecked Sendable {
             store: Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics()),
             prefetcher: Prefetcher(client: client, fetchRefs: gh.fetchRefs)
         )
+        model.preloadsTabs = false
         await model.refresh()
         await model.prefetchSettled()
         let first = try #require(model.needsYou.first)
-        let value4 = await model.prefetcher.context(for: first)
-        #expect(value4 != nil)
-        let before = PrefetcherTests.count(gh, "context")
-        let context = try await model.reviewContext(for: first)
-        #expect(context.head == "head111")
-        #expect(PrefetcherTests.count(gh, "context") == before)
+        #expect(!first.isMine)
+        let files = await model.prefetcher.changedFiles(for: first)
+        let context = await model.prefetcher.context(for: first)
+        #expect(files != nil)
+        #expect(context == nil)
+        #expect(PrefetcherTests.count(gh, "context") == 0)
         #expect(model.prefetchTargets().count == min(Prefetcher.depth, model.needsYou.count))
     }
 }

@@ -690,7 +690,7 @@ final class AppModel: ObservableObject {
     }
 
     func runAIReview(_ pr: PR) async {
-        guard !isReviewing(pr.key) else { return }
+        guard pr.isMine, !isReviewing(pr.key) else { return }
         let reviewStarted = Date()
         let deep = DeepReview.available
         runs[pr.key] = ReviewRun(step: .preparing("starting"), startedAt: reviewStarted)

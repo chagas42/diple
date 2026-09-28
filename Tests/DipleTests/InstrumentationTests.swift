@@ -87,13 +87,25 @@ import Testing
     @Test func aReviewThatCannotStartStillReportsHowItEnded() async {
         let rig = Rig()
         await rig.model.refresh()
-        await rig.model.runAIReview(rig.model.queue.toReview[0])
+        await rig.model.runAIReview(rig.model.queue.mine[0])
         let events = await rig.sent()
         #expect(events.filter { $0.name == "ai_review_started" }.count == 1)
         let finished = events.first { $0.name == "ai_review_finished" }
         #expect(finished?.properties["outcome"] as? String == "failed")
         #expect(finished?.properties["findings"] as? Int == 0)
         #expect(finished?.properties["duration"] as? String == "lt_30s")
+    }
+
+    @Test func someoneElsesPullRequestCannotBeReviewedWithAI() async {
+        let rig = Rig()
+        await rig.model.refresh()
+        let theirs = rig.model.queue.toReview[0]
+        #expect(!theirs.isMine)
+        await rig.model.runAIReview(theirs)
+        #expect(rig.model.run(theirs.key) == nil)
+        let names = await rig.sent().map(\.name)
+        #expect(!names.contains("ai_review_started"))
+        #expect(!names.contains("ai_review_finished"))
     }
 
     @Test func aMapThatCannotBeBuiltStillReportsIt() async {

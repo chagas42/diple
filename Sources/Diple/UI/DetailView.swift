@@ -9,13 +9,21 @@ struct DetailView: View {
         case map = "Overview"
         case ai = "AI review"
         var id: String { rawValue }
+
+        static func available(for pr: PR) -> [Section] {
+            pr.isMine ? allCases : [.conversation, .map]
+        }
+
+        static func shown(_ wanted: Section, for pr: PR) -> Section {
+            available(for: pr).contains(wanted) ? wanted : .conversation
+        }
     }
     @State private var section: Section
 
     init(model: AppModel, pr: PR) {
         self.model = model
         self.pr = pr
-        _section = State(initialValue: model.section(for: pr.key))
+        _section = State(initialValue: Section.shown(model.section(for: pr.key), for: pr))
     }
 
     var body: some View {
@@ -26,7 +34,7 @@ struct DetailView: View {
                 estatisticas
 
                 Picker("", selection: $section) {
-                    ForEach(Section.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(Section.available(for: pr)) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -49,7 +57,7 @@ struct DetailView: View {
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onChange(of: pr.key) { _, key in section = model.section(for: key) }
+        .onChange(of: pr.key) { _, key in section = Section.shown(model.section(for: key), for: pr) }
         .onChange(of: section) { _, s in model.remember(s, for: pr.key) }
     }
 
