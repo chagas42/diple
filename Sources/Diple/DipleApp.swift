@@ -81,6 +81,13 @@ struct Main {
             }
         }
 
+        if let i = CommandLine.arguments.firstIndex(of: "--state") {
+            for path in CommandLine.arguments.dropFirst(i + 1) where !path.hasPrefix("--") {
+                Probe.readState(path)
+            }
+            exit(0)
+        }
+
         if CommandLine.arguments.contains("--tools") {
             Probe.tools()
             exit(0)
