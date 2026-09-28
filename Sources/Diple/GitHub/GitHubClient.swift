@@ -79,24 +79,44 @@ struct GitHubClient: Sendable {
 }
 
 extension GitHubClient {
+    private func escaped(_ v: String) -> String {
+        v.replacingOccurrences(of: "\\", with: "\\\\")
+         .replacingOccurrences(of: "\"", with: "\\\"")
+         .replacingOccurrences(of: "\n", with: "\\n")
+         .replacingOccurrences(of: "\r", with: "")
+    }
+
     func startThread(prId: String, path: String, line: Int?, body: String) async throws {
-        let escaped = body
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        let side = line.map { "line: \($0), side: RIGHT," } ?? ""
+        let place = line.map { "line: \($0), side: RIGHT, subjectType: LINE," }
+                    ?? "subjectType: FILE,"
         let query = """
         mutation {
           addPullRequestReviewThread(input: {
             pullRequestId: "\(prId)",
-            path: "\(path)",
-            \(side)
-            body: "\(escaped)"
+            path: "\(escaped(path))",
+            \(place)
+            body: "\(escaped(body))"
           }) { thread { id } }
         }
         """
-        struct Reply: Decodable, Sendable { let errors: [GraphQLError]? }
-        let r: Reply = try await send(query)
+        struct Added: Decodable, Sendable { let errors: [GraphQLError]? }
+        let added: Added = try await send(query)
+        if let e = added.errors, !e.isEmpty { throw ClientError.graphql(e.map(\.message)) }
+
+        try await submitPendingReview(prId: prId)
+    }
+
+    private func submitPendingReview(prId: String) async throws {
+        let query = """
+        mutation {
+          submitPullRequestReview(input: {
+            pullRequestId: "\(prId)",
+            event: COMMENT
+          }) { pullRequestReview { id state } }
+        }
+        """
+        struct Submitted: Decodable, Sendable { let errors: [GraphQLError]? }
+        let r: Submitted = try await send(query)
         if let e = r.errors, !e.isEmpty { throw ClientError.graphql(e.map(\.message)) }
     }
 

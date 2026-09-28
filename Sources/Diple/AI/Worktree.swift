@@ -1,5 +1,32 @@
 import Foundation
 
+actor GitGate {
+    static let shared = GitGate()
+
+    private var held: Set<String> = []
+    private var waiting: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    func lock(_ key: String) async {
+        if held.contains(key) {
+            await withCheckedContinuation { c in
+                waiting[key, default: []].append(c)
+            }
+        } else {
+            held.insert(key)
+        }
+    }
+
+    func unlock(_ key: String) {
+        if var queue = waiting[key], !queue.isEmpty {
+            let next = queue.removeFirst()
+            waiting[key] = queue.isEmpty ? nil : queue
+            next.resume()
+        } else {
+            held.remove(key)
+        }
+    }
+}
+
 enum Worktree {
     struct WorktreeError: LocalizedError {
         let message: String
@@ -37,6 +64,9 @@ enum Worktree {
 
     @discardableResult
     static func prepare(origin: URL, repo: String, pr: Int, base: String = "") async throws -> URL {
+        await GitGate.shared.lock(origin.path)
+        defer { Task { await GitGate.shared.unlock(origin.path) } }
+
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let name = "\(repo.replacingOccurrences(of: "/", with: "-"))-\(pr)"
         let target = root.appendingPathComponent(name)
