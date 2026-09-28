@@ -171,10 +171,17 @@ struct ThreadView: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(.quaternary.opacity(0.4))
 
-            if let h = thread.diffHunk {
+            if thread.showsCode, let h = thread.diffHunk {
                 DiffHunkView(hunk: h, path: thread.path)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
+            } else if thread.outdated {
+                Label("The lines this thread points at have changed since it was written, so GitHub no longer sends the code.",
+                      systemImage: "clock.arrow.circlepath")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             ForEach(Array(thread.comments.enumerated()), id: \.element.id) { i, c in

@@ -74,6 +74,7 @@ struct RawPR: Decodable, Sendable {
     struct RawReviewThread: Decodable, Sendable {
         let id: String
         let isResolved: Bool
+        let isOutdated: Bool?
         let path: String?
         let line: Int?
         let comments: RawComments
@@ -123,7 +124,16 @@ struct PR: Identifiable, Sendable, Equatable {
         let path: String
         let line: Int?
         let diffHunk: String?
+        let outdated: Bool
         let comments: [ThreadComment]
+
+        var showsCode: Bool {
+            guard let h = diffHunk else { return false }
+            return h.split(separator: "\n").contains { line in
+                let t = line.trimmingCharacters(in: .whitespaces)
+                return !t.isEmpty && !t.hasPrefix("@@")
+            }
+        }
 
         var location: String {
             let name = path.split(separator: "/").last.map(String.init) ?? path
@@ -238,6 +248,7 @@ struct PR: Identifiable, Sendable, Equatable {
                     path: t.path ?? "?",
                     line: t.line,
                     diffHunk: t.comments.nodes.compactMap { $0?.diffHunk }.first,
+                    outdated: t.isOutdated ?? false,
                     comments: falas
                 )
             }
