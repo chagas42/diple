@@ -244,6 +244,7 @@ struct AccountPane: View {
                 HStack {
                     Button("Sincronizar now") { Task { await model.refresh() } }
                         .disabled(model.loading)
+                    Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
                     Spacer()
                     Button("Quit Diple") { NSApplication.shared.terminate(nil) }
                 }

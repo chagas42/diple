@@ -75,6 +75,15 @@ final class AppModel: ObservableObject {
             case .activity: "square.grid.3x3"
             }
         }
+        var feedbackFeature: FeedbackFeature {
+            switch self {
+            case .queue:    .queue
+            case .team:     .team
+            case .ranking:  .ranking
+            case .activity: .activity
+            }
+        }
+
         var title: String {
             switch self {
             case .queue:  "Queue"
@@ -412,6 +421,37 @@ final class AppModel: ObservableObject {
         guard store.markActive(on: day) else { return }
         telemetry.capture(.appActive(needsYou: needsYou.count, mine: queue.mine.count, toReview: queue.toReview.count))
     }
+
+    var canSendQuickFeedback: Bool { telemetry.isActive }
+
+    func sendQuickFeedback(feature: FeedbackFeature, rating: TelemetryEvent.Rating?, text: String) {
+        telemetry.capture(.feedbackSubmitted(feature: feature, rating: rating, text: text))
+        let telemetry = self.telemetry
+        Task.detached(priority: .utility) { await telemetry.flush() }
+    }
+
+    func issueURL(title: String, description: String, feature: FeedbackFeature, diagnostics: Bool) -> URL {
+        let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        let block = diagnostics ? FeedbackText.diagnostics(
+            feature: feature, version: version,
+            os: "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
+            machine: Self.machineModel
+        ) : nil
+        return FeedbackText.issueURL(title: title, description: description, feature: feature, diagnostics: block)
+    }
+
+    func openIssue(title: String, description: String, feature: FeedbackFeature, diagnostics: Bool) {
+        openURL(issueURL(title: title, description: description, feature: feature, diagnostics: diagnostics))
+    }
+
+    static let machineModel: String = {
+        var size = 0
+        sysctlbyname("hw.model", nil, &size, nil, 0)
+        var model = [CChar](repeating: 0, count: max(size, 1))
+        sysctlbyname("hw.model", &model, &size, nil, 0)
+        return String(decoding: model.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    }()
 
     func dismissUsageNotice() {
         store.markUsageNoticeSeen()

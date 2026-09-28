@@ -69,6 +69,7 @@ struct MapHeader: View {
                         .background(.quaternary, in: Capsule())
                 }
                 Spacer()
+                FeedbackButton(model: model, feature: .map)
                 Button {
                     Task { await model.buildMap(pr) }
                 } label: { Label(map.enriched ? "Redraw" : "Draw with Claude", systemImage: "arrow.clockwise") }
