@@ -19,6 +19,7 @@ struct Settings: Codable, Sendable, Equatable {
 
     var editor: String? = nil
     var codeTheme: String = "diple-dark"
+    var attribution: String = Attribution.onMyOwn.rawValue
     var mapModel: String? = nil
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
@@ -91,8 +92,42 @@ struct Settings: Codable, Sendable, Equatable {
         d.repoPaths = try c.decodeIfPresent([String: String].self, forKey: .repoPaths) ?? d.repoPaths
         d.editor = try c.decodeIfPresent(String.self, forKey: .editor) ?? d.editor
         d.codeTheme = try c.decodeIfPresent(String.self, forKey: .codeTheme) ?? d.codeTheme
+        d.attribution = try c.decodeIfPresent(String.self, forKey: .attribution) ?? d.attribution
         d.mapModel = try c.decodeIfPresent(String.self, forKey: .mapModel) ?? d.mapModel
         self = d
     }
 
+}
+
+enum Attribution: String, CaseIterable, Identifiable, Sendable {
+    case always, onMyOwn, never
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .always:  "On every pull request"
+        case .onMyOwn: "Only on my own"
+        case .never:   "Never"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .always:  "Everyone sees where the comment came from."
+        case .onMyOwn: "Answering yourself reads oddly without it; on someone else's PR the comment is simply yours."
+        case .never:   "The comment goes out as your words alone."
+        }
+    }
+
+    func applies(mine: Bool) -> Bool {
+        switch self {
+        case .always:  true
+        case .onMyOwn: mine
+        case .never:   false
+        }
+    }
+}
+
+extension Settings {
+    var attributionMode: Attribution { Attribution(rawValue: attribution) ?? .onMyOwn }
 }
