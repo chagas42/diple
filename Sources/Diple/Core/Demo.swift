@@ -56,6 +56,7 @@ enum Demo {
             title: title,
             url: URL(string: "https://github.com/\(repo)/pull/\(number)")!,
             updatedAt: ago(minutes),
+            createdAt: ago(minutes * 3 + 120),
             draft: draft,
             author: author,
             authorAvatar: avatar(author),

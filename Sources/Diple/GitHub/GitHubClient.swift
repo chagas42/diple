@@ -74,8 +74,8 @@ struct GitHubClient: Sendable {
         return try dec.decode(T.self, from: payload)
     }
 
-    func fetchQueue() async throws -> Queue {
-        let body: RawResponse = try await send(Query.queue)
+    func fetchQueue(watching: Set<String> = []) async throws -> Queue {
+        let body: RawResponse = try await send(Query.queue(watching: watching))
 
         if let errors = body.errors, !errors.isEmpty {
             throw ClientError.graphql(errors.map(\.message))
@@ -88,6 +88,7 @@ struct GitHubClient: Sendable {
             mine: d.mine.nodes.compactMap { PR($0, meuLogin: viewer) },
             toReview: d.toReview.nodes.compactMap { PR($0, meuLogin: viewer) },
             following: d.following.nodes.compactMap { PR($0, meuLogin: viewer) },
+            watched: (d.watched?.nodes ?? []).compactMap { PR($0, meuLogin: viewer) },
             rateLimitLeft: d.rateLimit?.remaining ?? 0,
             rateLimitResetAt: d.rateLimit?.resetAt
         )

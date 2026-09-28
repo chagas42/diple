@@ -15,6 +15,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var unreadReasons: [String: EventKind] = [:]
 
     var hasRunBefore: Bool = false
+    var watchedSince: [String: Date]? = nil
 
     var following: Set<String> = []
     var watching: Set<String>? = nil
@@ -31,6 +32,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.unread = try c.decodeIfPresent(Set<String>.self, forKey: .unread) ?? d.unread
         d.unreadReasons = (try? c.decodeIfPresent([String: EventKind].self, forKey: .unreadReasons)) ?? d.unreadReasons
         d.hasRunBefore = try c.decodeIfPresent(Bool.self, forKey: .hasRunBefore) ?? d.hasRunBefore
+        d.watchedSince = try c.decodeIfPresent([String: Date].self, forKey: .watchedSince)
         d.following = try c.decodeIfPresent(Set<String>.self, forKey: .following) ?? d.following
         d.watching = try c.decodeIfPresent(Set<String>.self, forKey: .watching) ?? d.watching
         d.settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? d.settings
@@ -249,8 +251,16 @@ final class Store {
 
     func toggleWatch(_ repo: String) {
         var w = state.watching ?? []
-        if w.contains(repo) { w.remove(repo) } else { w.insert(repo) }
+        var since = state.watchedSince ?? [:]
+        if w.contains(repo) {
+            w.remove(repo)
+            since[repo] = nil
+        } else {
+            w.insert(repo)
+            since[repo] = Date()
+        }
         state.watching = w
+        state.watchedSince = since
         save()
     }
 
@@ -327,6 +337,22 @@ final class Store {
                     body: "\(pr.key) · \(pr.title)"
                 ))
             }
+        }
+
+        let since = state.watchedSince ?? [:]
+        for pr in queue.watched where !estreia && !pr.draft {
+            guard state.prs[pr.key] == nil else { continue }
+            guard let from = since[pr.repo], pr.createdAt > from else { continue }
+            next[pr.key] = Snapshot(
+                updatedAt: pr.updatedAt, checks: pr.checks.rawValue, approved: pr.approved,
+                lastCommentAt: pr.lastComment?.at, reviewRequested: false
+            )
+            events.append(Event(
+                id: "\(pr.key)/new/\(pr.createdAt.timeIntervalSince1970)",
+                kind: .newPullRequest, key: pr.key, url: pr.url,
+                title: "\(pr.author) opened a pull request",
+                body: "\(pr.key) · \(pr.title)"
+            ))
         }
 
         state.prs = next
