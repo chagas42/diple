@@ -3,7 +3,7 @@ BUNDLE := com.chagas42.diple
 BUILD  := .build/release
 DEST   := build/$(APP).app
 
-.PHONY: build app run install stop clean test bench bench-review bench-compare
+.PHONY: build app run install stop clean test tools probe bench bench-review bench-compare
 
 LABEL       ?= current
 BASE        ?= baseline
@@ -14,6 +14,12 @@ BENCH_BIN   := $(DEST)/Contents/MacOS/$(APP)
 
 test:
 	swift test
+
+tools: build
+	@$(BUILD)/$(APP) --tools
+
+probe: build
+	@$(BUILD)/$(APP) --probe
 
 bench: app
 	@rm -rf $(BENCH_STATE) && mkdir -p $(BENCH_STATE) $(BENCH_OUT)
