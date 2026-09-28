@@ -232,6 +232,7 @@ final class Store {
     func saveQueue(_ q: Queue) {
         var q = q
         q.rateLimitLeft = 0
+        q.rateLimitResetAt = nil
         state.cache.queue = q
         save()
     }

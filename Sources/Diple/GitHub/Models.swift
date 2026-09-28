@@ -261,6 +261,7 @@ struct Queue: Sendable, Equatable, Codable {
     var toReview: [PR] = []
     var following: [PR] = []
     var rateLimitLeft: Int = 0
+    var rateLimitResetAt: Date? = nil
 
     var all: [PR] { mine + toReview + following }
 }

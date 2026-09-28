@@ -74,6 +74,7 @@ final class NotchController: ObservableObject {
         guard state != .open else { return }
         state = .open
         apply()
+        model?.setNotchOpen(true)
     }
 
     func closeNow() {
@@ -83,6 +84,7 @@ final class NotchController: ObservableObject {
         pointerAnchor = nil
         state = idle()
         apply()
+        model?.setNotchOpen(false)
     }
 
     func alert(_ e: Event) {
