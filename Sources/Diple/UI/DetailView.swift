@@ -116,6 +116,10 @@ struct ThreadView: View {
     let pr: PR
     let thread: PR.ReviewThread
 
+    private var manyVoices: Bool {
+        Set(thread.comments.filter { !$0.isBot }.map(\.author)).count > 1
+    }
+
     @State private var response = ""
     @State private var error: String?
 
@@ -175,7 +179,7 @@ struct ThreadView: View {
 
             ForEach(Array(thread.comments.enumerated()), id: \.element.id) { i, c in
                 if i > 0 { Divider().opacity(0.5) }
-                CommentView(comment: c, path: thread.path)
+                CommentView(comment: c, path: thread.path, alwaysNamed: manyVoices)
             }
             Divider()
 

@@ -3,9 +3,11 @@ import SwiftUI
 struct CommentView: View {
     let comment: PR.ThreadComment
     let path: String
+    var alwaysNamed = false
 
     @Environment(\.codeTheme) private var theme
     @State private var expanded = false
+    @State private var hovering = false
 
     var body: some View {
         if comment.isBot {
@@ -18,19 +20,31 @@ struct CommentView: View {
     private var human: some View {
         HStack(alignment: .top, spacing: 10) {
             InitialsBubble(login: comment.author)
+                .help(comment.author)
+
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 7) {
-                    Text(comment.author)
-                        .font(.system(size: 12.5, weight: .semibold))
+                    if hovering || alwaysNamed {
+                        Text(comment.author)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .transition(.opacity)
+                    }
                     Text(comment.at.formatted(.relative(presentation: .numeric)))
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
                 }
+                .frame(height: 15)
+
                 Markdownish(text: comment.text, path: path)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
+        .contentShape(Rectangle())
+        .onHover { over in
+            withAnimation(.easeOut(duration: 0.12)) { hovering = over }
+        }
     }
 
     private var bot: some View {
@@ -98,8 +112,10 @@ struct InitialsBubble: View {
     }
 
     private var tint: Color {
-        let hues: [Color] = [.orange, .purple, .teal, .pink, .indigo, .green, .blue]
-        return hues[abs(login.hashValue) % hues.count]
+        let hues: [Color] = [.orange, .purple, .teal, .pink, .indigo, .green, .blue, .red]
+        var seed: UInt64 = 5381
+        for b in login.utf8 { seed = seed &* 33 &+ UInt64(b) }
+        return hues[Int(seed % UInt64(hues.count))]
     }
 
     var body: some View {

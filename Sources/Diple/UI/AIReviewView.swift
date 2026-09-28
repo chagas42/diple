@@ -374,18 +374,29 @@ struct FindingCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let c = finding.scenario, !c.isEmpty {
-                HStack(alignment: .top, spacing: 8) {
-                    Text("SCENARIO")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.purple)
-                        .padding(.top, 1)
-                    Text(c)
-                        .font(.system(size: 12))
-                        .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 0) {
+                    Rectangle()
+                        .fill(.purple.opacity(0.65))
+                        .frame(width: 2)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("SCENARIO")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(0.8)
+                            .foregroundStyle(.purple)
+                        Text(c)
+                            .font(.system(size: 12))
+                            .lineSpacing(2)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 9)
                 }
-                .padding(9)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+                .background(.purple.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
         }
     }
