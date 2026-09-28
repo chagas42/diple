@@ -33,29 +33,27 @@ enum Query {
     }
     """
 
-    static func queue(watching: Set<String> = []) -> String {
+    static func searches(watching: Set<String> = []) -> [Queue.Section: String] {
+        var out: [Queue.Section: String] = [
+            .mine: "is:open is:pr author:@me sort:updated",
+            .toReview: "is:open is:pr review-requested:@me sort:updated",
+            .following: "is:open is:pr involves:@me -author:@me sort:updated",
+        ]
         let scope = watching.sorted().map { "repo:\($0)" }.joined(separator: " ")
-        let watched = scope.isEmpty ? "" : """
-              watched: search(query: "is:open is:pr -author:@me \(scope) sort:created-desc", type: ISSUE, first: 30) {
-                nodes { ...pr }
-              }
-            """
-        return prFragment + """
-    query Queue {
-      viewer { login }
-      mine: search(query: "is:open is:pr author:@me sort:updated", type: ISSUE, first: 30) {
-        nodes { ...pr }
-      }
-      toReview: search(query: "is:open is:pr review-requested:@me sort:updated", type: ISSUE, first: 30) {
-        nodes { ...pr }
-      }
-      following: search(query: "is:open is:pr involves:@me -author:@me sort:updated", type: ISSUE, first: 30) {
-        nodes { ...pr }
-      }
-      \(watched)
-      rateLimit { remaining resetAt }
+        if !scope.isEmpty { out[.watched] = "is:open is:pr -author:@me \(scope) sort:created-desc" }
+        return out
     }
-    """
+
+    static func queueSection(_ section: Queue.Section, search: String) -> String {
+        prFragment + """
+        query QueueSection {
+          viewer { login }
+          \(section.rawValue): search(query: "\(search)", type: ISSUE, first: 30) {
+            nodes { ...pr }
+          }
+          rateLimit { remaining resetAt }
+        }
+        """
     }
 
     static let beatFragment = """
@@ -70,11 +68,7 @@ enum Query {
     }
     """
 
-    static let heartbeatSearches = [
-        "is:open is:pr author:@me sort:updated",
-        "is:open is:pr review-requested:@me sort:updated",
-        "is:open is:pr involves:@me -author:@me sort:updated",
-    ]
+    static let heartbeatSearches = [Queue.Section.mine, .toReview, .following].compactMap { searches()[$0] }
 
     static func heartbeat(_ search: String) -> String {
         beatFragment + """

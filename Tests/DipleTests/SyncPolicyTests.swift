@@ -48,7 +48,7 @@ import Testing
 @Suite struct PollingTests {
     static func model(_ github: FakeGitHub) -> AppModel {
         AppModel(
-            client: GitHubClient(transport: github.transport, tokens: CountingTokens(), metrics: Metrics()),
+            client: GitHubClient(transport: github.transport, tokens: CountingTokens(), metrics: Metrics(), retryDelays: [.zero, .zero]),
             store: Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
         )
     }
@@ -87,7 +87,7 @@ import Testing
         model.isOnline = true
         let before = github.transport.queries.count
         await model.refresh()
-        #expect(FakeGitHub.syncKinds(github.transport.queries.dropFirst(before)) == ["full"])
+        #expect(FakeGitHub.syncKinds(github.transport.queries.dropFirst(before)) == ["full", "full", "full"])
         await model.refresh()
         #expect((FakeGitHub.syncKinds(github.transport.queries).last ?? "") == "beat")
     }

@@ -38,6 +38,7 @@ final class FakeGitHub: @unchecked Sendable {
     private let lock = NSLock()
     private var current: FakeWorld
     private var hidden: Set<String> = []
+    private var failing: Set<String> = []
     private(set) var transport: StubTransport!
 
     init(_ world: FakeWorld) {
@@ -56,10 +57,17 @@ final class FakeGitHub: @unchecked Sendable {
 
     func hideFromDetails(_ ids: Set<String>) { lock.withLock { hidden = ids } }
 
+    func timeOut(_ sectionsOrIds: Set<String>) { lock.withLock { failing = sectionsOrIds } }
+
     func reply(_ query: String) -> StubTransport.Reply {
-        let (w, h) = lock.withLock { (current, hidden) }
+        let (w, h, f) = lock.withLock { (current, hidden, failing) }
         if query.contains("query Beat") { return .init(body: w.heartbeatResponse(for: query)) }
-        if query.contains("query Detail") { return .init(body: w.detailResponse(Self.ids(in: query), hiding: h)) }
+        if query.contains("query Detail") {
+            let ids = Self.ids(in: query)
+            if ids.contains(where: f.contains) { return .init(status: 504) }
+            return .init(body: w.detailResponse(ids, hiding: h))
+        }
+        if f.contains(where: { query.contains("\($0): search") }) { return .init(status: 504) }
         return .init(body: w.queueResponse())
     }
 

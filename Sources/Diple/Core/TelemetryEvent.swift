@@ -23,6 +23,20 @@ enum TelemetryEvent: Sendable, Equatable {
     enum Outcome: String, Sendable { case done, failed }
     enum Source: String, Sendable { case notch, window, notification, menuBar = "menu_bar" }
     enum Rating: String, Sendable { case up, down }
+    enum RetryOutcome: String, Sendable { case recovered, failed }
+
+    enum GitHubRequest: String, Sendable {
+        case queueSection = "queue_section"
+        case detail, beat, other
+
+        init(query: String) {
+            self =
+                query.contains("query QueueSection") ? .queueSection
+                : query.contains("query Detail") ? .detail
+                : query.contains("query Beat") ? .beat
+                : .other
+        }
+    }
 
     enum DurationBucket: String, Sendable {
         case under30s = "lt_30s"
@@ -51,6 +65,7 @@ enum TelemetryEvent: Sendable, Equatable {
     case notificationShown(kind: EventKind)
     case feedbackSubmitted(feature: FeedbackFeature, rating: Rating?, text: String)
     case error(ErrorReport)
+    case githubRetry(outcome: RetryOutcome, status: Int, request: GitHubRequest, attempts: Int)
 
     var name: String {
         switch self {
@@ -65,6 +80,7 @@ enum TelemetryEvent: Sendable, Equatable {
         case .notificationShown: "notification_shown"
         case .feedbackSubmitted: "feedback_submitted"
         case .error:             "$exception"
+        case .githubRetry:       "github_retry"
         }
     }
 
@@ -101,6 +117,11 @@ enum TelemetryEvent: Sendable, Equatable {
             p["feature"] = .text(feature.rawValue)
             p["rating"] = .text(rating?.rawValue ?? "none")
             p["text"] = .text(FeedbackText.clean(text))
+        case .githubRetry(let outcome, let status, let request, let attempts):
+            p["outcome"] = .text(outcome.rawValue)
+            p["status"] = .int(status)
+            p["request"] = .text(request.rawValue)
+            p["attempts"] = .int(attempts)
         case .error(let r):
             p["$exception_list"] = .list([.object([
                 "type": .text(r.type),
@@ -122,6 +143,7 @@ enum TelemetryEvent: Sendable, Equatable {
             p["network_expensive"] = .bool(r.context.network.expensive)
             p["network_constrained"] = .bool(r.context.network.constrained)
             p["failures_in_row"] = .int(r.context.failuresInRow)
+            p["attempts"] = .int(r.attempts)
             p["since_last_sync"] = .text(r.context.sinceLastSync.rawValue)
         }
         return p

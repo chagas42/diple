@@ -402,13 +402,15 @@ final class AppModel: ObservableObject {
         started = true
         notificador.install()
         notificador.onChange = { [weak self] in await self?.refresh() }
-        defer { loadRepos() }
         restoreCached()
         settings = store.state.settings
         notificador.settings = settings
         startTelemetry()
 
-        Task { await refresh() }
+        Task {
+            await refresh()
+            loadRepos()
+        }
         Task {
             hasPermission = await notificador.isAuthorized()
             if !hasPermission { hasPermission = await notificador.requestPermission() }
@@ -579,9 +581,9 @@ final class AppModel: ObservableObject {
                 pendingSeed = nil
                 await sync.seed(seed)
             }
-            let nova = try await sync.sync(full: wantsFull)
+            let outcome = try await sync.sync(full: wantsFull)
+            let nova = outcome.queue
             pendingFull = false
-            failures = 0
             let events = store.diff(nova, meuLogin: nova.viewer)
                 .filter { e in
                     let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
@@ -594,7 +596,14 @@ final class AppModel: ObservableObject {
             }
             unread = store.state.unread
             lastSync = Date()
-            errorMessage = nil
+            if let stale = outcome.staleMessage {
+                if let e = outcome.error { report(e, in: .refresh) }
+                failures += 1
+                errorMessage = stale
+            } else {
+                failures = 0
+                errorMessage = nil
+            }
             await notificador.post(events)
             onCountChange?()
             recordActiveDay()
