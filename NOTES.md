@@ -79,6 +79,20 @@ width when closed, and flares outward with concave fillets when open.
 the curve is concave; toward the outer corner it is convex. A convex radius at
 the top cuts material and leaves wallpaper showing in the corner.
 
+**The wings give way to the menu bar.** macOS lays status items out from the
+notch's right edge knowing nothing of Diple's wings, so a full menu bar puts
+its leftmost item about 28pt from the notch, under a 42pt wing. The wing is
+fitted to the gap instead, measured from `CGWindowListCopyWindowInfo`: status
+items are windows at `kCGStatusWindowLevel`, and their bounds need no Screen
+Recording permission. Items change width as they tick (a meeting countdown),
+so the fit is re-checked every 2 s while idle. When less than 27pt fits, the
+eye would have to shrink against the corner, so the right wing goes away, the
+eye is hidden, and the count moves to a full left wing; the shape is then
+shifted left by half a wing. The left wing is not measured: an app's menus are
+drawn inside one full-width menu bar window, and reading their extents takes
+Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
+gap, to see each layout without arranging the menu bar.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.

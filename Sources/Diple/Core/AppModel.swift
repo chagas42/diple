@@ -288,7 +288,7 @@ final class AppModel: ObservableObject {
     func report(_ error: Error, in operation: ErrorReport.Operation) -> String? {
         let context = ErrorReport.Context(
             network: network,
-            failuresInRow: failures,
+            failuresInRow: failures + partialFailures,
             sinceLastSync: .init(lastSync)
         )
         let r = ErrorReport(error, in: operation, context: context)
@@ -388,6 +388,7 @@ final class AppModel: ObservableObject {
     private(set) var network = NetworkState()
     @Published var isOnline = true
     private(set) var failures = 0
+    private(set) var partialFailures = 0
     private var pendingFull = false
     private var notchOpen = false
     private var refreshTask: Task<Void, Never>?
@@ -514,6 +515,7 @@ final class AppModel: ObservableObject {
         SyncPolicy(
             base: settings.interval,
             failures: failures,
+            partialFailures: partialFailures,
             online: isOnline,
             visible: notchOpen || Windows.shared.mainIsVisible,
             lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
@@ -598,10 +600,12 @@ final class AppModel: ObservableObject {
             lastSync = Date()
             if let stale = outcome.staleMessage {
                 if let e = outcome.error { report(e, in: .refresh) }
-                failures += 1
+                failures = 0
+                partialFailures += 1
                 errorMessage = stale
             } else {
                 failures = 0
+                partialFailures = 0
                 errorMessage = nil
             }
             await notificador.post(events)
