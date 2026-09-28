@@ -1,0 +1,102 @@
+{
+  "": {
+    "dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/DipleTests.d",
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/DipleTests.o",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/master.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/AlertSoundTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/AlertSoundTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/AlertSoundTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/AlertSoundTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/EyeTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/EyeTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/EyeTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/EyeTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/LaunchCacheTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/LaunchCacheTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/LaunchCacheTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/LaunchCacheTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/MetricsTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/MetricsTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/MetricsTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/MetricsTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/NeedsYouReasonTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/NeedsYouReasonTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/NeedsYouReasonTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/NeedsYouReasonTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/PrefetcherTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/PrefetcherTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/PrefetcherTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/PrefetcherTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/QueueFetchTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/QueueFetchTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/QueueFetchTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/QueueFetchTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/RefreshBudgetTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/RefreshBudgetTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/RefreshBudgetTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/RefreshBudgetTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/StoreDiffTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StoreDiffTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StoreDiffTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StoreDiffTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/StoreWriteBudgetTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StoreWriteBudgetTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StoreWriteBudgetTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StoreWriteBudgetTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/Support/FakeGitHub.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/FakeGitHub.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/FakeGitHub~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/FakeGitHub.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/Support/FakeWorld.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/FakeWorld.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/FakeWorld~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/FakeWorld.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/Support/StubTransport.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StubTransport.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StubTransport~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/StubTransport.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/SyncEngineTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/SyncEngineTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/SyncEngineTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/SyncEngineTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/SyncPolicyTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/SyncPolicyTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/SyncPolicyTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/SyncPolicyTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/TabLoadingTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TabLoadingTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TabLoadingTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TabLoadingTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/TelemetryTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TelemetryTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TelemetryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TelemetryTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/TokenBudgetTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TokenBudgetTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TokenBudgetTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/TokenBudgetTests.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/Tests/DipleTests/UITouchesTests.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/UITouchesTests.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/UITouchesTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DipleTests.build/UITouchesTests.swiftdeps"
+  }
+}

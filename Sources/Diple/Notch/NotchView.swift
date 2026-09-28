@@ -327,7 +327,7 @@ struct NotchView: View {
                                 Rectangle().fill(.white.opacity(0.06)).frame(height: 1)
                                     .padding(.horizontal, 13)
                             }
-                            Button { model.open(pr) } label: {
+                            Button { model.open(pr, from: .notch) } label: {
                                 HStack(spacing: 10) {
                                     Circle()
                                         .fill(.orange)

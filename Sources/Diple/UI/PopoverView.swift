@@ -98,9 +98,9 @@ struct PopoverView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
                     Secao(title: "Needs you", prs: model.needsYou,
-                          unread: model.unread, open: model.open)
+                          unread: model.unread, open: { model.open($0, from: .menuBar) })
                     Secao(title: "Your PRs", prs: Array(model.rest.prefix(8)),
-                          unread: model.unread, open: model.open)
+                          unread: model.unread, open: { model.open($0, from: .menuBar) })
 
                     if model.queue.all.isEmpty && !model.loading {
                         Text("Nada na queue.")

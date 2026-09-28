@@ -1,0 +1,12 @@
+{
+  "": {
+    "dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DiplePackageTests.build/DiplePackageTests.d",
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DiplePackageTests.build/DiplePackageTests.o",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DiplePackageTests.build/master.swiftdeps"
+  },
+  "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DiplePackageTests.derived/runner.swift": {
+    "object": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DiplePackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DiplePackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/chagas42/@studies/diple/.claude/worktrees/perf/.build-swift60/arm64-apple-macosx/release/DiplePackageTests.build/runner.swiftdeps"
+  }
+}
