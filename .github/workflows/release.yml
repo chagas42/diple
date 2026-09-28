@@ -159,9 +159,9 @@ jobs:
           TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
         run: |
           if [ -z "$TAP_TOKEN" ]; then
-            echo "::warning::TAP_TOKEN is not set, so the cask still points at the previous version."
+            echo "::error::TAP_TOKEN is not set, so the cask still points at the previous version."
             echo "Create a fine-grained PAT with Contents: write on chagas42/homebrew-tap and add it as TAP_TOKEN."
-            exit 0
+            exit 1
           fi
           sha=$(awk '{print $1}' "build/Diple-$V.zip.sha256")
           git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/chagas42/homebrew-tap.git" /tmp/tap
