@@ -43,16 +43,18 @@ final class AppModel: ObservableObject {
         }
     }
     @Published private(set) var maps: [String: PRMap] = [:]
-    @Published private(set) var mappingKey: String?
-    @Published private(set) var mapRun: MapRun?
-    @Published private(set) var mapRunKeys: Set<String> = []
-    @Published private(set) var mapNotice: String?
+    @Published private(set) var mapRuns: [String: MapRun] = [:]
+    @Published private(set) var mapNotices: [String: String] = [:]
     @Published private(set) var mapLayouts: [String: [String: CGPoint]] = [:]
     private var mapRoots: [String: [URL]] = [:]
     private var sections: [String: DetailView.Section] = [:]
 
     func section(for key: String) -> DetailView.Section { sections[key] ?? .conversation }
     func remember(_ section: DetailView.Section, for key: String) { sections[key] = section }
+
+    func mapRun(_ key: String) -> MapRun? { mapRuns[key] }
+    func isMapping(_ key: String) -> Bool { mapRuns[key] != nil }
+    func mapNotice(_ key: String) -> String? { mapNotices[key] }
 
     @Published var settings = Settings() {
         didSet {
@@ -776,24 +778,37 @@ final class AppModel: ObservableObject {
     }
 
     func buildMap(_ pr: PR) async {
-        guard mappingKey == nil else { return }
         let prs = stackOf(pr)
         let keys = Set(prs.map(\.key))
+        guard !keys.contains(where: isMapping) else { return }
         let started = Date()
-        mappingKey = pr.key
-        mapRunKeys = keys
-        mapNotice = nil
-        mapRun = MapRun(
+        func setRun(_ run: MapRun) {
+            var all = mapRuns
+            for k in keys { all[k] = run }
+            mapRuns = all
+        }
+        func updateRun(_ change: (inout MapRun) -> Void) {
+            var all = mapRuns
+            for k in keys { if all[k] != nil { change(&all[k]!) } }
+            mapRuns = all
+        }
+        func notice(_ text: String?) {
+            var all = mapNotices
+            for k in keys { all[k] = text }
+            mapNotices = all
+        }
+        notice(nil)
+        setRun(MapRun(
             phase: "reading the diff",
             startedAt: started,
             estimate: MapTiming.estimate(size: MapSize(), worktreeReady: true),
             expectedTools: 6
-        )
+        ))
         var mapOutcome = TelemetryEvent.Outcome.failed
         defer {
-            mappingKey = nil
-            mapRun = nil
-            mapRunKeys = []
+            var all = mapRuns
+            for k in keys { all[k] = nil }
+            mapRuns = all
             telemetry.capture(.mapBuilt(
                 outcome: mapOutcome, prsInStack: prs.count,
                 duration: .init(seconds: Date().timeIntervalSince(started))
@@ -819,13 +834,13 @@ final class AppModel: ObservableObject {
             changedPaths = Set(scans.flatMap { $0.files.map(\.path) })
         } catch {
             report(error, in: .mapDiff)
-            mapNotice = "could not read the diff: \(error.localizedDescription)"
+            notice("could not read the diff: \(error.localizedDescription)")
             return
         }
         for k in keys { maps[k] = map }
 
         guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
-            mapNotice = "only the diff layer: \(pr.repo) is not on this machine. Point at the folder in Settings."
+            notice("only the diff layer: \(pr.repo) is not on this machine. Point at the folder in Settings.")
             return
         }
         mapRoots[map.layoutKey] = [origin]
@@ -835,25 +850,25 @@ final class AppModel: ObservableObject {
             size: map.size,
             worktreeReady: Worktree.existing(repo: pr.repo, pr: top.number) != nil
         )
-        mapRun = MapRun(
+        setRun(MapRun(
             phase: "preparing the worktree",
             startedAt: started,
             estimate: estimate,
             expectedTools: MapTiming.expectedTools(map.size)
-        )
+        ))
 
         do {
             let w = try await Worktree.prepare(origin: origin, repo: pr.repo, pr: top.number, base: map.base)
             mapRoots[map.layoutKey] = [w, origin]
 
             let titles = Dictionary(prs.map { ($0.number, $0.title) }, uniquingKeysWith: { f, _ in f })
-            mapRun?.phase = "finding who depends on the change"
+            updateRun { $0.phase = "finding who depends on the change" }
             let candidates = await Dependents.find(
                 changed: changedPaths,
                 modules: Set(map.nodes(.changed).map(\.id)),
                 in: w
             )
-            mapRun?.phase = "Claude is reading the code"
+            updateRun { $0.phase = "Claude is reading the code" }
             var answered = false
             for await step in MapBuilder().enrich(
                 map: map, titles: titles, candidates: candidates,
@@ -861,11 +876,13 @@ final class AppModel: ObservableObject {
             ) {
                 switch step {
                 case .session(let s):
-                    mapRun?.phase = s
+                    updateRun { $0.phase = s }
                 case .tool(let t):
-                    mapRun?.toolCalls += 1
-                    mapRun?.lastTool = t
-                    mapRun?.phase = "Claude is reading the code"
+                    updateRun {
+                        $0.toolCalls += 1
+                        $0.lastTool = t
+                        $0.phase = "Claude is reading the code"
+                    }
                 case .thinking:
                     break
                 case .done(let answer):
@@ -875,10 +892,10 @@ final class AppModel: ObservableObject {
                         map = map.merged(a) { fm.fileExists(atPath: w.appendingPathComponent($0).path) }
                         for k in keys { maps[k] = map }
                     } else {
-                        mapNotice = "only the diff layer: the session did not answer in the map's JSON"
+                        notice("only the diff layer: the session did not answer in the map's JSON")
                     }
                 case .failed(let m):
-                    mapNotice = "only the diff layer: \(m)"
+                    notice("only the diff layer: \(m)")
                 }
             }
             if answered {
@@ -887,7 +904,7 @@ final class AppModel: ObservableObject {
             }
         } catch {
             report(error, in: .mapEnrich)
-            mapNotice = "only the diff layer: \(error.localizedDescription)"
+            notice("only the diff layer: \(error.localizedDescription)")
         }
     }
 
@@ -901,7 +918,9 @@ final class AppModel: ObservableObject {
             node, in: map, editor: settings.openIn,
             roots: mapRoots[map.layoutKey] ?? fallback, forceWeb: forceWeb
         ) {
-            mapNotice = message
+            var all = mapNotices
+            for n in map.stack { all["\(map.repo)#\(n)"] = message }
+            mapNotices = all
         }
     }
 
