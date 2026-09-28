@@ -22,12 +22,23 @@ struct EyeShape: Shape {
     }
 }
 
+@MainActor
+final class EyeState: ObservableObject {
+    @Published private(set) var gaze: CGPoint = .zero
+    @Published var blinking = false
+
+    func look(at next: CGPoint) {
+        guard abs(next.x - gaze.x) > 0.01 || abs(next.y - gaze.y) > 0.01 else { return }
+        gaze = next
+    }
+}
+
 struct EyeView: View {
-    var gaze: CGPoint
-    var blinking: Bool
+    @ObservedObject var eye: EyeState
     var width: CGFloat = 15
 
-    private var openness: CGFloat { blinking ? 0.05 : 1 }
+    private var gaze: CGPoint { eye.gaze }
+    private var openness: CGFloat { eye.blinking ? 0.05 : 1 }
     private var shape: EyeShape { EyeShape(openness: openness) }
     private var pupil: CGFloat { width * 0.30 }
     private var range: CGFloat { width * 0.17 }

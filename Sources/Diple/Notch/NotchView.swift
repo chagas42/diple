@@ -31,8 +31,7 @@ struct NotchView: View {
     let size: CGSize
     let notchWidth: CGFloat
     let notchHeight: CGFloat
-    let gaze: CGPoint
-    let blinking: Bool
+    let eye: EyeState
     let onClose: () -> Void
 
     var body: some View {
@@ -101,7 +100,7 @@ struct NotchView: View {
 
     private var wings: some View {
         HStack(spacing: 0) {
-            EyeView(gaze: gaze, blinking: blinking, width: 15)
+            EyeView(eye: eye, width: 15)
                 .opacity(model.count > 0 ? 1 : 0.42)
                 .animation(.easeOut(duration: 0.25), value: model.count > 0)
                 .frame(maxWidth: .infinity)
@@ -129,7 +128,7 @@ struct NotchView: View {
     private var topStrip: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                EyeView(gaze: gaze, blinking: blinking, width: 15)
+                EyeView(eye: eye, width: 15)
                     .padding(.trailing, 2)
                 ForEach(AppModel.NotchTab.allCases) { tab in
                     Button { model.notchTab = tab } label: {
