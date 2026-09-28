@@ -139,6 +139,7 @@ struct MainWindowView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.tertiary)
+            .clickable()
             .help(starred ? "Stop watching" : "Watch this repository")
         }
     }
