@@ -227,3 +227,14 @@ Nothing is written to disk: a crash loses at most a minute of counts.
 by the release workflow from the `POSTHOG_KEY` secret. Local builds, forks,
 `--demo`, `--bench`, tests and `DO_NOT_TRACK=1` never send anything. A debug
 build accepts `DIPLE_POSTHOG_KEY` for trying it against a test project.
+
+**Errors go through `AppModel.report`.** It turns an error into an
+`ErrorReport` — the operation, the Swift type, the `NSError` domain and code
+(the HTTP status for `ClientError.http`) — logs it under the `errors` category
+and sends it as PostHog's `$exception`, grouped by that triple. The message
+stays out of the payload because it can carry a URL or a repository name; the
+log keeps it as `.private`, so `log stream --predicate 'subsystem ==
+"com.chagas42.diple"' --level debug` shows it only on this Mac. Cancellation is
+not an error: restarting the poll timer while a sync is in flight cancels its
+request, and that used to put "cancelled" on screen and count as a failure for
+the backoff.

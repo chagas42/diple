@@ -6,6 +6,7 @@ final class StubTransport: Transport, @unchecked Sendable {
         var status = 200
         var body = Data()
         var delay: Duration = .zero
+        var failure: URLError.Code?
     }
 
     private let lock = NSLock()
@@ -48,6 +49,7 @@ final class StubTransport: Transport, @unchecked Sendable {
         }
         defer { lock.withLock { inFlight -= 1 } }
         if reply.delay > .zero { try await Task.sleep(for: reply.delay) }
+        if let code = reply.failure { throw URLError(code) }
         let response = HTTPURLResponse(
             url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil
         )!

@@ -4,13 +4,17 @@ enum TelemetryValue: Sendable, Equatable, Encodable {
     case int(Int)
     case bool(Bool)
     case text(String)
+    indirect case list([TelemetryValue])
+    indirect case object([String: TelemetryValue])
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.singleValueContainer()
         switch self {
-        case .int(let v):  try c.encode(v)
-        case .bool(let v): try c.encode(v)
-        case .text(let v): try c.encode(v)
+        case .int(let v):    try c.encode(v)
+        case .bool(let v):   try c.encode(v)
+        case .text(let v):   try c.encode(v)
+        case .list(let v):   try c.encode(v)
+        case .object(let v): try c.encode(v)
         }
     }
 }
@@ -46,6 +50,7 @@ enum TelemetryEvent: Sendable, Equatable {
     case prOpened(source: Source)
     case notificationShown(kind: EventKind)
     case feedbackSubmitted(feature: FeedbackFeature, rating: Rating?, text: String)
+    case error(ErrorReport)
 
     var name: String {
         switch self {
@@ -59,6 +64,7 @@ enum TelemetryEvent: Sendable, Equatable {
         case .prOpened:          "pr_opened"
         case .notificationShown: "notification_shown"
         case .feedbackSubmitted: "feedback_submitted"
+        case .error:             "$exception"
         }
     }
 
@@ -95,6 +101,17 @@ enum TelemetryEvent: Sendable, Equatable {
             p["feature"] = .text(feature.rawValue)
             p["rating"] = .text(rating?.rawValue ?? "none")
             p["text"] = .text(FeedbackText.clean(text))
+        case .error(let r):
+            p["$exception_list"] = .list([.object([
+                "type": .text(r.type),
+                "value": .text("\(r.operation.rawValue): \(r.domain) \(r.code)"),
+                "mechanism": .object(["handled": .bool(true), "synthetic": .bool(false)]),
+            ])])
+            p["$exception_level"] = .text("error")
+            p["$exception_fingerprint"] = .text(r.fingerprint)
+            p["operation"] = .text(r.operation.rawValue)
+            p["error_domain"] = .text(r.domain)
+            p["error_code"] = .int(r.code)
         }
         return p
     }
