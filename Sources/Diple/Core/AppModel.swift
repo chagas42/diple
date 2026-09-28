@@ -223,13 +223,18 @@ final class AppModel: ObservableObject {
         do {
             try await client.startThread(
                 prId: pr.id, path: finding.path, line: finding.line,
-                body: finding.comment ?? finding.summary
+                body: signed(finding.comment ?? finding.summary, on: pr)
             )
             posted.insert(finding.id)
             await refresh()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func signed(_ body: String, on pr: PR) -> String {
+        guard settings.attributionMode.applies(mine: pr.isMine) else { return body }
+        return body + "\n\n<sub>via [Diple](https://github.com/chagas42/diple) — drafted by a Claude review running locally</sub>"
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
