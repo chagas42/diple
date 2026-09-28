@@ -208,3 +208,22 @@ it needs `PR=owner/repo#number` of a repository cloned on the machine.
 
 **Signposts.** Every request, refresh and store write is an `OSSignposter`
 interval under `com.chagas42.diple`, visible in Instruments' Points of Interest.
+
+## Telemetry
+
+**The type is the allowlist.** `TelemetryEvent` is an enum, and each case
+builds its own properties from typed values — counts, booleans, enum raw
+values. There is no public way to send a dictionary, so a repository name or a
+title cannot reach PostHog by accident; a test snapshots the payload and fails
+on any key it does not know.
+
+**Capture is a lock and an append.** The flush runs detached at utility
+priority, every 60 s or at 20 events, through the same `Transport` as GitHub.
+A failed batch goes back to the front of the queue with the same event uuids,
+so PostHog de-duplicates a retry; a 4xx is dropped, so a wrong key cannot loop.
+Nothing is written to disk: a crash loses at most a minute of counts.
+
+**No key, no telemetry.** The PostHog project key is stamped into Info.plist
+by the release workflow from the `POSTHOG_KEY` secret. Local builds, forks,
+`--demo`, `--bench`, tests and `DO_NOT_TRACK=1` never send anything. A debug
+build accepts `DIPLE_POSTHOG_KEY` for trying it against a test project.

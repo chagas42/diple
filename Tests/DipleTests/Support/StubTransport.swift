@@ -11,6 +11,8 @@ final class StubTransport: Transport, @unchecked Sendable {
     private let lock = NSLock()
     private var handler: @Sendable (String) -> Reply
     private var recorded: [String] = []
+    private var rawBodies: [Data] = []
+    private var sentOnMain = 0
     private var inFlight = 0
     private var peak = 0
 
@@ -23,6 +25,8 @@ final class StubTransport: Transport, @unchecked Sendable {
     }
 
     var queries: [String] { lock.withLock { recorded } }
+    var bodies: [Data] { lock.withLock { rawBodies } }
+    var requestsOnMainThread: Int { lock.withLock { sentOnMain } }
     var peakConcurrency: Int { lock.withLock { peak } }
 
     func resetPeak() { lock.withLock { peak = 0 } }
@@ -33,8 +37,11 @@ final class StubTransport: Transport, @unchecked Sendable {
 
     func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
         let query = Self.query(of: request)
+        let onMain = pthread_main_np() != 0
         let reply = lock.withLock {
             recorded.append(query)
+            rawBodies.append(request.httpBody ?? Data())
+            if onMain { sentOnMain += 1 }
             inFlight += 1
             peak = max(peak, inFlight)
             return handler(query)

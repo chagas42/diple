@@ -155,6 +155,26 @@ tool it needs.
 Nothing was downloaded, so there is no quarantine flag and no dialog. Copy that
 `.app` to another Mac, though, and it gets the same treatment as the zip.
 
+## Privacy
+
+Diple sends anonymous usage counts to PostHog so we can tell how many people
+use it and which features earn their place. It is on by default and off in one
+click: **Settings → Privacy**, or `DO_NOT_TRACK=1` in your environment. Builds
+you make yourself have no analytics key and send nothing.
+
+What is sent:
+
+- a random id for your install, which you can reset
+- app version, macOS version, whether the screen has a notch
+- that the app was used today, with the size of your queue as plain numbers
+- when an AI review or a map starts and finishes: outcome, finding count, a duration range
+- that you replied, resolved a thread, posted a finding or opened a pull request
+- which kind of notification was shown
+
+What is never sent: your GitHub login, name or e-mail; repository names, pull
+request numbers or titles; code, diffs, comments or file paths. Events carry
+no person profile, and the project discards IP addresses.
+
 ## Development
 
 ```bash

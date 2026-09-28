@@ -64,4 +64,7 @@ elif ! gh auth status >/dev/null 2>&1; then
   say "Diple borrows the token of the GitHub CLI — run: gh auth login"
 fi
 
+say "Diple sends anonymous usage counts, never code or repository names."
+say "Turn it off in Settings → Privacy, or set DO_NOT_TRACK=1."
+
 open "$DEST"

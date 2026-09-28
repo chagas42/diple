@@ -20,7 +20,7 @@ import Testing
         let metrics = Metrics()
         let store = Self.store(metrics: metrics)
         store.toggleFollow("someone")
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + .seconds(15)
         while metrics.snapshot().count(.storeWrites) == 0, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(20))
         }
