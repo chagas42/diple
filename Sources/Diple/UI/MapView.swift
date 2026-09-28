@@ -209,7 +209,7 @@ struct MapLegend: View {
             if map.hidden > 0 {
                 Text("\(map.hidden) smaller module\(map.hidden == 1 ? "" : "s") not drawn")
             }
-            Text("drag to arrange · pinch to zoom · click to open")
+            Text("drag to arrange · scroll or pinch to zoom · click to open")
                 .foregroundStyle(.tertiary)
         }
         .font(.system(size: 10.5))

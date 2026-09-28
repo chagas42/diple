@@ -169,6 +169,16 @@ struct MapCanvasView: View {
                 board
                     .scaleEffect(zoom, anchor: .topLeading)
                     .offset(pan)
+
+                ScrollCatcher { move in
+                    switch move {
+                    case .zoom(let factor, let at):  zoom(by: factor, at: at)
+                    case .pan(let by):
+                        pan.width += by.width
+                        pan.height += by.height
+                    }
+                }
+                .allowsHitTesting(false)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -266,12 +276,28 @@ struct MapCanvasView: View {
             .onEnded { _ in panOrigin = nil }
     }
 
+    private func zoom(by factor: CGFloat, at point: CGPoint) {
+        let wanted = min(max(zoom * factor, 0.3), 2)
+        guard wanted != zoom else { return }
+        let content = CGPoint(x: (point.x - pan.width) / zoom,
+                              y: (point.y - pan.height) / zoom)
+        zoom = wanted
+        pan.width = point.x - content.x * wanted
+        pan.height = point.y - content.y * wanted
+    }
+
     private var magnify: some Gesture {
         MagnifyGesture()
             .onChanged { v in
                 let o = zoomOrigin ?? zoom
                 if zoomOrigin == nil { zoomOrigin = o }
-                zoom = min(max(o * v.magnification, 0.3), 2)
+                let wanted = min(max(o * v.magnification, 0.3), 2)
+                let at = CGPoint(x: v.startLocation.x, y: v.startLocation.y)
+                let content = CGPoint(x: (at.x - pan.width) / zoom,
+                                      y: (at.y - pan.height) / zoom)
+                zoom = wanted
+                pan.width = at.x - content.x * wanted
+                pan.height = at.y - content.y * wanted
             }
             .onEnded { _ in zoomOrigin = nil }
     }
