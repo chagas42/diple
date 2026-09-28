@@ -243,9 +243,13 @@ final class AppModel: ObservableObject {
     private let store: Store
     private let notificador = Notifier()
 
+    private let sync: SyncEngine
+    private var pendingSeed: Queue?
+
     init(client: GitHubClient = GitHubClient(), store: Store = Store()) {
         self.client = client
         self.store = store
+        self.sync = SyncEngine(client: client)
     }
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
@@ -273,7 +277,7 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in await self?.refresh() }
+            Task { @MainActor in await self?.refresh(full: true) }
         }
     }
 
@@ -288,6 +292,7 @@ final class AppModel: ObservableObject {
         activity = cache.activity
         if !Demo.isOn, let cached = cache.queue, queue.all.isEmpty {
             queue = cached
+            pendingSeed = cached
             onCountChange?()
         }
     }
@@ -299,7 +304,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func refresh() async {
+    func refresh(full: Bool = false) async {
         if Demo.isOn {
             queue = Demo.queue
             unread = Demo.unread
@@ -316,7 +321,11 @@ final class AppModel: ObservableObject {
         defer { loading = false }
 
         do {
-            let nova = try await client.fetchQueue()
+            if let seed = pendingSeed {
+                pendingSeed = nil
+                await sync.seed(seed)
+            }
+            let nova = try await sync.sync(full: full)
             let events = store.diff(nova, meuLogin: nova.viewer)
                 .filter { e in
                     let repo = e.key.split(separator: "#").first.map(String.init) ?? ""

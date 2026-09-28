@@ -8,6 +8,7 @@ enum BenchScenarios {
         case "refresh":      await refresh()
         case "launch":       await launch()
         case "review-start": await reviewStart()
+        case "sync-parity":  await syncParity()
         default:             Bench.fail("unknown scenario \(scenario). Use refresh, launch, notch-idle or review-start")
         }
     }
@@ -41,6 +42,43 @@ enum BenchScenarios {
         samples.add("store_writes", s.count(.storeWrites))
         samples.add("store_writes_on_main", s.count(.storeWritesOnMain))
         samples.add("store_write_ms", s.millis(.storeWrite).reduce(0, +))
+    }
+
+    static func syncParity() async -> Never {
+        let client = GitHubClient()
+        let engine = SyncEngine(client: client)
+        let pause = Double(Bench.option("--interval").flatMap(Int.init) ?? 20)
+        let samples = Bench.Samples()
+        let runs = Bench.runs
+        func sections(_ q: Queue) -> [[PR]] { [q.mine, q.toReview, q.following] }
+        do {
+            _ = try await engine.sync(full: true)
+            for _ in 0..<runs {
+                try? await Task.sleep(for: .seconds(pause))
+                var incremental = try await engine.sync()
+                var truth = try await client.fetchQueue()
+                var raced = 0
+                if sections(incremental) != sections(truth) {
+                    raced = 1
+                    incremental = try await engine.sync()
+                    truth = try await client.fetchQueue()
+                }
+                let mismatch = sections(incremental) != sections(truth)
+                if mismatch {
+                    let a = Dictionary(incremental.all.map { ($0.key, $0) }, uniquingKeysWith: { f, _ in f })
+                    let b = Dictionary(truth.all.map { ($0.key, $0) }, uniquingKeysWith: { f, _ in f })
+                    let differing = Set(a.keys).union(b.keys).filter { a[$0] != b[$0] }
+                    FileHandle.standardError.write(Data("bench: mismatch on \(differing.count) PRs\n".utf8))
+                }
+                samples.add("mismatch", mismatch ? 1 : 0)
+                samples.add("raced", raced)
+                samples.add("fetched_details", await engine.lastKind == .heartbeatWithDetails ? 1 : 0)
+                samples.add("prs", truth.all.count)
+            }
+        } catch {
+            Bench.fail(error.localizedDescription)
+        }
+        Bench.finish("sync-parity", samples, runs: runs)
     }
 
     static func launch() async -> Never {

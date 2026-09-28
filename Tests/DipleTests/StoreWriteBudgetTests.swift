@@ -50,6 +50,18 @@ import Testing
         #expect(metrics.snapshot().count(.storeWrites) == 1)
     }
 
+    @Test func aNewRateLimitAloneIsNoWrite() async throws {
+        let metrics = Metrics()
+        let store = Self.store(metrics: metrics)
+        var q = try await StoreDiffTests.queue(.realistic())
+        store.saveQueue(q)
+        await store.settle()
+        q.rateLimitLeft -= 1
+        store.saveQueue(q)
+        await store.settle()
+        #expect(metrics.snapshot().count(.storeWrites) == 1)
+    }
+
     @Test func writesNeverRunOnTheMainThread() async throws {
         let metrics = Metrics()
         let store = Self.store(metrics: metrics)

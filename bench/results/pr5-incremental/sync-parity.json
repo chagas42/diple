@@ -1,0 +1,71 @@
+{
+  "commit" : "pr5",
+  "date" : "2026-09-28T01:01:38Z",
+  "machine" : "Mac16,12 · Version 26.5.1 (Build 25F80)",
+  "metrics" : {
+    "fetched_details" : {
+      "max" : 0,
+      "mean" : 0,
+      "min" : 0,
+      "p50" : 0,
+      "p95" : 0
+    },
+    "mismatch" : {
+      "max" : 0,
+      "mean" : 0,
+      "min" : 0,
+      "p50" : 0,
+      "p95" : 0
+    },
+    "prs" : {
+      "max" : 34,
+      "mean" : 34,
+      "min" : 34,
+      "p50" : 34,
+      "p95" : 34
+    },
+    "raced" : {
+      "max" : 0,
+      "mean" : 0,
+      "min" : 0,
+      "p50" : 0,
+      "p95" : 0
+    }
+  },
+  "runs" : 6,
+  "samples" : {
+    "fetched_details" : [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "mismatch" : [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "prs" : [
+      34,
+      34,
+      34,
+      34,
+      34,
+      34
+    ],
+    "raced" : [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "scenario" : "sync-parity"
+}
