@@ -640,6 +640,10 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
     }
 
+    func flushState() { store.flushNow() }
+
+    func settleState() async { await store.settle() }
+
     enum NeedsReason: Sendable, Equatable {
         case reviewRequested
         case replied
