@@ -49,6 +49,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var mapNotice: String?
     @Published private(set) var mapLayouts: [String: [String: CGPoint]] = [:]
     private var mapRoots: [String: [URL]] = [:]
+    private var sections: [String: DetailView.Section] = [:]
+
+    func section(for key: String) -> DetailView.Section { sections[key] ?? .conversation }
+    func remember(_ section: DetailView.Section, for key: String) { sections[key] = section }
 
     @Published var settings = Settings() {
         didSet {

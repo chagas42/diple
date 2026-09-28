@@ -10,7 +10,13 @@ struct DetailView: View {
         case ai = "AI review"
         var id: String { rawValue }
     }
-    @State private var section: Section = .conversation
+    @State private var section: Section
+
+    init(model: AppModel, pr: PR) {
+        self.model = model
+        self.pr = pr
+        _section = State(initialValue: model.section(for: pr.key))
+    }
 
     var body: some View {
         ScrollView {
@@ -43,7 +49,8 @@ struct DetailView: View {
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onChange(of: pr.key) { section = .conversation }
+        .onChange(of: pr.key) { _, key in section = model.section(for: key) }
+        .onChange(of: section) { _, s in model.remember(s, for: pr.key) }
     }
 
     private var header: some View {
