@@ -61,6 +61,7 @@ import Testing
         let dir = Self.tempDirectory()
         let store = Store(directory: dir, metrics: Metrics())
         _ = store.diff(try await Self.queue(.realistic()), meuLogin: "you")
+        await store.settle()
         let reloaded = Store(directory: dir, metrics: Metrics())
         #expect(reloaded.state.hasRunBefore)
         #expect(reloaded.state.prs.count == 36)

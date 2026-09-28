@@ -8,7 +8,7 @@ struct Snapshot: Codable, Sendable, Equatable {
     var reviewRequested: Bool
 }
 
-struct StoredState: Codable, Sendable {
+struct StoredState: Codable, Sendable, Equatable {
     var version = 1
     var prs: [String: Snapshot] = [:]
     var unread: Set<String> = []
@@ -79,7 +79,7 @@ enum RankPeriod: String, CaseIterable, Codable, Sendable, Identifiable {
     }
 }
 
-struct Cache: Codable, Sendable {
+struct Cache: Codable, Sendable, Equatable {
     var team: [Person] = []
     var ranking: [RankRow] = []
     var activity: [ActivityDay] = []
@@ -149,13 +149,19 @@ final class Store {
     }
 
     private let path: URL
-    private let metrics: Metrics
+    private let writer: StoreWriter
+    private var generation = 0
 
-    init(directory: URL = Store.defaultDirectory, metrics: Metrics = .shared) {
-        self.metrics = metrics
+    init(
+        directory: URL = Store.defaultDirectory,
+        metrics: Metrics = .shared,
+        debounce: Duration = .milliseconds(500)
+    ) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         path = directory.appendingPathComponent("state.json")
+        writer = StoreWriter(path: path, metrics: metrics, debounce: debounce)
         load()
+        writer.assumeOnDisk(state)
     }
 
     private func load() {
@@ -173,13 +179,20 @@ final class Store {
     }
 
     private func save() {
-        metrics.measure(.storeWrite) {
-            let enc = JSONEncoder()
-            enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try? enc.encode(state).write(to: path, options: .atomic)
-        }
-        metrics.count(.storeWrites)
-        if Thread.isMainThread { metrics.count(.storeWritesOnMain) }
+        generation += 1
+        let snapshot = state
+        let g = generation
+        Task { [writer] in await writer.schedule(snapshot, generation: g) }
+    }
+
+    func settle() async {
+        await writer.schedule(state, generation: generation)
+        await writer.flush()
+    }
+
+    func flushNow() {
+        generation += 1
+        writer.writeNow(state, generation: generation)
     }
 
     func markRead(_ key: String) {

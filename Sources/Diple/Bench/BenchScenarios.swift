@@ -16,6 +16,7 @@ enum BenchScenarios {
         Bench.requireIsolatedState()
         let model = AppModel()
         await model.refresh()
+        await model.settleState()
         guard model.errorMessage == nil else { Bench.fail(model.errorMessage ?? "") }
 
         let samples = Bench.Samples()
@@ -25,6 +26,7 @@ enum BenchScenarios {
             let start = ContinuousClock.now
             await model.refresh()
             let wall = start.duration(to: .now).millis
+            await model.settleState()
             if let e = model.errorMessage { Bench.fail(e) }
             record(Metrics.shared.snapshot(), wall: wall, into: samples)
         }
@@ -45,6 +47,7 @@ enum BenchScenarios {
         Bench.requireIsolatedState()
         let primer = AppModel()
         await primer.refresh()
+        await primer.settleState()
         guard primer.errorMessage == nil else { Bench.fail(primer.errorMessage ?? "") }
 
         let samples = Bench.Samples()

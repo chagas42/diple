@@ -39,6 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        AppModel.shared.flushState()
+    }
+
     private func checkScreen() {
         showsMenuBarItem = !NotchGeometry.current().hasNotch
     }
