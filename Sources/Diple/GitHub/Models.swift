@@ -270,4 +270,59 @@ struct Queue: Sendable, Equatable, Codable {
     var rateLimitResetAt: Date? = nil
 
     var all: [PR] { mine + toReview + following + watched }
+
+    enum Section: String, CaseIterable, Sendable {
+        case mine, toReview, following, watched
+
+        var title: String {
+            switch self {
+            case .mine:      "Your PRs"
+            case .toReview:  "Reviewing"
+            case .following: "Following"
+            case .watched:   "Watching"
+            }
+        }
+    }
+
+    subscript(section: Section) -> [PR] {
+        get {
+            switch section {
+            case .mine:      mine
+            case .toReview:  toReview
+            case .following: following
+            case .watched:   watched
+            }
+        }
+        set {
+            switch section {
+            case .mine:      mine = newValue
+            case .toReview:  toReview = newValue
+            case .following: following = newValue
+            case .watched:   watched = newValue
+            }
+        }
+    }
+}
+
+struct RawSectionResponse: Decodable, Sendable {
+    let data: RawData?
+    let errors: [GraphQLError]?
+
+    struct RawData: Decodable, Sendable {
+        let viewer: RawResponse.RawViewer
+        let mine: RawResponse.RawSearch?
+        let toReview: RawResponse.RawSearch?
+        let following: RawResponse.RawSearch?
+        let watched: RawResponse.RawSearch?
+        let rateLimit: RawResponse.RawRateLimit?
+
+        subscript(section: Queue.Section) -> RawResponse.RawSearch? {
+            switch section {
+            case .mine:      mine
+            case .toReview:  toReview
+            case .following: following
+            case .watched:   watched
+            }
+        }
+    }
 }

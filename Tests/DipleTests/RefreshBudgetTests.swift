@@ -63,6 +63,6 @@ import Testing
         )
         await model.refresh()
         await model.refresh(full: true)
-        #expect(FakeGitHub.syncKinds(github.transport.queries) == ["full", "full"])
+        #expect(FakeGitHub.syncKinds(github.transport.queries) == Array(repeating: "full", count: 6))
     }
 }

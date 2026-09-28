@@ -55,12 +55,12 @@ enum BenchScenarios {
             _ = try await engine.sync(full: true)
             for _ in 0..<runs {
                 try? await Task.sleep(for: .seconds(pause))
-                var incremental = try await engine.sync()
+                var incremental = try await engine.sync().queue
                 var truth = try await client.fetchQueue()
                 var raced = 0
                 if sections(incremental) != sections(truth) {
                     raced = 1
-                    incremental = try await engine.sync()
+                    incremental = try await engine.sync().queue
                     truth = try await client.fetchQueue()
                 }
                 let mismatch = sections(incremental) != sections(truth)

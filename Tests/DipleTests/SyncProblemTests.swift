@@ -6,7 +6,7 @@ import Testing
 @Suite struct SyncProblemTests {
     static func model(_ github: FakeGitHub) -> AppModel {
         AppModel(
-            client: GitHubClient(transport: github.transport, tokens: CountingTokens(), metrics: Metrics()),
+            client: GitHubClient(transport: github.transport, tokens: CountingTokens(), metrics: Metrics(), retryDelays: [.zero, .zero]),
             store: Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
         )
     }

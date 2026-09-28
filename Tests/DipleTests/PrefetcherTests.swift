@@ -118,7 +118,7 @@ final class ReviewGitHub: @unchecked Sendable {
         let pr = try await gh.prs()[0]
         let broken = StubTransport { _ in .init(status: 502) }
         let failing = Prefetcher(
-            client: GitHubClient(transport: broken, tokens: CountingTokens(), metrics: Metrics()),
+            client: GitHubClient(transport: broken, tokens: CountingTokens(), metrics: Metrics(), retryDelays: [.zero, .zero]),
             fetchRefs: gh.fetchRefs
         )
         await failing.warm([.init(pr: pr, origin: nil)])

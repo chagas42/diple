@@ -44,6 +44,7 @@ struct ErrorReport: Sendable, Equatable {
     let operation: Operation
     let type: String
     let name: String
+    let attempts: Int
     let domain: String
     let code: Int
     let underlyingDomain: String?
@@ -63,10 +64,12 @@ struct ErrorReport: Sendable, Equatable {
         default:                 String(describing: Swift.type(of: error))
         }
         self.domain = ns.domain
-        if case ClientError.http(let status) = error {
+        if case ClientError.http(let status, let attempts) = error {
+            self.attempts = attempts
             self.code = status
             self.name = "http_\(status)"
         } else {
+            self.attempts = 1
             self.code = ns.code
             self.name = ns.domain == NSURLErrorDomain ? Self.urlName(ns.code) : "\(self.type).\(ns.code)"
         }

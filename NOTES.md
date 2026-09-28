@@ -248,6 +248,18 @@ failures in a row and a range for the time since the last good sync. Transport
 failures go in as `warning`, the rest as `error`, so an evening offline does
 not drown the issues that are bugs.
 
+**GitHub gives a GraphQL query about ten seconds.** Past that it answers 502 or
+504 — "we couldn't respond to your request in time" — and the cost is the
+query's, not the network's. The queue used to be one request with every section
+and every thread comment of every PR: about eight seconds for forty PRs, so a
+bigger team or a busy hour crossed the line. Now each section is its own request,
+run side by side, and `details` goes in batches of ten, two at a time. A section
+or batch that still times out keeps what it had, the rest is applied, and the
+next cycle tries again (a full one, if a section failed). Queries are retried
+twice on 502/503/504 after about 1 s and 3 s; mutations never are, because a 502
+does not mean GitHub did not post the comment. Each retry is a `github_retry`
+event, so PostHog shows whether the limit is still close.
+
 **PostHog adds location unless told not to.** GeoIP runs on the server, from the
 request's IP, and fills `$geoip_city_name`, postal code, latitude and more —
 none of it sent by the app. `$geoip_disable: true` on every event turns it off

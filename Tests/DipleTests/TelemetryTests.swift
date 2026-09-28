@@ -165,7 +165,7 @@ import Testing
             "operation", "error_domain", "error_code", "error_name", "error_network",
             "underlying_domain", "underlying_code", "host",
             "network_status", "network_interface", "network_expensive", "network_constrained",
-            "failures_in_row", "since_last_sync",
+            "failures_in_row", "since_last_sync", "attempts", "status", "request",
         ]
         for e in events {
             let props = e["properties"] as! [String: Any]

@@ -42,10 +42,10 @@ struct Heartbeat: Sendable, Equatable {
         }
     }
 
-    func queue(known: [String: PR]) -> Queue? {
+    func queue(known: [String: PR], skipping: Set<String> = []) -> Queue? {
         func section(_ rows: [Row]) -> [PR]? {
             var out: [PR] = []
-            for row in rows {
+            for row in rows where !skipping.contains(row.id) {
                 guard let pr = known[row.id] else { return nil }
                 out.append(pr)
             }
@@ -123,8 +123,44 @@ extension GitHubClient {
         return d
     }
 
-    func fetchPRs(ids: [String]) async throws -> [PR] {
-        guard !ids.isEmpty else { return [] }
+    static let detailBatch = 10
+    static let detailConcurrency = 2
+
+    struct DetailFetch: Sendable {
+        var prs: [PR] = []
+        var failed: Set<String> = []
+        var error: (any Error)?
+    }
+
+    func fetchPRs(ids: [String]) async -> DetailFetch {
+        let batches = stride(from: 0, to: ids.count, by: Self.detailBatch).map {
+            Array(ids[$0..<min($0 + Self.detailBatch, ids.count)])
+        }
+        return await withTaskGroup(of: (batch: [String], result: Result<[PR], any Error>).self) { group in
+            var pending = batches[...]
+            func next() {
+                guard let batch = pending.popFirst() else { return }
+                group.addTask {
+                    do { return (batch, .success(try await self.details(batch))) }
+                    catch { return (batch, .failure(error)) }
+                }
+            }
+            for _ in 0..<Self.detailConcurrency { next() }
+            var fetch = DetailFetch()
+            for await done in group {
+                switch done.result {
+                case .success(let prs): fetch.prs += prs
+                case .failure(let e):
+                    fetch.failed.formUnion(done.batch)
+                    fetch.error = fetch.error ?? e
+                }
+                next()
+            }
+            return fetch
+        }
+    }
+
+    private func details(_ ids: [String]) async throws -> [PR] {
         let body: RawDetails = try await send(Query.details(ids))
         if let errors = body.errors, !errors.isEmpty { throw ClientError.graphql(errors.map(\.message)) }
         guard let d = body.data else { throw ClientError.empty }

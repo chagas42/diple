@@ -41,19 +41,19 @@ import Testing
 
     @Test func httpErrorsSurface() async {
         let stub = StubTransport { _ in .init(status: 502) }
-        let client = GitHubClient(transport: stub, tokens: CountingTokens(), metrics: Metrics())
+        let client = GitHubClient(transport: stub, tokens: CountingTokens(), metrics: Metrics(), retryDelays: [.zero, .zero])
         await #expect(throws: ClientError.self) { try await client.fetchQueue() }
     }
 
-    @Test func oneRefreshIsOneRequestAndMetricsSeeIt() async throws {
+    @Test func aFullFetchIsOneRequestPerSectionAndMetricsSeeThem() async throws {
         let world = FakeWorld.realistic()
         let body = world.queueResponse()
         let metrics = Metrics()
         let client = GitHubClient(transport: StubTransport(body: body), tokens: CountingTokens(), metrics: metrics)
         _ = try await client.fetchQueue()
         let s = metrics.snapshot()
-        #expect(s.count(.requests) == 1)
-        #expect(s.count(.bytesIn) == body.count)
-        #expect(s.millis(.request).count == 1)
+        #expect(s.count(.requests) == 3)
+        #expect(s.count(.bytesIn) == 3 * body.count)
+        #expect(s.millis(.request).count == 3)
     }
 }

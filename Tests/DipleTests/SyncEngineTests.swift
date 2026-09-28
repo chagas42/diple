@@ -19,7 +19,9 @@ final class FakeClock: @unchecked Sendable {
 
         init(_ world: FakeWorld = .realistic()) {
             github = FakeGitHub(world)
-            let client = GitHubClient(transport: github.transport, tokens: CountingTokens(), metrics: metrics)
+            let client = GitHubClient(
+                transport: github.transport, tokens: CountingTokens(), metrics: metrics, retryDelays: [.zero, .zero]
+            )
             let clock = self.clock
             engine = SyncEngine(client: client, now: { clock.now })
             reference = GitHubClient(
@@ -31,7 +33,7 @@ final class FakeClock: @unchecked Sendable {
         func cycle() async throws -> (queue: Queue, kinds: [String], bytes: Int) {
             let before = github.transport.queries.count
             let bytesBefore = metrics.snapshot().count(.bytesIn)
-            let q = try await engine.sync()
+            let q = try await engine.sync().queue
             let raw = github.transport.queries.dropFirst(before).map(FakeGitHub.kind)
             let kinds = raw.reduce(into: [String]()) { out, k in if out.last != k { out.append(k) } }
             return (q, kinds, metrics.snapshot().count(.bytesIn) - bytesBefore)
