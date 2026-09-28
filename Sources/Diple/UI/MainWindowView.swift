@@ -104,6 +104,7 @@ struct MainWindowView: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom) { UsageNotice(model: model).padding(8) }
         .searchable(text: $repoSearch, placement: .sidebar, prompt: "Find a repository")
         .task { model.loadRepos() }
     }

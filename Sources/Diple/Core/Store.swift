@@ -21,6 +21,9 @@ struct StoredState: Codable, Sendable, Equatable {
     var watching: Set<String>? = nil
     var settings = Settings()
     var cache = Cache()
+    var installId: String? = nil
+    var usageNoticeSeen = false
+    var lastActiveDay: String? = nil
 
     init() {}
 
@@ -37,6 +40,9 @@ struct StoredState: Codable, Sendable, Equatable {
         d.watching = try c.decodeIfPresent(Set<String>.self, forKey: .watching) ?? d.watching
         d.settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? d.settings
         d.cache = try c.decodeIfPresent(Cache.self, forKey: .cache) ?? d.cache
+        d.installId = try c.decodeIfPresent(String.self, forKey: .installId)
+        d.usageNoticeSeen = try c.decodeIfPresent(Bool.self, forKey: .usageNoticeSeen) ?? d.usageNoticeSeen
+        d.lastActiveDay = try c.decodeIfPresent(String.self, forKey: .lastActiveDay)
         self = d
     }
 
@@ -216,6 +222,33 @@ final class Store {
     func flushNow() {
         generation += 1
         writer.writeNow(state, generation: generation)
+    }
+
+    func ensureInstallId() -> String {
+        if let id = state.installId, !id.isEmpty { return id }
+        let id = UUID().uuidString.lowercased()
+        state.installId = id
+        save()
+        return id
+    }
+
+    func resetInstallId() -> String {
+        let id = UUID().uuidString.lowercased()
+        state.installId = id
+        save()
+        return id
+    }
+
+    func markUsageNoticeSeen() {
+        state.usageNoticeSeen = true
+        save()
+    }
+
+    func markActive(on day: String) -> Bool {
+        guard state.lastActiveDay != day else { return false }
+        state.lastActiveDay = day
+        save()
+        return true
     }
 
     func markRead(_ key: String) {

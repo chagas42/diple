@@ -111,9 +111,15 @@ jobs:
       - name: Stamp the version
         env:
           V: ${{ needs.decide.outputs.version }}
+          POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
         run: |
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $V" build/Diple.app/Contents/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" build/Diple.app/Contents/Info.plist
+          if [ -n "$POSTHOG_KEY" ]; then
+            /usr/libexec/PlistBuddy -c "Add :DiplePostHogKey string $POSTHOG_KEY" build/Diple.app/Contents/Info.plist
+          else
+            echo "::warning::POSTHOG_KEY is not set — this release sends no usage data"
+          fi
           codesign --force --sign - --identifier com.chagas42.diple build/Diple.app
 
       - name: Zip it

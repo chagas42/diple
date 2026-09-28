@@ -21,6 +21,7 @@ struct Settings: Codable, Sendable, Equatable {
     var codeTheme: String = "diple-dark"
     var attribution: String = Attribution.onMyOwn.rawValue
     var mapModel: String? = nil
+    var shareUsage = true
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -94,6 +95,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.codeTheme = try c.decodeIfPresent(String.self, forKey: .codeTheme) ?? d.codeTheme
         d.attribution = try c.decodeIfPresent(String.self, forKey: .attribution) ?? d.attribution
         d.mapModel = try c.decodeIfPresent(String.self, forKey: .mapModel) ?? d.mapModel
+        d.shareUsage = try c.decodeIfPresent(Bool.self, forKey: .shareUsage) ?? d.shareUsage
         self = d
     }
 

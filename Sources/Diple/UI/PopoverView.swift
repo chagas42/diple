@@ -112,6 +112,7 @@ struct PopoverView: View {
             }
             .frame(maxHeight: 420)
 
+            UsageNotice(model: model)
             Divider()
             footer
         }

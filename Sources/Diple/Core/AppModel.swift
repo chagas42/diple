@@ -59,6 +59,7 @@ final class AppModel: ObservableObject {
             guard settings != oldValue else { return }
             store.saveSettings(settings)
             notificador.settings = settings
+            if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
         }
     }
@@ -273,13 +274,21 @@ final class AppModel: ObservableObject {
     private let notificador = Notifier()
 
     private let sync: SyncEngine
+    let telemetry: Telemetry
+    @Published private(set) var usageNoticeVisible = false
     private var pendingSeed: Queue?
     let prefetcher: Prefetcher
     private var prefetchTask: Task<Void, Never>?
     private var preloadTask: Task<Void, Never>?
     var preloadsTabs = true
 
-    init(client: GitHubClient = GitHubClient(), store: Store = Store(), prefetcher: Prefetcher? = nil) {
+    init(
+        client: GitHubClient = GitHubClient(),
+        store: Store = Store(),
+        prefetcher: Prefetcher? = nil,
+        telemetry: Telemetry = .shared
+    ) {
+        self.telemetry = telemetry
         self.client = client
         self.store = store
         self.sync = SyncEngine(client: client)
@@ -361,6 +370,7 @@ final class AppModel: ObservableObject {
         restoreCached()
         settings = store.state.settings
         notificador.settings = settings
+        startTelemetry()
 
         Task { await refresh() }
         Task {
@@ -378,6 +388,32 @@ final class AppModel: ObservableObject {
             Task { @MainActor in await self?.refresh(full: true) }
         }
     }
+
+    func startTelemetry() {
+        let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        telemetry.configure(
+            installId: store.ensureInstallId(),
+            consent: settings.shareUsage,
+            common: [
+                "app_version": .text(version),
+                "os_version": .text("\(os.majorVersion).\(os.minorVersion)"),
+                "has_notch": .bool(NotchGeometry.current().hasNotch),
+            ]
+        )
+        usageNoticeVisible = telemetry.isActive && !store.state.usageNoticeSeen
+    }
+
+    func dismissUsageNotice() {
+        store.markUsageNoticeSeen()
+        usageNoticeVisible = false
+    }
+
+    func resetAnonymousId() {
+        telemetry.setInstallId(store.resetInstallId())
+    }
+
+    var anonymousId: String { store.state.installId ?? "" }
 
     func restoreCached() {
         unread = store.state.unread
