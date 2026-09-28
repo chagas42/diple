@@ -91,6 +91,43 @@ not here* — goes to the model.
 
 ## Install
 
+### One line
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chagas42/diple/main/install.sh | bash
+```
+
+Downloads the latest release, checks its checksum, puts it in `/Applications`
+and opens it. No security dialog — [read the script](install.sh) first if you
+like, it is short.
+
+Needs **macOS 14+** and the [GitHub CLI](https://cli.github.com) signed in
+(`gh auth login`); Diple borrows that token, so there is nothing to paste.
+
+### Why not just download the .zip?
+
+You can, but macOS will greet you with this:
+
+> *"Diple" Not Opened — Apple could not verify "Diple" is free of malware…*
+> **Move to Trash** · Done
+
+Diple is not malware, and macOS is not wrong to be suspicious either. The build
+is signed ad-hoc, not notarised: notarising needs a paid Apple Developer
+account, which this project does not have, and macOS cannot tell an ad-hoc
+signature from anything else it has never seen.
+
+The check only fires on files your browser marked as downloaded (the
+`com.apple.quarantine` flag). `curl` does not set that flag, which is why the
+script above never trips it. If you already downloaded the zip, either clear
+the flag:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Diple.app
+```
+
+or press **Done**, open **System Settings → Privacy & Security**, scroll to
+*"Diple" was blocked* and click **Open Anyway**. You only do this once.
+
 ### Homebrew
 
 ```bash
@@ -98,20 +135,7 @@ brew install --cask chagas42/tap/diple
 xattr -dr com.apple.quarantine /Applications/Diple.app
 ```
 
-### Direct download
-
-Grab the latest `.zip` from [Releases](https://github.com/chagas42/diple/releases/latest),
-unpack it into `/Applications`, then run the same `xattr` line.
-
-> **Run that second line, or macOS will tell you Diple is malware.** It is not
-> lying to you and it is not wrong to be suspicious: the build is signed
-> ad-hoc, not notarised, and macOS cannot tell an ad-hoc signature from
-> anything else it has never seen. Notarising needs a paid Apple Developer
-> account, which this project does not have. `xattr -dr com.apple.quarantine`
-> clears the flag the download put there; if you skip it, you get the scary
-> dialog and then System Settings → Privacy & Security → Open Anyway.
->
-> Building from source has no such step, because nothing was downloaded.
+Homebrew does mark its downloads, so the second line is needed here too.
 
 ### From source
 
@@ -128,10 +152,8 @@ make install
 That builds, signs, copies to `/Applications` and prints where it found each
 tool it needs.
 
-> **The app is signed ad-hoc.** On a machine that did not build it, macOS will
-> refuse to open it the first time: right-click → Open, or
-> `xattr -dr com.apple.quarantine /Applications/Diple.app`. Notarising needs a
-> paid Apple Developer account, which this does not have.
+Nothing was downloaded, so there is no quarantine flag and no dialog. Copy that
+`.app` to another Mac, though, and it gets the same treatment as the zip.
 
 ## Development
 
@@ -180,7 +202,7 @@ being a separate channel from `comments`, `baseRefOid` versus a stale
 - [ ] Device flow, so `gh` is not required
 - [ ] Watched repositories feeding new PRs into the queue
 - [ ] Rate-limit state when your Claude plan runs out mid-review
-- [ ] Notarised builds, so the first launch needs no right-click
+- [ ] Notarised builds, so the zip and Homebrew open without the security dialog
 
 ---
 
