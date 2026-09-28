@@ -19,7 +19,7 @@ struct NotchGeometry {
     var closed: CGSize { CGSize(width: notchWidth, height: topInset) }
 
     var active: CGSize {
-        CGSize(width: notchWidth + wing * 2, height: topInset)
+        CGSize(width: notchWidth + wings.left + wings.right, height: topInset)
     }
 
     var open: CGSize { CGSize(width: 680, height: 330) }
@@ -28,14 +28,19 @@ struct NotchGeometry {
 
     var asa: CGFloat { 42 }
 
-    static let minWing: CGFloat = 18
+    static let minWing: CGFloat = 27
 
-    var wing: CGFloat {
-        let fits = min(asa, freeRight - 6)
-        return fits >= Self.minWing ? fits : 0
+    var wings: Wings { Self.wings(freeRight: freeRight, full: asa) }
+
+    static func wings(freeRight: CGFloat, full: CGFloat) -> Wings {
+        let fits = min(full, freeRight - 6)
+        return fits >= minWing ? Wings(left: fits, right: fits) : Wings(left: full, right: 0)
     }
 
     var freeRight: CGFloat {
+        if let forced = ProcessInfo.processInfo.environment["DIPLE_FREE_RIGHT"].flatMap(Double.init) {
+            return forced
+        }
         guard hasNotch,
               let primary = NSScreen.screens.first,
               let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]
@@ -67,8 +72,8 @@ struct NotchGeometry {
                       width: l, height: a)
     }
 
-    func rect(_ size: CGSize) -> NSRect {
-        NSRect(x: screen.frame.midX - size.width / 2,
+    func rect(_ size: CGSize, shift: CGFloat = 0) -> NSRect {
+        NSRect(x: screen.frame.midX + shift - size.width / 2,
                y: screen.frame.maxY - size.height,
                width: size.width, height: size.height)
     }
@@ -77,4 +82,12 @@ struct NotchGeometry {
         let notched = NSScreen.screens.first { $0.auxiliaryTopLeftArea != nil }
         return NotchGeometry(screen: notched ?? NSScreen.main ?? NSScreen.screens[0])
     }
+}
+
+struct Wings: Equatable {
+    let left: CGFloat
+    let right: CGFloat
+
+    var countOnLeft: Bool { right == 0 }
+    var shift: CGFloat { (right - left) / 2 }
 }

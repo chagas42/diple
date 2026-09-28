@@ -7,6 +7,8 @@ final class NotchController: ObservableObject {
     @Published private(set) var size: CGSize = .zero
     @Published private(set) var notchWidth: CGFloat = 185
     @Published private(set) var notchHeight: CGFloat = 32
+    @Published private(set) var wings = Wings(left: 42, right: 42)
+    @Published private(set) var shift: CGFloat = 0
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -21,7 +23,6 @@ final class NotchController: ObservableObject {
     private var pointerTimer: Timer?
     private var blinkTask: Task<Void, Never>?
     private var wingTimer: Timer?
-    private var wing: CGFloat = -1
 
     var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
 
@@ -56,10 +57,11 @@ final class NotchController: ObservableObject {
 
     private func apply() {
         let g = NotchGeometry.current()
-        wing = g.wing
+        wings = g.wings
+        shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
-        case .active: wing > 0 ? g.active : g.closed
+        case .active: g.active
         case .open:    g.open
         case .alert:    g.alert
         }
@@ -127,7 +129,7 @@ final class NotchController: ObservableObject {
         wingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.state == .active,
-                      NotchGeometry.current().wing != self.wing else { return }
+                      NotchGeometry.current().wings != self.wings else { return }
                 self.apply()
             }
         }
@@ -136,7 +138,7 @@ final class NotchController: ObservableObject {
     private func checkPointer() {
         if Film.isOn { return }
         let g = NotchGeometry.current()
-        let shape = g.rect(size)
+        let shape = g.rect(size, shift: shift)
 
         let hotZone = shape.union(g.rect(g.closed))
         let m = pointer()
@@ -168,7 +170,7 @@ final class NotchController: ObservableObject {
     private func aim() {
         guard state == .hidden || state == .active else { return }
         let g = NotchGeometry.current()
-        let f = g.rect(size)
+        let f = g.rect(size, shift: shift)
         let m = pointer()
         let range: CGFloat = 300
         let dx = max(-1, min(1, (m.x - f.midX) / range))
@@ -200,6 +202,8 @@ final class NotchController: ObservableObject {
                 size: notch.size,
                 notchWidth: notch.notchWidth,
                 notchHeight: notch.notchHeight,
+                countOnLeft: notch.wings.countOnLeft,
+                shift: notch.shift,
                 eye: notch.eye,
                 onClose: { notch.closeNow() }
             )
