@@ -233,7 +233,7 @@ final class AppModel: ObservableObject {
                 body: signed(finding.comment ?? finding.summary, on: pr)
             )
             posted.insert(finding.id)
-            await refresh()
+            await reread(pr)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -242,6 +242,19 @@ final class AppModel: ObservableObject {
     func signed(_ body: String, on pr: PR) -> String {
         guard settings.attributionMode.applies(mine: pr.isMine) else { return body }
         return body + "\n\n<sub>via [Diple](https://github.com/chagas42/diple) — drafted by a Claude review running locally</sub>"
+    }
+
+    func reread(_ pr: PR) async {
+        guard let fresh = try? await client.fetchPR(repo: pr.repo, number: pr.number) else {
+            await refresh()
+            return
+        }
+        func swap(_ list: [PR]) -> [PR] { list.map { $0.key == fresh.key ? fresh : $0 } }
+        queue.mine = swap(queue.mine)
+        queue.toReview = swap(queue.toReview)
+        queue.following = swap(queue.following)
+        if selected?.key == fresh.key { selected = fresh }
+        if repoPRs.contains(where: { $0.key == fresh.key }) { repoPRs = swap(repoPRs) }
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
@@ -908,7 +921,7 @@ final class AppModel: ObservableObject {
         defer { sending = false }
         do {
             try await client.reply(threadId: thread, body: t)
-            await refresh()
+            if let pr = selected { await reread(pr) } else { await refresh() }
             return nil
         } catch {
             return error.localizedDescription
