@@ -3,6 +3,7 @@ import SwiftUI
 struct CommentView: View {
     let comment: PR.ThreadComment
     let path: String
+    var alwaysNamed = false
 
     @Environment(\.codeTheme) private var theme
     @State private var expanded = false
@@ -23,7 +24,7 @@ struct CommentView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 7) {
-                    if hovering {
+                    if hovering || alwaysNamed {
                         Text(comment.author)
                             .font(.system(size: 12.5, weight: .semibold))
                             .transition(.opacity)
@@ -111,8 +112,10 @@ struct InitialsBubble: View {
     }
 
     private var tint: Color {
-        let hues: [Color] = [.orange, .purple, .teal, .pink, .indigo, .green, .blue]
-        return hues[abs(login.hashValue) % hues.count]
+        let hues: [Color] = [.orange, .purple, .teal, .pink, .indigo, .green, .blue, .red]
+        var seed: UInt64 = 5381
+        for b in login.utf8 { seed = seed &* 33 &+ UInt64(b) }
+        return hues[Int(seed % UInt64(hues.count))]
     }
 
     var body: some View {
