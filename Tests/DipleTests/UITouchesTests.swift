@@ -36,6 +36,7 @@ import Testing
     }
 }
 
+@MainActor
 @Suite struct DiffHunkParsingTests {
     @Test func rowsAreNumberedAndStable() {
         let hunk = "@@ -1,3 +10,4 @@\n const a = 1\n-const b = 2\n+const b = 3"
@@ -68,10 +69,11 @@ import Testing
             return data
         }
         let url = URL(string: "https://example.invalid/a.png")!
-        async let a = cache.image(for: url)
-        async let b = cache.image(for: url)
-        let (x, y) = await (a, b)
-        #expect(x != nil && y != nil)
+        let first = Task { @MainActor in await cache.image(for: url) != nil }
+        let second = Task { @MainActor in await cache.image(for: url) != nil }
+        let x = await first.value
+        let y = await second.value
+        #expect(x && y)
         let value1 = await cache.image(for: url)
         #expect(value1 != nil)
         #expect(cache.cached(url) != nil)
