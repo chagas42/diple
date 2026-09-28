@@ -86,8 +86,8 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
 
-            if let error = model.errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle")
+            if let error = model.syncProblem {
+                Label(error, systemImage: model.isOnline ? "exclamationmark.triangle" : "wifi.slash")
                     .font(.system(size: 11))
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)

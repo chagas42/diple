@@ -301,7 +301,7 @@ struct NotchView: View {
             .padding(.top, 10)
             .padding(.bottom, 6)
 
-            if let problem = model.errorMessage {
+            if let problem = model.syncProblem, model.prs(model.tab).isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 18))
@@ -325,6 +325,9 @@ struct NotchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
+                if let problem = model.syncProblem {
+                    problemStrip(problem)
+                }
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(Array(model.prs(model.tab).enumerated()), id: \.element.id) { i, pr in
@@ -494,6 +497,33 @@ struct NotchView: View {
         .padding(.top, 12)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func problemStrip(_ problem: String) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: model.isOnline ? "exclamationmark.triangle.fill" : "wifi.slash")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.orange)
+            Text(problem)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 6)
+            if model.isOnline {
+                Button("Retry") { Task { await model.refresh() } }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .disabled(model.loading)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.orange.opacity(0.14)))
+        .padding(.horizontal, 13)
+        .padding(.bottom, 4)
+        .help(problem)
     }
 
     private func reasonChip(_ r: AppModel.NeedsReason) -> some View {
