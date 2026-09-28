@@ -76,6 +76,7 @@ enum NotchProbe {
                 print("  auxiliary areas: none (screen has no notch)")
             }
             print("  closed:   \(g.closed)  -> \(g.rect(g.closed))")
+            print("  free right: \(g.freeRight)  wing: \(g.wing)")
             print("  active: \(g.active)  -> \(g.rect(g.active))")
             print("  open:    \(g.open)  -> \(g.rect(g.open))")
             print("  fixed windowFrame: \(g.windowFrame())")

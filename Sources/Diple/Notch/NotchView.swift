@@ -98,16 +98,18 @@ struct NotchView: View {
         }
     }
 
+    private var wing: CGFloat { max(0, (size.width - notchWidth) / 2) }
+
     private var wings: some View {
         HStack(spacing: 0) {
-            EyeView(eye: eye, width: 15)
+            EyeView(eye: eye, width: max(10, min(15, wing - 12)))
                 .opacity(model.count > 0 ? 1 : 0.42)
                 .animation(.easeOut(duration: 0.25), value: model.count > 0)
                 .frame(maxWidth: .infinity)
             Spacer(minLength: notchWidth)
                 .frame(width: notchWidth)
             Text("\(model.count)")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: wing < 28 ? 10 : 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
                 .monospacedDigit()
                 .contentTransition(.numericText())

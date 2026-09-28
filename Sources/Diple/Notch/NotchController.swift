@@ -20,6 +20,8 @@ final class NotchController: ObservableObject {
     private var pointerAnchor: CGPoint?
     private var pointerTimer: Timer?
     private var blinkTask: Task<Void, Never>?
+    private var wingTimer: Timer?
+    private var wing: CGFloat = -1
 
     var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
 
@@ -30,6 +32,7 @@ final class NotchController: ObservableObject {
         panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
         panel.orderFrontRegardless()
         trackPointer()
+        watchMenuBar()
         blinkOccasionally()
 
         NotificationCenter.default.addObserver(
@@ -53,9 +56,10 @@ final class NotchController: ObservableObject {
 
     private func apply() {
         let g = NotchGeometry.current()
+        wing = g.wing
         let next: CGSize = switch state {
         case .hidden:    g.closed
-        case .active: g.active
+        case .active: wing > 0 ? g.active : g.closed
         case .open:    g.open
         case .alert:    g.alert
         }
@@ -114,6 +118,17 @@ final class NotchController: ObservableObject {
                 guard let self else { return }
                 self.checkPointer()
                 self.aim()
+            }
+        }
+    }
+
+    private func watchMenuBar() {
+        if Film.isOn { return }
+        wingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.state == .active,
+                      NotchGeometry.current().wing != self.wing else { return }
+                self.apply()
             }
         }
     }
