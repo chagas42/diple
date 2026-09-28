@@ -152,6 +152,7 @@ import Testing
             .findingPosted,
             .prOpened(source: .notch),
             .notificationShown(kind: .checkFailed),
+            .error(ErrorReport(URLError(.timedOut), in: .refresh)!),
         ]
         every.forEach { t.capture($0) }
         await t.flush()
@@ -160,6 +161,8 @@ import Testing
             "app_version", "$lib", "$process_person_profile",
             "needs_you", "mine", "to_review", "deep", "outcome", "findings", "threads_judged",
             "duration", "prs_in_stack", "source", "kind",
+            "$exception_list", "$exception_level", "$exception_fingerprint",
+            "operation", "error_domain", "error_code",
         ]
         for e in events {
             let props = e["properties"] as! [String: Any]

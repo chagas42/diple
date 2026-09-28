@@ -10,6 +10,7 @@ struct PrivacyPane: View {
         "When an AI review or a map starts and finishes: outcome, finding count, duration range",
         "That you replied, resolved a thread, posted a finding or opened a pull request",
         "Which kind of notification was shown",
+        "When something fails: which step, the error's type and numeric code, never its message",
     ]
 
     static let neverSent = [

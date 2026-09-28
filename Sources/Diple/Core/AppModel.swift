@@ -201,7 +201,7 @@ final class AppModel: ObservableObject {
                 self.store.saveCache(c)
                 self.repos = fetched
             } catch {
-                self.errorMessage = error.localizedDescription
+                if let m = self.report(error, in: .loadRepos) { self.errorMessage = m }
             }
         }
     }
@@ -228,7 +228,7 @@ final class AppModel: ObservableObject {
                 self.repoPRs = prs
             } catch {
                 guard !Task.isCancelled, self.selectedRepo == full else { return }
-                self.errorMessage = error.localizedDescription
+                if let m = self.report(error, in: .repoPRs) { self.errorMessage = m }
             }
             self.loadingRepo = false
         }
@@ -250,7 +250,7 @@ final class AppModel: ObservableObject {
             telemetry.capture(.findingPosted)
             await reread(pr)
         } catch {
-            errorMessage = error.localizedDescription
+            if let m = report(error, in: .postFinding) { errorMessage = m }
         }
     }
 
@@ -273,6 +273,15 @@ final class AppModel: ObservableObject {
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
+
+    @discardableResult
+    func report(_ error: Error, in operation: ErrorReport.Operation) -> String? {
+        let r = ErrorReport(error, in: operation)
+        ErrorReport.log(error, in: operation, report: r)
+        guard let r else { return nil }
+        telemetry.capture(.error(r))
+        return error.localizedDescription
+    }
 
     func toggleWatch(_ repo: String) {
         store.toggleWatch(repo)
@@ -576,8 +585,9 @@ final class AppModel: ObservableObject {
                 onEvent?(first)
             }
         } catch {
+            guard let m = report(error, in: .refresh) else { return }
             failures += 1
-            errorMessage = error.localizedDescription
+            errorMessage = m
         }
     }
 
@@ -666,7 +676,7 @@ final class AppModel: ObservableObject {
             }
         } catch {
             guard !Task.isCancelled else { return }
-            errorMessage = error.localizedDescription
+            if let m = report(error, in: .loadTab) { errorMessage = m }
         }
     }
 
@@ -739,6 +749,7 @@ final class AppModel: ObservableObject {
                 }
             }
         } catch {
+            report(error, in: .aiReview)
             runs[pr.key]?.step = .failed(error.localizedDescription)
             note(pr.key, error.localizedDescription, fechando: true)
         }
@@ -807,6 +818,7 @@ final class AppModel: ObservableObject {
             map = MapScan.build(repo: pr.repo, prs: scans)
             changedPaths = Set(scans.flatMap { $0.files.map(\.path) })
         } catch {
+            report(error, in: .mapDiff)
             mapNotice = "could not read the diff: \(error.localizedDescription)"
             return
         }
@@ -874,6 +886,7 @@ final class AppModel: ObservableObject {
                 MapTiming.record(raw: estimate.raw, actual: Date().timeIntervalSince(started), size: map.size)
             }
         } catch {
+            report(error, in: .mapEnrich)
             mapNotice = "only the diff layer: \(error.localizedDescription)"
         }
     }
@@ -1039,6 +1052,7 @@ final class AppModel: ObservableObject {
             if let pr = selected { await reread(pr) } else { await refresh() }
             return nil
         } catch {
+            report(error, in: .reply)
             return error.localizedDescription
         }
     }
@@ -1052,6 +1066,7 @@ final class AppModel: ObservableObject {
             await refresh()
             return nil
         } catch {
+            report(error, in: .resolve)
             return error.localizedDescription
         }
     }
