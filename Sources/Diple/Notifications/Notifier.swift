@@ -10,6 +10,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
     var onChange: (() async -> Void)?
 
     var settings = Settings()
+    var telemetry: Telemetry = .shared
 
     private enum Cat {
         static let thread = "THREAD"
@@ -85,6 +86,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
             try? await center.add(
                 UNNotificationRequest(identifier: e.id, content: c, trigger: nil)
             )
+            if !e.isTest { telemetry.capture(.notificationShown(kind: e.kind)) }
         }
     }
 
@@ -119,6 +121,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
                   !text.isEmpty, let thread else { return }
             do {
                 try await client.reply(threadId: thread, body: text)
+                telemetry.capture(.replySent(source: .notification))
                 await onChange?()
             } catch {
                 await reportFailure("Your comment", error)
@@ -128,6 +131,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
             guard let thread else { return }
             do {
                 try await client.resolve(threadId: thread)
+                telemetry.capture(.threadResolved(source: .notification))
                 await onChange?()
             } catch {
                 await reportFailure("Resolving the thread", error)
@@ -136,6 +140,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
         default:
             if let s = info["url"] as? String, let url = URL(string: s) {
                 NSWorkspace.shared.open(url)
+                telemetry.capture(.prOpened(source: .notification))
             }
         }
     }

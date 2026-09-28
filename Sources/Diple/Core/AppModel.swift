@@ -238,6 +238,7 @@ final class AppModel: ObservableObject {
                 body: signed(finding.comment ?? finding.summary, on: pr)
             )
             posted.insert(finding.id)
+            telemetry.capture(.findingPosted)
             await reread(pr)
         } catch {
             errorMessage = error.localizedDescription
@@ -289,6 +290,7 @@ final class AppModel: ObservableObject {
         telemetry: Telemetry = .shared
     ) {
         self.telemetry = telemetry
+        self.notificador.telemetry = telemetry
         self.client = client
         self.store = store
         self.sync = SyncEngine(client: client)
@@ -402,6 +404,13 @@ final class AppModel: ObservableObject {
             ]
         )
         usageNoticeVisible = telemetry.isActive && !store.state.usageNoticeSeen
+    }
+
+    func recordActiveDay(now: Date = Date()) {
+        guard telemetry.isActive else { return }
+        let day = now.formatted(.iso8601.year().month().day())
+        guard store.markActive(on: day) else { return }
+        telemetry.capture(.appActive(needsYou: needsYou.count, mine: queue.mine.count, toReview: queue.toReview.count))
     }
 
     func dismissUsageNotice() {
@@ -520,6 +529,7 @@ final class AppModel: ObservableObject {
             errorMessage = nil
             await notificador.post(events)
             onCountChange?()
+            recordActiveDay()
             schedulePrefetch()
             schedulePreload()
             if let first = events.first(where: { $0.kind.interrupts }) {
@@ -629,8 +639,20 @@ final class AppModel: ObservableObject {
 
     func runAIReview(_ pr: PR) async {
         guard !isReviewing(pr.key) else { return }
-        runs[pr.key] = ReviewRun(step: .preparing("starting"), startedAt: Date())
+        let reviewStarted = Date()
+        let deep = DeepReview.available
+        runs[pr.key] = ReviewRun(step: .preparing("starting"), startedAt: reviewStarted)
         note(pr.key, "finding the repository")
+        telemetry.capture(.aiReviewStarted(deep: deep))
+        var outcome = TelemetryEvent.Outcome.failed
+        var findings = 0
+        var judged = 0
+        defer {
+            telemetry.capture(.aiReviewFinished(
+                outcome: outcome, findings: findings, threadsJudged: judged, deep: deep,
+                duration: .init(seconds: Date().timeIntervalSince(reviewStarted))
+            ))
+        }
 
         guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
             runs[pr.key]?.step = .failed("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
@@ -668,6 +690,9 @@ final class AppModel: ObservableObject {
                 case .done(let r):
                     reviewContexts[pr.key] = context
                     reviewResults[pr.key] = r
+                    outcome = .done
+                    findings = r.novel.count
+                    judged = r.threads.count
                     let judged = r.threads.isEmpty ? "" : " · \(r.threads.count) thread\(r.threads.count == 1 ? "" : "s") judged"
                     note(pr.key, "\(r.novel.count) finding\(r.novel.count == 1 ? "" : "s")\(judged)", fechando: true)
                 case .failed(let m): note(pr.key, m, fechando: true)
@@ -713,10 +738,15 @@ final class AppModel: ObservableObject {
             estimate: MapTiming.estimate(size: MapSize(), worktreeReady: true),
             expectedTools: 6
         )
+        var mapOutcome = TelemetryEvent.Outcome.failed
         defer {
             mappingKey = nil
             mapRun = nil
             mapRunKeys = []
+            telemetry.capture(.mapBuilt(
+                outcome: mapOutcome, prsInStack: prs.count,
+                duration: .init(seconds: Date().timeIntervalSince(started))
+            ))
         }
 
         var map: PRMap
@@ -800,6 +830,7 @@ final class AppModel: ObservableObject {
                 }
             }
             if answered {
+                mapOutcome = .done
                 MapTiming.record(raw: estimate.raw, actual: Date().timeIntervalSince(started), size: map.size)
             }
         } catch {
@@ -856,8 +887,11 @@ final class AppModel: ObservableObject {
         reviewResults[pr.key]?.findings.removeAll { $0.id == a.id }
     }
 
-    func open(_ pr: PR) {
-        NSWorkspace.shared.open(pr.url)
+    var openURL: (URL) -> Void = { NSWorkspace.shared.open($0) }
+
+    func open(_ pr: PR, from source: TelemetryEvent.Source = .window) {
+        openURL(pr.url)
+        telemetry.capture(.prOpened(source: source))
         store.markRead(pr.key)
         unread = store.state.unread
     }
@@ -961,6 +995,7 @@ final class AppModel: ObservableObject {
         defer { sending = false }
         do {
             try await client.reply(threadId: thread, body: t)
+            telemetry.capture(.replySent(source: .window))
             if let pr = selected { await reread(pr) } else { await refresh() }
             return nil
         } catch {
@@ -973,6 +1008,7 @@ final class AppModel: ObservableObject {
         defer { sending = false }
         do {
             try await client.resolve(threadId: thread)
+            telemetry.capture(.threadResolved(source: .window))
             await refresh()
             return nil
         } catch {
