@@ -329,16 +329,12 @@ struct PRAvatar: View {
     var side: CGFloat = 24
 
     var body: some View {
-        AsyncImage(url: url) { fase in
-            switch fase {
-            case .success(let img): img.resizable().scaledToFill()
-            default:
-                ZStack {
-                    Color.secondary.opacity(0.18)
-                    Text(String(login.prefix(2)).uppercased())
-                        .font(.system(size: side * 0.34, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
+        CachedAvatar(url: url) {
+            ZStack {
+                Color.secondary.opacity(0.18)
+                Text(String(login.prefix(2)).uppercased())
+                    .font(.system(size: side * 0.34, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(width: side, height: side)

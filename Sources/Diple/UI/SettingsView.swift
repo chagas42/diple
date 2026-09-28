@@ -367,22 +367,7 @@ struct ClaudePane: View {
         .formStyle(.grouped)
     }
 
-    private var temClaude: Bool {
-        if ["/opt/homebrew/bin/claude", "/usr/localPath/bin/claude"]
-            .contains(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
-            return true
-        }
-        return which()
-    }
-
-    private func which() -> Bool {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["which", "claude"]
-        p.standardOutput = Pipe(); p.standardError = Pipe()
-        try? p.run(); p.waitUntilExit()
-        return p.terminationStatus == 0
-    }
+    private var temClaude: Bool { Tools.find("claude") != nil }
 
     private func atalho(_ p: String) -> String {
         p.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
