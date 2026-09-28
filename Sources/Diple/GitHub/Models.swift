@@ -85,7 +85,7 @@ struct RawPR: Decodable, Sendable {
     struct RawRollup: Decodable, Sendable { let state: String }
 }
 
-enum CheckState: String, Sendable {
+enum CheckState: String, Sendable, Codable {
     case passing, failing, running, none
 
     init(_ raw: String?) {
@@ -98,7 +98,7 @@ enum CheckState: String, Sendable {
     }
 }
 
-struct PR: Identifiable, Sendable, Equatable {
+struct PR: Identifiable, Sendable, Equatable, Codable {
     let id: String
     let repo: String
     let number: Int
@@ -119,7 +119,7 @@ struct PR: Identifiable, Sendable, Equatable {
 
     let lastComment: HumanComment?
 
-    struct ReviewThread: Identifiable, Sendable, Equatable {
+    struct ReviewThread: Identifiable, Sendable, Equatable, Codable {
         let id: String
         let path: String
         let line: Int?
@@ -141,7 +141,7 @@ struct PR: Identifiable, Sendable, Equatable {
         }
     }
 
-    struct ThreadComment: Identifiable, Sendable, Equatable {
+    struct ThreadComment: Identifiable, Sendable, Equatable, Codable {
         let id: String
         let author: String
         let at: Date
@@ -149,7 +149,7 @@ struct PR: Identifiable, Sendable, Equatable {
         let isBot: Bool
     }
 
-    struct HumanComment: Sendable, Equatable {
+    struct HumanComment: Sendable, Equatable, Codable {
         let author: String
         let at: Date
         let excerpt: String
@@ -255,7 +255,7 @@ struct PR: Identifiable, Sendable, Equatable {
     }
 }
 
-struct Queue: Sendable, Equatable {
+struct Queue: Sendable, Equatable, Codable {
     var viewer: String = ""
     var mine: [PR] = []
     var toReview: [PR] = []

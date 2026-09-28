@@ -91,6 +91,12 @@ struct Cache: Codable, Sendable, Equatable {
     var reposAt: Date? = nil
     var rankByPeriod: [String: [RankRow]]? = nil
     var rankAtByPeriod: [String: Date]? = nil
+    var lastQueue: Lenient<Queue>? = nil
+
+    var queue: Queue? {
+        get { lastQueue?.value }
+        set { lastQueue = newValue.map(Lenient.init) }
+    }
 
     func rank(_ p: RankPeriod) -> [RankRow] { rankByPeriod?[p.rawValue] ?? [] }
     func rankAt(_ p: RankPeriod) -> Date? { rankAtByPeriod?[p.rawValue] }
@@ -130,9 +136,24 @@ struct Cache: Codable, Sendable, Equatable {
         d.reposAt = try c.decodeIfPresent(Date.self, forKey: .reposAt)
         d.rankByPeriod = try c.decodeIfPresent([String: [RankRow]].self, forKey: .rankByPeriod)
         d.rankAtByPeriod = try c.decodeIfPresent([String: Date].self, forKey: .rankAtByPeriod)
+        d.lastQueue = try? c.decodeIfPresent(Lenient<Queue>.self, forKey: .lastQueue)
         self = d
     }
 
+}
+
+struct Lenient<Value: Codable & Sendable & Equatable>: Codable, Sendable, Equatable {
+    var value: Value?
+
+    init(_ value: Value?) { self.value = value }
+
+    init(from decoder: Decoder) throws {
+        value = try? Value(from: decoder)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try value.encode(to: encoder)
+    }
 }
 
 @MainActor
@@ -202,7 +223,14 @@ final class Store {
     }
 
     func saveCache(_ c: Cache) {
+        var c = c
+        c.queue = state.cache.queue
         state.cache = c
+        save()
+    }
+
+    func saveQueue(_ q: Queue) {
+        state.cache.queue = q
         save()
     }
 

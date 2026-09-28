@@ -1,0 +1,39 @@
+{
+  "commit" : "pr3",
+  "date" : "2026-09-28T00:38:58Z",
+  "machine" : "Mac16,12 · Version 26.5.1 (Build 25F80)",
+  "metrics" : {
+    "requests_before_queue" : {
+      "max" : 0,
+      "mean" : 0,
+      "min" : 0,
+      "p50" : 0,
+      "p95" : 0
+    },
+    "time_to_queue_ms" : {
+      "max" : 3.101542,
+      "mean" : 1.8327168,
+      "min" : 1.401625,
+      "p50" : 1.521167,
+      "p95" : 3.101542
+    }
+  },
+  "runs" : 5,
+  "samples" : {
+    "requests_before_queue" : [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "time_to_queue_ms" : [
+      3.101542,
+      1.6855,
+      1.45375,
+      1.401625,
+      1.521167
+    ]
+  },
+  "scenario" : "launch"
+}
