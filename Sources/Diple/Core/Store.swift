@@ -12,6 +12,7 @@ struct StoredState: Codable, Sendable {
     var version = 1
     var prs: [String: Snapshot] = [:]
     var unread: Set<String> = []
+    var unreadReasons: [String: EventKind] = [:]
 
     var hasRunBefore: Bool = false
 
@@ -28,6 +29,7 @@ struct StoredState: Codable, Sendable {
         d.version = try c.decodeIfPresent(Int.self, forKey: .version) ?? d.version
         d.prs = try c.decodeIfPresent([String: Snapshot].self, forKey: .prs) ?? d.prs
         d.unread = try c.decodeIfPresent(Set<String>.self, forKey: .unread) ?? d.unread
+        d.unreadReasons = (try? c.decodeIfPresent([String: EventKind].self, forKey: .unreadReasons)) ?? d.unreadReasons
         d.hasRunBefore = try c.decodeIfPresent(Bool.self, forKey: .hasRunBefore) ?? d.hasRunBefore
         d.following = try c.decodeIfPresent(Set<String>.self, forKey: .following) ?? d.following
         d.watching = try c.decodeIfPresent(Set<String>.self, forKey: .watching) ?? d.watching
@@ -182,6 +184,7 @@ final class Store {
 
     func markRead(_ key: String) {
         state.unread.remove(key)
+        state.unreadReasons[key] = nil
         save()
     }
 
@@ -210,6 +213,7 @@ final class Store {
 
     func markAllRead() {
         state.unread.removeAll()
+        state.unreadReasons.removeAll()
         save()
     }
 
@@ -278,7 +282,14 @@ final class Store {
 
         state.prs = next
         state.hasRunBefore = true
-        for e in events { state.unread.insert(e.key) }
+        for e in events {
+            state.unread.insert(e.key)
+            state.unreadReasons[e.key] = EventKind.moreUrgent(state.unreadReasons[e.key], e.kind)
+        }
+        for pr in queue.all where state.unreadReasons[pr.key] == .checkFailed && pr.checks != .failing {
+            state.unread.remove(pr.key)
+            state.unreadReasons[pr.key] = nil
+        }
         save()
         return events
     }

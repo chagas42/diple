@@ -19,6 +19,21 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
 
     var interrupts: Bool { self != .approved }
 
+    var urgency: Int {
+        switch self {
+        case .repliedToYou:    4
+        case .checkFailed:     3
+        case .commented:       2
+        case .reviewRequested: 1
+        case .approved:        0
+        }
+    }
+
+    static func moreUrgent(_ a: EventKind?, _ b: EventKind) -> EventKind {
+        guard let a else { return b }
+        return b.urgency >= a.urgency ? b : a
+    }
+
     var glyph: String {
         switch self {
         case .repliedToYou: "arrowshape.turn.up.left.fill"

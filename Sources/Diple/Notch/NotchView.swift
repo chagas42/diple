@@ -340,14 +340,7 @@ struct NotchView: View {
                                             .lineLimit(1)
                                         HStack(spacing: 6) {
                                             if let r = model.needsReason(pr) {
-                                                Text(r.label)
-                                                    .font(.system(size: 9.5, weight: .medium))
-                                                    .foregroundStyle(.orange.opacity(0.95))
-                                                    .padding(.horizontal, 5)
-                                                    .padding(.vertical, 1.5)
-                                                    .background(
-                                                        Capsule().fill(.orange.opacity(0.14))
-                                                    )
+                                                reasonChip(r)
                                             }
                                             Text(meta(pr))
                                                 .font(.system(size: 11))
@@ -486,6 +479,17 @@ struct NotchView: View {
         .padding(.top, 12)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func reasonChip(_ r: AppModel.NeedsReason) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: r.kind.glyph).font(.system(size: 8, weight: .bold))
+            Text(r.label).font(.system(size: 9.5, weight: .medium))
+        }
+        .foregroundStyle(colorFor(r.kind).opacity(0.95))
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1.5)
+        .background(Capsule().fill(colorFor(r.kind).opacity(0.14)))
     }
 
     private func colorFor(_ t: EventKind) -> Color {
