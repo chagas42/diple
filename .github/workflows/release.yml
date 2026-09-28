@@ -141,13 +141,14 @@ jobs:
             ## Install
 
             ```bash
-            brew install --cask chagas42/tap/diple
-            xattr -dr com.apple.quarantine /Applications/Diple.app
+            curl -fsSL https://raw.githubusercontent.com/chagas42/diple/main/install.sh | bash
             ```
 
-            Run that second line, or macOS will tell you Diple is malware: the
-            build is signed ad-hoc, not notarised, which needs a paid Apple
-            Developer account.
+            Downloading the zip below with a browser works too, but macOS will
+            call Diple malware: the build is signed ad-hoc, not notarised, which
+            needs a paid Apple Developer account. See
+            [Why not just download the .zip?](https://github.com/chagas42/diple#why-not-just-download-the-zip)
+            for the one-time fix.
 
             Diple borrows the token `gh` already holds, so there is nothing to
             paste after install.
