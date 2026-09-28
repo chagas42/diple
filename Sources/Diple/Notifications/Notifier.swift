@@ -4,7 +4,7 @@ import AppKit
 
 @MainActor
 final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate {
-    private let center = UNUserNotificationCenter.current()
+    private var center: UNUserNotificationCenter { .current() }
     private let client = GitHubClient()
 
     var onChange: (() async -> Void)?

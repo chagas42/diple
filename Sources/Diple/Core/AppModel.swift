@@ -239,9 +239,14 @@ final class AppModel: ObservableObject {
         watching = store.state.watching ?? []
     }
 
-    private let client = GitHubClient()
-    private let store = Store()
+    private let client: GitHubClient
+    private let store: Store
     private let notificador = Notifier()
+
+    init(client: GitHubClient = GitHubClient(), store: Store = Store()) {
+        self.client = client
+        self.store = store
+    }
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
 
@@ -253,14 +258,7 @@ final class AppModel: ObservableObject {
         notificador.install()
         notificador.onChange = { [weak self] in await self?.refresh() }
         defer { loadRepos() }
-        unread = store.state.unread
-        following = store.state.following
-        watching = store.state.watching ?? []
-        let cache = store.state.cache
-        team = cache.team
-        repos = cache.repos ?? []
-        ranking = cache.rank(rankPeriod)
-        activity = cache.activity
+        restoreCached()
         settings = store.state.settings
         notificador.settings = settings
 
@@ -276,6 +274,21 @@ final class AppModel: ObservableObject {
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
+        }
+    }
+
+    func restoreCached() {
+        unread = store.state.unread
+        following = store.state.following
+        watching = store.state.watching ?? []
+        let cache = store.state.cache
+        team = cache.team
+        repos = cache.repos ?? []
+        ranking = cache.rank(rankPeriod)
+        activity = cache.activity
+        if !Demo.isOn, let cached = cache.queue, queue.all.isEmpty {
+            queue = cached
+            onCountChange?()
         }
     }
 
@@ -310,6 +323,7 @@ final class AppModel: ObservableObject {
                     return !settings.mutedRepos.contains(repo)
                 }
             queue = nova
+            store.saveQueue(nova)
             if let s = selected {
                 selected = nova.all.first { $0.key == s.key } ?? s
             }

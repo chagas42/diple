@@ -91,6 +91,7 @@ struct Cache: Codable, Sendable, Equatable {
     var reposAt: Date? = nil
     var rankByPeriod: [String: [RankRow]]? = nil
     var rankAtByPeriod: [String: Date]? = nil
+    var queue: Queue? = nil
 
     func rank(_ p: RankPeriod) -> [RankRow] { rankByPeriod?[p.rawValue] ?? [] }
     func rankAt(_ p: RankPeriod) -> Date? { rankAtByPeriod?[p.rawValue] }
@@ -202,7 +203,14 @@ final class Store {
     }
 
     func saveCache(_ c: Cache) {
+        var c = c
+        c.queue = state.cache.queue
         state.cache = c
+        save()
+    }
+
+    func saveQueue(_ q: Queue) {
+        state.cache.queue = q
         save()
     }
 
