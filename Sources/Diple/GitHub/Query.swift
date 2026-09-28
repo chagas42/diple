@@ -19,6 +19,7 @@ enum Query {
         nodes {
           id
           isResolved
+          isOutdated
           path
           line
           comments(last: 10) {

@@ -34,6 +34,7 @@ enum Demo {
                 +    throw new PhoneAccountNotFound(id)
                 +  }
                 """,
+                outdated: false,
                 comments: [
                     PR.ThreadComment(
                         id: "C\(number)a", author: who, at: ago(minutes),
