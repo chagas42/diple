@@ -7,8 +7,7 @@ final class NotchController: ObservableObject {
     @Published private(set) var size: CGSize = .zero
     @Published private(set) var notchWidth: CGFloat = 185
     @Published private(set) var notchHeight: CGFloat = 32
-    @Published private(set) var gaze: CGPoint = .zero
-    @Published private(set) var blinking = false
+    let eye = EyeState()
 
     private let panel = NotchPanel()
 
@@ -158,7 +157,7 @@ final class NotchController: ObservableObject {
         let dx = max(-1, min(1, (m.x - f.midX) / range))
         let dy = max(-1, min(1, (f.midY - m.y) / range))
         let next = CGPoint(x: dx, y: dy)
-        if abs(next.x - gaze.x) > 0.01 || abs(next.y - gaze.y) > 0.01 { gaze = next }
+        eye.look(at: next)
     }
 
     private func blinkOccasionally() {
@@ -166,9 +165,9 @@ final class NotchController: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Double.random(in: 4...9)))
                 guard let self, !Task.isCancelled else { return }
-                self.blinking = true
+                self.eye.blinking = true
                 try? await Task.sleep(for: .milliseconds(110))
-                self.blinking = false
+                self.eye.blinking = false
             }
         }
     }
@@ -184,8 +183,7 @@ final class NotchController: ObservableObject {
                 size: notch.size,
                 notchWidth: notch.notchWidth,
                 notchHeight: notch.notchHeight,
-                gaze: notch.gaze,
-                blinking: notch.blinking,
+                eye: notch.eye,
                 onClose: { notch.closeNow() }
             )
         }
