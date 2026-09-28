@@ -60,6 +60,8 @@ struct DetailView: View {
                 Text("\(pr.repo) #\(pr.number)")
                     .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(.secondary)
+                Spacer()
+                FeedbackButton(model: model, feature: .pullRequest)
             }
             Text(pr.title)
                 .font(.system(size: 20, weight: .semibold))

@@ -18,6 +18,7 @@ enum TelemetryValue: Sendable, Equatable, Encodable {
 enum TelemetryEvent: Sendable, Equatable {
     enum Outcome: String, Sendable { case done, failed }
     enum Source: String, Sendable { case notch, window, notification, menuBar = "menu_bar" }
+    enum Rating: String, Sendable { case up, down }
 
     enum DurationBucket: String, Sendable {
         case under30s = "lt_30s"
@@ -44,6 +45,7 @@ enum TelemetryEvent: Sendable, Equatable {
     case findingPosted
     case prOpened(source: Source)
     case notificationShown(kind: EventKind)
+    case feedbackSubmitted(feature: FeedbackFeature, rating: Rating?, text: String)
 
     var name: String {
         switch self {
@@ -56,6 +58,7 @@ enum TelemetryEvent: Sendable, Equatable {
         case .findingPosted:     "finding_posted"
         case .prOpened:          "pr_opened"
         case .notificationShown: "notification_shown"
+        case .feedbackSubmitted: "feedback_submitted"
         }
     }
 
@@ -88,6 +91,10 @@ enum TelemetryEvent: Sendable, Equatable {
             break
         case .notificationShown(let kind):
             p["kind"] = .text(kind.rawValue)
+        case .feedbackSubmitted(let feature, let rating, let text):
+            p["feature"] = .text(feature.rawValue)
+            p["rating"] = .text(rating?.rawValue ?? "none")
+            p["text"] = .text(FeedbackText.clean(text))
         }
         return p
     }
