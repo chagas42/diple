@@ -72,7 +72,8 @@ final class ReviewGitHub: @unchecked Sendable {
         await prefetcher.warm([.init(pr: pr, origin: nil)])
         let context = await prefetcher.context(for: pr)
         #expect(context?.head == "head111")
-        #expect(await prefetcher.changedFiles(for: pr)?.files.count == 1)
+        let value1 = await prefetcher.changedFiles(for: pr)?.files.count
+        #expect(value1 == 1)
     }
 
     @Test func warmingTwiceFetchesOnce() async throws {
@@ -91,9 +92,11 @@ final class ReviewGitHub: @unchecked Sendable {
         await prefetcher.warm([.init(pr: pr, origin: nil)])
         gh.github.edit { w in w.update(pr.id) { $0.updatedAt = $0.updatedAt.addingTimeInterval(60) } }
         let newer = try await gh.prs()[0]
-        #expect(await prefetcher.context(for: newer) == nil)
+        let value2 = await prefetcher.context(for: newer)
+        #expect(value2 == nil)
         await prefetcher.warm([.init(pr: newer, origin: nil)])
-        #expect(await prefetcher.context(for: newer) != nil)
+        let value3 = await prefetcher.context(for: newer)
+        #expect(value3 != nil)
         #expect(Self.count(gh, "context") == 2)
     }
 
@@ -149,7 +152,8 @@ final class ReviewGitHub: @unchecked Sendable {
         await model.refresh()
         await model.prefetchSettled()
         let first = try #require(model.needsYou.first)
-        #expect(await model.prefetcher.context(for: first) != nil)
+        let value4 = await model.prefetcher.context(for: first)
+        #expect(value4 != nil)
         let before = PrefetcherTests.count(gh, "context")
         let context = try await model.reviewContext(for: first)
         #expect(context.head == "head111")
