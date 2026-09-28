@@ -211,7 +211,7 @@ struct MainWindowView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "square.3.layers.3d.down.right")
                                 .font(.system(size: 10))
-                            Text("PRStack de \(stack.prs.count)")
+                            Text("Stack of \(stack.prs.count)")
                                 .font(.system(size: 10.5, weight: .semibold))
                             Text(stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
                                 .font(.system(size: 10.5, design: .monospaced))

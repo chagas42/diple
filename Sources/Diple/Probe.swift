@@ -50,7 +50,7 @@ enum Probe {
             }
             var line = "  \(p.key.padding(toLength: min(34, max(p.key.count, 34)), withPad: " ", startingAt: 0))"
             line += " checks=\(checks.padding(toLength: 9, withPad: " ", startingAt: 0))"
-            line += p.approved ? " APROVADO" : "         "
+            line += p.approved ? " APPROVED" : "         "
             line += " \(p.title.prefix(46))"
             print(line)
             if let c = p.lastComment {
@@ -69,7 +69,7 @@ enum NotchProbe {
             print("  safeAreaInsets.top: \(t.safeAreaInsets.top)")
             print("  has notch: \(g.hasNotch)")
             print("  top inset: \(g.topInset)")
-            print("  width do recorte: \(g.notchWidth)")
+            print("  notch width: \(g.notchWidth)")
             if let e = t.auxiliaryTopLeftArea, let d = t.auxiliaryTopRightArea {
                 print("  left area: \(Int(e.width))  right area: \(Int(d.width))")
             } else {
@@ -78,7 +78,7 @@ enum NotchProbe {
             print("  closed:   \(g.closed)  -> \(g.rect(g.closed))")
             print("  active: \(g.active)  -> \(g.rect(g.active))")
             print("  open:    \(g.open)  -> \(g.rect(g.open))")
-            print("  windowFrame fixa: \(g.windowFrame())")
+            print("  fixed windowFrame: \(g.windowFrame())")
         }
     }
 }

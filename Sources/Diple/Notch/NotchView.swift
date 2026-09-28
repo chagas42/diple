@@ -54,7 +54,7 @@ struct NotchView: View {
             .clipShape(shape)
             .contextMenu {
                 Button("Settings…") { Windows.shared.openSettings(model) }
-                Button("Janela main") { Windows.shared.openMain(model) }
+                Button("Main Window") { Windows.shared.openMain(model) }
                 Divider()
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
