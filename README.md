@@ -170,7 +170,7 @@ What is sent:
 - when an AI review or a map starts and finishes: outcome, finding count, a duration range
 - that you replied, resolved a thread, posted a finding or opened a pull request
 - which kind of notification was shown
-- when something fails: which step (a sync, a reply, a map…), the error's type and numeric code — never its message
+- when something fails: which step (a sync, a reply, a map…), the error's type, numeric code and name, the kind of network (Wi-Fi, wired, cellular) and whether macOS saw it online, how many failed in a row and roughly how long since the last good sync — never its message
 
 What is never sent: your GitHub login, name or e-mail; repository names, pull
 request numbers or titles; code, diffs, comments or file paths; your location. Events carry

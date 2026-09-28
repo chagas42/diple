@@ -278,7 +278,12 @@ final class AppModel: ObservableObject {
 
     @discardableResult
     func report(_ error: Error, in operation: ErrorReport.Operation) -> String? {
-        let r = ErrorReport(error, in: operation)
+        let context = ErrorReport.Context(
+            network: network,
+            failuresInRow: failures,
+            sinceLastSync: .init(lastSync)
+        )
+        let r = ErrorReport(error, in: operation, context: context)
         ErrorReport.log(error, in: operation, report: r)
         guard let r else { return nil }
         telemetry.capture(.error(r))
@@ -372,6 +377,7 @@ final class AppModel: ObservableObject {
     }
     private var pollTask: Task<Void, Never>?
     private let reachability = Reachability()
+    private(set) var network = NetworkState()
     var isOnline = true
     private(set) var failures = 0
     private var pendingFull = false
@@ -401,7 +407,10 @@ final class AppModel: ObservableObject {
         }
 
         restartTimer()
-        reachability.onChange = { [weak self] online in self?.setOnline(online) }
+        reachability.onChange = { [weak self] state in
+            self?.network = state
+            self?.setOnline(state.online)
+        }
         reachability.start()
 
         NSWorkspace.shared.notificationCenter.addObserver(

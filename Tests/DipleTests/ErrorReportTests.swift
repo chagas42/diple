@@ -82,3 +82,63 @@ import Testing
         #expect(telemetry.pendingCount == 1)
     }
 }
+
+@Suite struct ErrorDetailTests {
+    static func offline(_ url: String) -> NSError {
+        NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet, userInfo: [
+            NSURLErrorFailingURLErrorKey: URL(string: url)!,
+            NSUnderlyingErrorKey: NSError(domain: "kCFErrorDomainCFNetwork", code: -1009),
+        ])
+    }
+
+    @Test func aNetworkErrorIsNamedAndAWarning() throws {
+        let r = try #require(ErrorReport(Self.offline("https://api.github.com/graphql"), in: .refresh))
+        #expect(r.name == "notConnectedToInternet")
+        #expect(r.isNetwork)
+        #expect(r.level == "warning")
+        #expect(r.underlyingDomain == "kCFErrorDomainCFNetwork")
+        #expect(r.underlyingCode == -1009)
+        #expect(r.host == "api.github.com")
+    }
+
+    @Test func aHostThatIsNotOursIsOther() throws {
+        let r = try #require(ErrorReport(Self.offline("https://acme.example/secret-repo"), in: .refresh))
+        #expect(r.host == "other")
+    }
+
+    @Test func anHTTPFailureIsAnErrorNamedByItsStatus() throws {
+        let r = try #require(ErrorReport(ClientError.http(502), in: .refresh))
+        #expect(r.name == "http_502")
+        #expect(!r.isNetwork)
+        #expect(r.level == "error")
+    }
+
+    @Test func theTimeSinceTheLastSyncIsARange() {
+        let now = Date()
+        #expect(ErrorReport.SinceLastSync(nil, now: now) == .never)
+        #expect(ErrorReport.SinceLastSync(now.addingTimeInterval(-30), now: now) == .under1m)
+        #expect(ErrorReport.SinceLastSync(now.addingTimeInterval(-300), now: now) == .under10m)
+        #expect(ErrorReport.SinceLastSync(now.addingTimeInterval(-7200), now: now) == .longer)
+    }
+
+    @Test func theEventCarriesTheNetworkAndNothingPrivate() async throws {
+        let stub = StubTransport { _ in .init(status: 200) }
+        let t = TelemetryTests.make(stub)
+        var net = NetworkState()
+        net.status = "satisfied"
+        net.interface = .wifi
+        let context = ErrorReport.Context(network: net, failuresInRow: 3, sinceLastSync: .under10m)
+        t.capture(.error(try #require(ErrorReport(Self.offline("https://acme.example/secret-repo"), in: .refresh, context: context))))
+        await t.flush()
+        let body = try #require(stub.bodies.first)
+        #expect(!String(decoding: body, as: UTF8.self).contains("acme"))
+        let props = try #require(TelemetryTests.events(in: body).first?["properties"] as? [String: Any])
+        #expect(props["network_interface"] as? String == "wifi")
+        #expect(props["network_status"] as? String == "satisfied")
+        #expect(props["failures_in_row"] as? Int == 3)
+        #expect(props["since_last_sync"] as? String == "lt_10m")
+        #expect(props["$exception_level"] as? String == "warning")
+        let list = try #require(props["$exception_list"] as? [[String: Any]])
+        #expect(list.first?["value"] as? String == "refresh: notConnectedToInternet")
+    }
+}

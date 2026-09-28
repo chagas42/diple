@@ -162,7 +162,10 @@ import Testing
             "needs_you", "mine", "to_review", "deep", "outcome", "findings", "threads_judged",
             "duration", "prs_in_stack", "source", "kind",
             "$exception_list", "$exception_level", "$exception_fingerprint",
-            "operation", "error_domain", "error_code",
+            "operation", "error_domain", "error_code", "error_name", "error_network",
+            "underlying_domain", "underlying_code", "host",
+            "network_status", "network_interface", "network_expensive", "network_constrained",
+            "failures_in_row", "since_last_sync",
         ]
         for e in events {
             let props = e["properties"] as! [String: Any]

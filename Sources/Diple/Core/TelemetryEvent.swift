@@ -104,14 +104,25 @@ enum TelemetryEvent: Sendable, Equatable {
         case .error(let r):
             p["$exception_list"] = .list([.object([
                 "type": .text(r.type),
-                "value": .text("\(r.operation.rawValue): \(r.domain) \(r.code)"),
+                "value": .text("\(r.operation.rawValue): \(r.name)"),
                 "mechanism": .object(["handled": .bool(true), "synthetic": .bool(false)]),
             ])])
-            p["$exception_level"] = .text("error")
+            p["$exception_level"] = .text(r.level)
             p["$exception_fingerprint"] = .text(r.fingerprint)
             p["operation"] = .text(r.operation.rawValue)
+            p["error_name"] = .text(r.name)
             p["error_domain"] = .text(r.domain)
             p["error_code"] = .int(r.code)
+            p["error_network"] = .bool(r.isNetwork)
+            if let d = r.underlyingDomain { p["underlying_domain"] = .text(d) }
+            if let c = r.underlyingCode { p["underlying_code"] = .int(c) }
+            if let h = r.host { p["host"] = .text(h) }
+            p["network_status"] = .text(r.context.network.status)
+            p["network_interface"] = .text(r.context.network.interface.rawValue)
+            p["network_expensive"] = .bool(r.context.network.expensive)
+            p["network_constrained"] = .bool(r.context.network.constrained)
+            p["failures_in_row"] = .int(r.context.failuresInRow)
+            p["since_last_sync"] = .text(r.context.sinceLastSync.rawValue)
         }
         return p
     }
