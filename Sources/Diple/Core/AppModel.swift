@@ -434,9 +434,14 @@ final class AppModel: ObservableObject {
             note(pr.key, DeepReview.available
                  ? "deep review: two axes, the value pass, then \(context.openThreads) open thread\(context.openThreads == 1 ? "" : "s")"
                  : "Claude is reading the code")
+            let voice = Voice(
+                samples: Voice.yours(in: queue),
+                houseRules: Voice.houseRules(in: w)
+            )
             for await step in Reviewer().review(
                 pr: pr, context: context, viewer: queue.viewer,
-                in: w, model: settings.aiModel, language: settings.reviewLanguage
+                in: w, model: settings.aiModel, language: settings.reviewLanguage,
+                voice: voice
             ) {
                 runs[pr.key]?.step = step
                 switch step {
