@@ -91,7 +91,12 @@ struct Cache: Codable, Sendable, Equatable {
     var reposAt: Date? = nil
     var rankByPeriod: [String: [RankRow]]? = nil
     var rankAtByPeriod: [String: Date]? = nil
-    var queue: Queue? = nil
+    var lastQueue: Lenient<Queue>? = nil
+
+    var queue: Queue? {
+        get { lastQueue?.value }
+        set { lastQueue = newValue.map(Lenient.init) }
+    }
 
     func rank(_ p: RankPeriod) -> [RankRow] { rankByPeriod?[p.rawValue] ?? [] }
     func rankAt(_ p: RankPeriod) -> Date? { rankAtByPeriod?[p.rawValue] }
@@ -134,6 +139,20 @@ struct Cache: Codable, Sendable, Equatable {
         self = d
     }
 
+}
+
+struct Lenient<Value: Codable & Sendable & Equatable>: Codable, Sendable, Equatable {
+    var value: Value?
+
+    init(_ value: Value?) { self.value = value }
+
+    init(from decoder: Decoder) throws {
+        value = try? Value(from: decoder)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try value.encode(to: encoder)
+    }
 }
 
 @MainActor

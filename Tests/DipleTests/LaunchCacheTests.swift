@@ -63,3 +63,22 @@ import Testing
         #expect(third.queue.following.count == 10)
     }
 }
+
+@MainActor
+@Suite struct LenientCacheTests {
+    @Test func anUnreadableCachedQueueNeverCostsTheRestOfTheState() throws {
+        var state = StoredState()
+        state.following = ["marina"]
+        state.settings.interval = 90
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as! [String: Any]
+        var cache = json["cache"] as! [String: Any]
+        cache["lastQueue"] = ["viewer": 42, "mine": "not a list"]
+        json["cache"] = cache
+        let bytes = try JSONSerialization.data(withJSONObject: json)
+
+        let decoded = try JSONDecoder().decode(StoredState.self, from: bytes)
+        #expect(decoded.cache.queue == nil)
+        #expect(decoded.following == ["marina"])
+        #expect(decoded.settings.interval == 90)
+    }
+}
