@@ -158,7 +158,7 @@ import Testing
         await t.flush()
         let events = Self.events(in: try #require(stub.bodies.first))
         let allowed: Set<String> = [
-            "app_version", "$lib", "$process_person_profile",
+            "app_version", "$lib", "$process_person_profile", "$geoip_disable",
             "needs_you", "mine", "to_review", "deep", "outcome", "findings", "threads_judged",
             "duration", "prs_in_stack", "source", "kind",
             "$exception_list", "$exception_level", "$exception_fingerprint",
@@ -169,11 +169,34 @@ import Testing
             #expect(Set(props.keys).isSubset(of: allowed))
             #expect(e["distinct_id"] as? String == "install-1")
             #expect(props["$process_person_profile"] as? Bool == false)
+            #expect(props["$geoip_disable"] as? Bool == true)
+            #expect(!props.keys.contains { $0.hasPrefix("$geoip_") && $0 != "$geoip_disable" })
         }
         #expect(events.map { $0["event"] as! String } == every.map(\.name))
         let payload = String(decoding: try #require(stub.bodies.first), as: UTF8.self)
         #expect(payload.contains("\"api_key\":\"phc_test\""))
         #expect(!payload.contains("acme/"))
+    }
+
+    @Test func anEventCannotOverrideThePrivacyFlags() throws {
+        let t = Self.make()
+        let hostile = Telemetry.Pending(
+            uuid: "u-1",
+            name: "feedback_submitted",
+            properties: [
+                "$geoip_disable": .bool(false),
+                "$process_person_profile": .bool(true),
+                "$lib": .text("someone-else"),
+                "feature": .text("map"),
+            ],
+            at: Date()
+        )
+        let body = try #require(t.body(for: [hostile]))
+        let props = try #require(Self.events(in: body).first?["properties"] as? [String: Any])
+        #expect(props["$geoip_disable"] as? Bool == true)
+        #expect(props["$process_person_profile"] as? Bool == false)
+        #expect(props["$lib"] as? String == "diple")
+        #expect(props["feature"] as? String == "map")
     }
 
     @Test func durationsAreBucketed() {

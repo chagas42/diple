@@ -19,6 +19,12 @@ final class Telemetry: @unchecked Sendable {
 
     static let shared = Telemetry(config: .fromEnvironment())
 
+    static let privacy: [String: TelemetryValue] = [
+        "$lib": .text("diple"),
+        "$process_person_profile": .bool(false),
+        "$geoip_disable": .bool(true),
+    ]
+
     private let config: Config
     private let transport: any Transport
     private let metrics: Metrics
@@ -133,7 +139,7 @@ final class Telemetry: @unchecked Sendable {
                 uuid: p.uuid,
                 timestamp: iso.string(from: p.at),
                 properties: shared.merging(p.properties) { _, own in own }
-                    .merging(["$lib": .text("diple"), "$process_person_profile": .bool(false)]) { own, _ in own }
+                    .merging(Self.privacy) { _, fixed in fixed }
             )
         }
         return try? JSONEncoder().encode(OutgoingBatch(api_key: key, batch: events))
