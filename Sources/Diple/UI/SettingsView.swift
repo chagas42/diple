@@ -269,6 +269,17 @@ struct ClaudePane: View {
                                    : "claude is not on PATH")
                     Spacer()
                 }
+                Picker("Mark comments as drafted by Diple", selection: Binding(
+                    get: { model.settings.attributionMode },
+                    set: { model.settings.attribution = $0.rawValue }
+                )) {
+                    ForEach(Attribution.allCases) { Text($0.label).tag($0) }
+                }
+                Text(model.settings.attributionMode.blurb)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Picker("Review model", selection: $model.settings.aiModel) {
                     Text("Opus").tag("opus")
                     Text("Sonnet").tag("sonnet")
