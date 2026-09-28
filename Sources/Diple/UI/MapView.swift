@@ -134,7 +134,9 @@ struct MapProgressView: View {
                             .lineLimit(1)
                     }
                     Spacer()
-                    Text(remaining < 3 ? "almost there" : "≈ \(Self.clock(remaining)) left")
+                    Text(run.overdue(now)
+                         ? "longer than expected"
+                         : remaining < 3 ? "almost there" : "≈ \(Self.clock(remaining)) left")
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .contentTransition(.numericText())
                 }

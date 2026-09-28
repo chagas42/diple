@@ -51,7 +51,14 @@ private final class ProcessBox: @unchecked Sendable {
     init(_ process: Process) { self.process = process }
 }
 
+actor Overdue {
+    private(set) var value = false
+    func mark() { value = true }
+}
+
 struct MapBuilder: Sendable {
+    static let budgetSeconds: Double = 480
+
     private static let effort = "low"
 
     private static let allowedTools = [
@@ -109,6 +116,15 @@ struct MapBuilder: Sendable {
                 let box = ProcessBox(p)
                 var buffer = Data()
                 var result: String?
+                let overdue = Overdue()
+
+                let watchdog = Task { [box] in
+                    try? await Task.sleep(for: .seconds(Self.budgetSeconds))
+                    guard !Task.isCancelled else { return }
+                    await overdue.mark()
+                    box.process.terminate()
+                }
+                defer { watchdog.cancel() }
                 await withTaskCancellationHandler {
                     for await chunk in out.fileHandleForReading.bytes.chunks() {
                         buffer.append(chunk)
@@ -124,7 +140,10 @@ struct MapBuilder: Sendable {
                 p.waitUntilExit()
 
                 guard let text = result else {
-                    cont.yield(.failed("the session ended with no answer"))
+                    let stopped = await overdue.value
+                    cont.yield(.failed(stopped
+                        ? "the session ran past \(Int(Self.budgetSeconds / 60)) minutes and was stopped"
+                        : "the session ended with no answer"))
                     cont.finish()
                     return
                 }
@@ -150,11 +169,15 @@ struct MapBuilder: Sendable {
             for c in parts where (c["type"] as? String) == "tool_use" {
                 let name = (c["name"] as? String) ?? "?"
                 let input = c["input"] as? [String: Any]
-                let target = (input?["file_path"] as? String)
-                    ?? (input?["pattern"] as? String)
-                    ?? (input?["command"] as? String)
-                    ?? (input?["skill"] as? String)
-                let short = target.map { String(($0.split(separator: "/").last ?? "").prefix(40)) }
+                let short: String?
+                if let command = input?["command"] as? String {
+                    short = String(command.split(separator: "\n").first ?? "").prefix(46).description
+                } else {
+                    let target = (input?["file_path"] as? String)
+                        ?? (input?["pattern"] as? String)
+                        ?? (input?["skill"] as? String)
+                    short = target.map { String(($0.split(separator: "/").last ?? "").prefix(40)) }
+                }
                 return .tool(short.map { "\(name) \($0)" } ?? name)
             }
             return .thinking
