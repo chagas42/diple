@@ -230,24 +230,26 @@ struct MainWindowView: View {
         }
         .navigationTitle(model.tab.title)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let problem = model.errorMessage {
+            if let problem = model.syncProblem {
                 HStack(alignment: .top, spacing: 9) {
-                    Image(systemName: "exclamationmark.triangle.fill")
+                    Image(systemName: model.isOnline ? "exclamationmark.triangle.fill" : "wifi.slash")
                         .foregroundStyle(.orange)
                     Text(problem)
                         .font(.system(size: 11.5))
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    Button("Retry") { Task { await model.refresh() } }
-                        .buttonStyle(.link)
-                        .font(.system(size: 11.5))
+                    if model.isOnline {
+                        Button("Retry") { Task { await model.refresh() } }
+                            .buttonStyle(.link)
+                            .font(.system(size: 11.5))
+                    }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
                 .background(.orange.opacity(0.12))
             }
         }
         .overlay {
-            if model.prs(model.tab).isEmpty && !model.loading && model.errorMessage == nil {
+            if model.prs(model.tab).isEmpty && !model.loading && model.syncProblem == nil {
                 ContentUnavailableView("Nothing here", systemImage: "checkmark.circle")
             }
         }
