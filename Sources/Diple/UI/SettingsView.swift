@@ -18,7 +18,7 @@ struct SettingsView: View {
             AccountPane(model: model)
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
-        .frame(width: 620, height: 460)
+        .frame(width: 700, height: 480)
     }
 }
 

@@ -6,6 +6,7 @@ struct CommentView: View {
 
     @Environment(\.codeTheme) private var theme
     @State private var expanded = false
+    @State private var hovering = false
 
     var body: some View {
         if comment.isBot {
@@ -18,19 +19,31 @@ struct CommentView: View {
     private var human: some View {
         HStack(alignment: .top, spacing: 10) {
             InitialsBubble(login: comment.author)
+                .help(comment.author)
+
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 7) {
-                    Text(comment.author)
-                        .font(.system(size: 12.5, weight: .semibold))
+                    if hovering {
+                        Text(comment.author)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .transition(.opacity)
+                    }
                     Text(comment.at.formatted(.relative(presentation: .numeric)))
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
                 }
+                .frame(height: 15)
+
                 Markdownish(text: comment.text, path: path)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
+        .contentShape(Rectangle())
+        .onHover { over in
+            withAnimation(.easeOut(duration: 0.12)) { hovering = over }
+        }
     }
 
     private var bot: some View {
