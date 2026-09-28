@@ -193,10 +193,14 @@ extension GitHubClient {
         }
         """
         struct Added: Decodable, Sendable { let errors: [GraphQLError]? }
-        let added: Added = try await send(query)
-        if let e = added.errors, !e.isEmpty { throw ClientError.graphql(e.map(\.message)) }
-
-        try await submitPendingReview(prId: prId)
+        let since = Date().addingTimeInterval(-Self.clockSlack)
+        try await landing(check: { try await self.pendingComment(prId: prId, path: path, since: since) }) {
+            let added: Added = try await self.send(query)
+            if let e = added.errors, !e.isEmpty { throw ClientError.graphql(e.map(\.message)) }
+        }
+        try await landing(check: { try await self.submittedReview(prId: prId, since: since) }) {
+            try await self.submitPendingReview(prId: prId)
+        }
     }
 
     private func submitPendingReview(prId: String) async throws {
@@ -214,6 +218,13 @@ extension GitHubClient {
     }
 
     func reply(threadId: String, body: String) async throws {
+        let since = Date().addingTimeInterval(-Self.clockSlack)
+        try await landing(check: { try await self.repliedLast(threadId: threadId, since: since) }) {
+            try await self.sendReply(threadId: threadId, body: body)
+        }
+    }
+
+    private func sendReply(threadId: String, body: String) async throws {
         _ = try await mutate(
             """
             mutation($t: ID!, $b: String!) {
@@ -227,6 +238,12 @@ extension GitHubClient {
     }
 
     func resolve(threadId: String) async throws {
+        try await landing(check: { try await self.isResolved(threadId: threadId) }) {
+            try await self.sendResolve(threadId: threadId)
+        }
+    }
+
+    private func sendResolve(threadId: String) async throws {
         _ = try await mutate(
             """
             mutation($t: ID!) {
@@ -235,6 +252,88 @@ extension GitHubClient {
             """,
             ["t": threadId]
         )
+    }
+
+    static let clockSlack: TimeInterval = 60
+
+    static func isUncertain(_ error: Error) -> Bool {
+        if case ClientError.http(let code, _) = error { return transient.contains(code) }
+        let ns = error as NSError
+        return ns.domain == NSURLErrorDomain
+            && [NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost].contains(ns.code)
+    }
+
+    private func landing(check: () async throws -> Bool, _ mutation: () async throws -> Void) async throws {
+        do {
+            try await mutation()
+        } catch where Self.isUncertain(error) {
+            let status = (error as? ClientError).flatMap { if case .http(let c, _) = $0 { c } else { nil } } ?? 0
+            let landed = (try? await check()) ?? false
+            telemetry.capture(.githubRetry(outcome: landed ? .landed : .lost, status: status, request: .mutation, attempts: 1))
+            if !landed { throw error }
+        }
+    }
+
+    private func check(_ body: String) async throws -> [String: Any] {
+        let json = try await raw("query MutationCheck { viewer { login } \(body) }")
+        return json["data"] as? [String: Any] ?? [:]
+    }
+
+    private static func date(_ v: Any?) -> Date? {
+        (v as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
+    }
+
+    private static func login(_ data: [String: Any]) -> String? {
+        (data["viewer"] as? [String: Any])?["login"] as? String
+    }
+
+    func repliedLast(threadId: String, since: Date) async throws -> Bool {
+        let d = try await check("""
+        node(id: "\(escaped(threadId))") { ... on PullRequestReviewThread {
+          comments(last: 1) { nodes { author { login } createdAt } }
+        } }
+        """)
+        let last = (((d["node"] as? [String: Any])?["comments"] as? [String: Any])?["nodes"] as? [[String: Any]])?.last
+        let author = (last?["author"] as? [String: Any])?["login"] as? String
+        guard let me = Self.login(d), author == me, let at = Self.date(last?["createdAt"]) else { return false }
+        return at >= since
+    }
+
+    func isResolved(threadId: String) async throws -> Bool {
+        let d = try await check("""
+        node(id: "\(escaped(threadId))") { ... on PullRequestReviewThread { isResolved } }
+        """)
+        return (d["node"] as? [String: Any])?["isResolved"] as? Bool ?? false
+    }
+
+    func pendingComment(prId: String, path: String, since: Date) async throws -> Bool {
+        let d = try await check("""
+        node(id: "\(escaped(prId))") { ... on PullRequest {
+          reviews(last: 5, states: [PENDING]) { nodes { author { login } comments(last: 20) { nodes { path createdAt } } } }
+        } }
+        """)
+        guard let me = Self.login(d) else { return false }
+        let reviews = (((d["node"] as? [String: Any])?["reviews"] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? []
+        return reviews.contains { r in
+            ((r["author"] as? [String: Any])?["login"] as? String) == me
+                && (((r["comments"] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? []).contains {
+                    $0["path"] as? String == path && (Self.date($0["createdAt"]).map { $0 >= since } ?? false)
+                }
+        }
+    }
+
+    func submittedReview(prId: String, since: Date) async throws -> Bool {
+        let d = try await check("""
+        node(id: "\(escaped(prId))") { ... on PullRequest {
+          reviews(last: 5, states: [COMMENTED]) { nodes { author { login } submittedAt } }
+        } }
+        """)
+        guard let me = Self.login(d) else { return false }
+        let reviews = (((d["node"] as? [String: Any])?["reviews"] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? []
+        return reviews.contains {
+            ((($0["author"] as? [String: Any])?["login"] as? String) == me)
+                && (Self.date($0["submittedAt"]).map { $0 >= since } ?? false)
+        }
     }
 
     private func mutate(_ query: String, _ variables: [String: String]) async throws -> Data {

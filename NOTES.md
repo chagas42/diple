@@ -260,6 +260,16 @@ twice on 502/503/504 after about 1 s and 3 s; mutations never are, because a 502
 does not mean GitHub did not post the comment. Each retry is a `github_retry`
 event, so PostHog shows whether the limit is still close.
 
+**A mutation that times out may still have happened.** A 502, 503, 504, a
+timeout or a dropped connection on reply, resolve or a finding leaves the result
+unknown, so before saying it failed the client asks: is the thread resolved,
+is its last comment yours and from the last minute, is there a pending review
+of yours with a comment on that path, a COMMENTED review of yours just
+submitted. Yes means success; no means the error, and resending is safe. The
+minute of slack covers a clock that disagrees with GitHub's; a reply of yours
+in the same thread in that minute would read as this one. Each check is a
+`github_retry` with `request: mutation` and `landed` or `lost`.
+
 **PostHog adds location unless told not to.** GeoIP runs on the server, from the
 request's IP, and fills `$geoip_city_name`, postal code, latitude and more —
 none of it sent by the app. `$geoip_disable: true` on every event turns it off
