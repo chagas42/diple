@@ -110,16 +110,12 @@ struct AvatarView: View {
     var side: CGFloat = 32
 
     var body: some View {
-        AsyncImage(url: person.avatar) { fase in
-            switch fase {
-            case .success(let img): img.resizable().scaledToFill()
-            default:
-                ZStack {
-                    Color.white.opacity(0.1)
-                    Text(person.initials)
-                        .font(.system(size: side * 0.34, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
+        CachedAvatar(url: person.avatar) {
+            ZStack {
+                Color.white.opacity(0.1)
+                Text(person.initials)
+                    .font(.system(size: side * 0.34, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
             }
         }
         .frame(width: side, height: side)

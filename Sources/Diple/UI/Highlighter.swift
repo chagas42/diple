@@ -7,7 +7,7 @@ enum Syntax: Sendable {
 struct Highlighter {
     let language: Language
 
-    enum Language: String, Sendable {
+    enum Language: String, Sendable, CaseIterable {
         case swift, typescript, python, go, ruby, rust, sql, shell, none
 
         static func of(path: String) -> Language {
@@ -24,7 +24,13 @@ struct Highlighter {
             }
         }
 
-        var keywords: Set<String> {
+        private static let keywordSets: [Language: Set<String>] = Dictionary(
+            uniqueKeysWithValues: allCases.map { ($0, $0.keywordList) }
+        )
+
+        var keywords: Set<String> { Self.keywordSets[self] ?? [] }
+
+        private var keywordList: Set<String> {
             switch self {
             case .swift:
                 ["func", "let", "var", "if", "else", "guard", "return", "struct", "class",

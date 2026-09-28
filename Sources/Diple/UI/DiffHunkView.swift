@@ -6,16 +6,21 @@ struct DiffHunkView: View {
 
     @Environment(\.codeTheme) private var theme
 
-    private struct Row: Identifiable {
-        let id = UUID()
+    struct Row: Identifiable {
+        let id: Int
         let number: Int?
         let mark: Character
         let text: String
+        let spans: [(String, Syntax)]
         var isHeader: Bool { mark == "@" }
     }
 
-    private var highlighter: Highlighter {
-        Highlighter(language: .of(path: path))
+    private let rows: [Row]
+
+    init(hunk: String, path: String = "") {
+        self.hunk = hunk
+        self.path = path
+        self.rows = Self.parse(hunk, highlighter: Highlighter(language: .of(path: path)))
     }
 
     var body: some View {
@@ -45,7 +50,7 @@ struct DiffHunkView: View {
                             .foregroundStyle(edge(row.mark))
                             .frame(width: 14, alignment: .leading)
 
-                        highlighted(row.text)
+                        highlighted(row.spans)
                             .font(.system(size: 11.5, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -64,8 +69,8 @@ struct DiffHunkView: View {
         )
     }
 
-    private func highlighted(_ line: String) -> Text {
-        highlighter.spans(line).reduce(Text("")) { acc, span in
+    private func highlighted(_ spans: [(String, Syntax)]) -> Text {
+        spans.reduce(Text("")) { acc, span in
             acc + Text(span.0).foregroundColor(theme.color(span.1))
         }
     }
@@ -86,7 +91,7 @@ struct DiffHunkView: View {
         }
     }
 
-    private var rows: [Row] {
+    static func parse(_ hunk: String, highlighter: Highlighter) -> [Row] {
         var out: [Row] = []
         var n: Int?
         for raw in hunk.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -96,15 +101,15 @@ struct DiffHunkView: View {
                    let num = Int(additions.prefix(while: \.isNumber)) {
                     n = num
                 }
-                out.append(Row(number: nil, mark: "@", text: s))
+                out.append(Row(id: out.count, number: nil, mark: "@", text: s, spans: [(s, .plain)]))
                 continue
             }
             let mark = s.first ?? " "
             let text = String(s.dropFirst())
             if mark == "-" {
-                out.append(Row(number: nil, mark: mark, text: text))
+                out.append(Row(id: out.count, number: nil, mark: mark, text: text, spans: highlighter.spans(text)))
             } else {
-                out.append(Row(number: n, mark: mark, text: text))
+                out.append(Row(id: out.count, number: n, mark: mark, text: text, spans: highlighter.spans(text)))
                 if let c = n { n = c + 1 }
             }
         }
