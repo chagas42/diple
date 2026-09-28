@@ -251,7 +251,12 @@ final class AppModel: ObservableObject {
         self.store = store
         self.sync = SyncEngine(client: client)
     }
-    private var timer: Timer?
+    private var pollTask: Task<Void, Never>?
+    private let reachability = Reachability()
+    var isOnline = true
+    private(set) var failures = 0
+    private var pendingFull = false
+    private var notchOpen = false
     private var refreshTask: Task<Void, Never>?
 
     private var started = false
@@ -273,6 +278,8 @@ final class AppModel: ObservableObject {
         }
 
         restartTimer()
+        reachability.onChange = { [weak self] online in self?.setOnline(online) }
+        reachability.start()
 
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
@@ -297,10 +304,47 @@ final class AppModel: ObservableObject {
         }
     }
 
+    var policy: SyncPolicy {
+        SyncPolicy(
+            base: settings.interval,
+            failures: failures,
+            online: isOnline,
+            visible: notchOpen || Windows.shared.mainIsVisible,
+            lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            rateLimitLeft: lastSync == nil ? nil : queue.rateLimitLeft,
+            rateLimitResetAt: queue.rateLimitResetAt
+        )
+    }
+
     private func restartTimer() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: settings.interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.refresh() }
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let policy = self?.policy else { return }
+                let delay = policy.nextDelay() ?? 60
+                try? await Task.sleep(for: .seconds(delay), tolerance: .seconds(delay * 0.1))
+                guard !Task.isCancelled else { return }
+                await self?.refresh()
+            }
+        }
+    }
+
+    func setNotchOpen(_ open: Bool) {
+        guard open != notchOpen else { return }
+        notchOpen = open
+        if open, let last = lastSync, Date().timeIntervalSince(last) > settings.interval {
+            Task { await refresh() }
+        }
+        restartTimer()
+    }
+
+    func setOnline(_ online: Bool) {
+        let cameBack = online && !isOnline
+        isOnline = online
+        guard cameBack else { return }
+        Task {
+            await refresh()
+            restartTimer()
         }
     }
 
@@ -316,16 +360,23 @@ final class AppModel: ObservableObject {
             onCountChange?()
             return
         }
+        guard isOnline else {
+            pendingFull = pendingFull || full
+            return
+        }
         guard !loading else { return }
         loading = true
         defer { loading = false }
 
         do {
+            let wantsFull = full || pendingFull
             if let seed = pendingSeed {
                 pendingSeed = nil
                 await sync.seed(seed)
             }
-            let nova = try await sync.sync(full: full)
+            let nova = try await sync.sync(full: wantsFull)
+            pendingFull = false
+            failures = 0
             let events = store.diff(nova, meuLogin: nova.viewer)
                 .filter { e in
                     let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
@@ -345,6 +396,7 @@ final class AppModel: ObservableObject {
                 onEvent?(first)
             }
         } catch {
+            failures += 1
             errorMessage = error.localizedDescription
         }
     }

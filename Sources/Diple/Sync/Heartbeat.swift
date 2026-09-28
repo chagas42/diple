@@ -29,6 +29,7 @@ struct Heartbeat: Sendable, Equatable {
     var toReview: [Row]
     var following: [Row]
     var rateLimitLeft: Int
+    var rateLimitResetAt: Date? = nil
 
     var all: [Row] { mine + toReview + following }
 
@@ -51,7 +52,10 @@ struct Heartbeat: Sendable, Equatable {
             return out
         }
         guard let m = section(mine), let r = section(toReview), let f = section(following) else { return nil }
-        return Queue(viewer: viewer, mine: m, toReview: r, following: f, rateLimitLeft: rateLimitLeft)
+        return Queue(
+            viewer: viewer, mine: m, toReview: r, following: f,
+            rateLimitLeft: rateLimitLeft, rateLimitResetAt: rateLimitResetAt
+        )
     }
 }
 
@@ -107,7 +111,8 @@ extension GitHubClient {
             mine: sections[0].section.nodes.compactMap { $0?.row },
             toReview: sections[1].section.nodes.compactMap { $0?.row },
             following: sections[2].section.nodes.compactMap { $0?.row },
-            rateLimitLeft: sections.compactMap { $0.rateLimit?.remaining }.min() ?? 0
+            rateLimitLeft: sections.compactMap { $0.rateLimit?.remaining }.min() ?? 0,
+            rateLimitResetAt: sections.compactMap { $0.rateLimit?.resetAt }.max()
         )
     }
 

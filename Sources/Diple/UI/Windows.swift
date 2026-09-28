@@ -9,6 +9,11 @@ final class Windows: NSObject, NSWindowDelegate {
     private var settings: NSWindow?
     private var map: NSWindow?
 
+    var mainIsVisible: Bool {
+        guard let main, main.isVisible, !main.isMiniaturized else { return false }
+        return main.occlusionState.contains(.visible)
+    }
+
     private func syncDockPolicy() {
         let anyOpen = [main, settings, map].contains { $0?.isVisible == true }
         NSApp.setActivationPolicy(anyOpen ? .regular : .accessory)

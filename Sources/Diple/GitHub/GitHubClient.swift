@@ -88,7 +88,8 @@ struct GitHubClient: Sendable {
             mine: d.mine.nodes.compactMap { PR($0, meuLogin: viewer) },
             toReview: d.toReview.nodes.compactMap { PR($0, meuLogin: viewer) },
             following: d.following.nodes.compactMap { PR($0, meuLogin: viewer) },
-            rateLimitLeft: d.rateLimit?.remaining ?? 0
+            rateLimitLeft: d.rateLimit?.remaining ?? 0,
+            rateLimitResetAt: d.rateLimit?.resetAt
         )
     }
 }
