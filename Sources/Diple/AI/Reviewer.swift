@@ -28,12 +28,12 @@ struct Reviewer: Sendable {
 
     func review(
         pr: PR, context: ReviewContext, viewer: String,
-        in folder: URL, model: String, language: String
+        in folder: URL, model: String, language: String, voice: Voice = Voice(samples: [], houseRules: nil)
     ) -> AsyncStream<ReviewStep> {
         let deep = DeepReview.available
         let prompt = deep
-            ? deepPrompt(pr: pr, context: context, viewer: viewer, language: language)
-            : self.prompt(pr: pr, base: context.base, language: language)
+            ? deepPrompt(pr: pr, context: context, viewer: viewer, language: language, voice: voice)
+            : self.prompt(pr: pr, base: context.base, language: language, voice: voice)
         let allowed = (Self.allowedTools + (deep ? Self.deepTools : [])).joined(separator: " ")
 
         return AsyncStream { cont in
@@ -177,13 +177,14 @@ struct Reviewer: Sendable {
         ))
     }
 
-    private func deepPrompt(pr: PR, context: ReviewContext, viewer: String, language: String) -> String {
+    private func deepPrompt(pr: PR, context: ReviewContext, viewer: String, language: String, voice: Voice) -> String {
         func note(_ n: ReviewContext.Note) -> [String: Any] {
             ["id": n.id, "author": n.author, "bot": n.isBot, "at": n.at, "body": n.body]
         }
         let input: [String: Any] = [
             "repo": pr.repo,
             "language": language,
+            "voice": voice.brief,
             "viewer": viewer,
             "base": context.base,
             "pr": [
@@ -207,17 +208,26 @@ struct Reviewer: Sendable {
         let json = (try? JSONSerialization.data(withJSONObject: input, options: [.prettyPrinted, .sortedKeys]))
             .map { String(decoding: $0, as: UTF8.self) } ?? "{}"
 
+        let voiceNote = voice.isEmpty ? "" : """
+
+
+        Every comment you draft goes out under the account of the person running this,
+        whoever's pull request it is. The `voice` field of the input says how they
+        write; follow it over any house style of your own.
+        """
+
         return """
         /diple-review
 
         Input:
-        \(json)
+        \(json)\(voiceNote)
         """
     }
 
-    private func prompt(pr: PR, base: String, language: String) -> String {
+    private func prompt(pr: PR, base: String, language: String, voice: Voice) -> String {
         """
         You are in a worktree with PR #\(pr.number) of \(pr.repo) already checked out.
+        \(voice.isEmpty ? "" : "\n" + voice.brief + "\n")
 
         PR title: \(pr.title)
 
