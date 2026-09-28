@@ -52,7 +52,7 @@ struct RawPR: Decodable, Sendable {
     let title: String
     let url: URL
     let updatedAt: Date
-    let createdAt: Date
+    let createdAt: Date?
     let isDraft: Bool
     let headRefName: String
     let baseRefName: String
@@ -197,7 +197,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         title = c.title
         url = c.url
         updatedAt = c.updatedAt
-        createdAt = c.createdAt
+        createdAt = c.createdAt ?? c.updatedAt
         draft = c.isDraft
         author = c.author?.login ?? "?"
         authorAvatar = c.author?.avatarUrl
