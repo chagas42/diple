@@ -2,6 +2,19 @@ import Foundation
 import AppKit
 
 enum Probe {
+    static func readState(_ path: String) {
+        guard let bytes = FileManager.default.contents(atPath: path) else {
+            print("  cannot open \(path)"); return
+        }
+        do {
+            let st = try JSONDecoder().decode(StoredState.self, from: bytes)
+            let name = (path as NSString).lastPathComponent
+            print("  \(name): ok — \(st.watching?.count ?? 0) watched, \(st.prs.count) prs, theme \(st.settings.codeTheme)")
+        } catch {
+            print("  \((path as NSString).lastPathComponent): FAILS — \(error)")
+        }
+    }
+
     static func tools() {
         for name in ["gh", "claude", "git"] {
             print("  \(name): \(Tools.find(name) ?? "NOT FOUND")")

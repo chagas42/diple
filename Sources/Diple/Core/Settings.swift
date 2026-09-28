@@ -55,4 +55,27 @@ struct Settings: Codable, Sendable, Equatable {
             : (h >= quietFrom && h < quietUntil)
         return !calado
     }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        var d = Settings()
+        d.alerts = try c.decodeIfPresent([String: Bool].self, forKey: .alerts) ?? d.alerts
+        d.sounds = try c.decodeIfPresent([String: String].self, forKey: .sounds) ?? d.sounds
+        d.quietHoursOn = try c.decodeIfPresent(Bool.self, forKey: .quietHoursOn) ?? d.quietHoursOn
+        d.quietFrom = try c.decodeIfPresent(Int.self, forKey: .quietFrom) ?? d.quietFrom
+        d.quietUntil = try c.decodeIfPresent(Int.self, forKey: .quietUntil) ?? d.quietUntil
+        d.quietOnWeekends = try c.decodeIfPresent(Bool.self, forKey: .quietOnWeekends) ?? d.quietOnWeekends
+        d.mutedRepos = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRepos) ?? d.mutedRepos
+        d.interval = try c.decodeIfPresent(TimeInterval.self, forKey: .interval) ?? d.interval
+        d.aiModel = try c.decodeIfPresent(String.self, forKey: .aiModel) ?? d.aiModel
+        d.reviewLanguage = try c.decodeIfPresent(String.self, forKey: .reviewLanguage) ?? d.reviewLanguage
+        d.repoPaths = try c.decodeIfPresent([String: String].self, forKey: .repoPaths) ?? d.repoPaths
+        d.editor = try c.decodeIfPresent(String.self, forKey: .editor) ?? d.editor
+        d.codeTheme = try c.decodeIfPresent(String.self, forKey: .codeTheme) ?? d.codeTheme
+        d.mapModel = try c.decodeIfPresent(String.self, forKey: .mapModel) ?? d.mapModel
+        self = d
+    }
+
 }

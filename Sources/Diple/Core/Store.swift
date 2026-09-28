@@ -19,6 +19,23 @@ struct StoredState: Codable, Sendable {
     var watching: Set<String>? = nil
     var settings = Settings()
     var cache = Cache()
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        var d = StoredState()
+        d.version = try c.decodeIfPresent(Int.self, forKey: .version) ?? d.version
+        d.prs = try c.decodeIfPresent([String: Snapshot].self, forKey: .prs) ?? d.prs
+        d.unread = try c.decodeIfPresent(Set<String>.self, forKey: .unread) ?? d.unread
+        d.hasRunBefore = try c.decodeIfPresent(Bool.self, forKey: .hasRunBefore) ?? d.hasRunBefore
+        d.following = try c.decodeIfPresent(Set<String>.self, forKey: .following) ?? d.following
+        d.watching = try c.decodeIfPresent(Set<String>.self, forKey: .watching) ?? d.watching
+        d.settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? d.settings
+        d.cache = try c.decodeIfPresent(Cache.self, forKey: .cache) ?? d.cache
+        self = d
+    }
+
 }
 
 enum RankPeriod: String, CaseIterable, Codable, Sendable, Identifiable {
@@ -94,6 +111,26 @@ struct Cache: Codable, Sendable {
         guard let at else { return true }
         return Date().timeIntervalSince(at) > seconds
     }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        var d = Cache()
+        d.team = try c.decodeIfPresent([Person].self, forKey: .team) ?? d.team
+        d.ranking = try c.decodeIfPresent([RankRow].self, forKey: .ranking) ?? d.ranking
+        d.activity = try c.decodeIfPresent([ActivityDay].self, forKey: .activity) ?? d.activity
+        d.teamAt = try c.decodeIfPresent(Date.self, forKey: .teamAt)
+        d.rankingAt = try c.decodeIfPresent(Date.self, forKey: .rankingAt)
+        d.activityAt = try c.decodeIfPresent(Date.self, forKey: .activityAt)
+        d.scoreShownOn = try c.decodeIfPresent(Date.self, forKey: .scoreShownOn)
+        d.repos = try c.decodeIfPresent([RepoRef].self, forKey: .repos)
+        d.reposAt = try c.decodeIfPresent(Date.self, forKey: .reposAt)
+        d.rankByPeriod = try c.decodeIfPresent([String: [RankRow]].self, forKey: .rankByPeriod)
+        d.rankAtByPeriod = try c.decodeIfPresent([String: Date].self, forKey: .rankAtByPeriod)
+        self = d
+    }
+
 }
 
 @MainActor
