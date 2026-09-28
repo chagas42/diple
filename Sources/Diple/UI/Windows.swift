@@ -8,6 +8,7 @@ final class Windows: NSObject, NSWindowDelegate {
     private var main: NSWindow?
     private var settings: NSWindow?
     private var map: NSWindow?
+    private var feedback: NSWindow?
 
     var mainIsVisible: Bool {
         guard let main, main.isVisible, !main.isMiniaturized else { return false }
@@ -15,7 +16,7 @@ final class Windows: NSObject, NSWindowDelegate {
     }
 
     private func syncDockPolicy() {
-        let anyOpen = [main, settings, map].contains { $0?.isVisible == true }
+        let anyOpen = [main, settings, map, feedback].contains { $0?.isVisible == true }
         NSApp.setActivationPolicy(anyOpen ? .regular : .accessory)
         if anyOpen { NSApp.activate(ignoringOtherApps: true) }
     }
@@ -42,6 +43,22 @@ final class Windows: NSObject, NSWindowDelegate {
         j.setFrameAutosaveName("diple.main")
         j.delegate = self
         main = j
+        j.makeKeyAndOrderFront(nil)
+        syncDockPolicy()
+    }
+
+    func openFeedback(_ model: AppModel, feature: FeedbackFeature) {
+        NSApp.activate(ignoringOtherApps: true)
+        feedback?.close()
+        let j = make(
+            title: "Feedback",
+            size: NSSize(width: 480, height: 300),
+            content: FeedbackView(model: model, feature: feature) { [weak self] in self?.feedback?.close() },
+            resizable: false
+        )
+        j.delegate = self
+        feedback = j
+        j.center()
         j.makeKeyAndOrderFront(nil)
         syncDockPolicy()
     }

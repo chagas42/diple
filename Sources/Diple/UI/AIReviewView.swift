@@ -122,6 +122,7 @@ struct AIReviewView: View {
                           + "and a verdict on every comment already on the PR.")
             }
             Spacer()
+            FeedbackButton(model: model, feature: .aiReview)
             Button {
                 Task { await model.runAIReview(pr) }
             } label: {

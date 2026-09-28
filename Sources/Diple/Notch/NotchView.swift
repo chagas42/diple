@@ -172,6 +172,11 @@ struct NotchView: View {
                         }
                     }
                 }
+                iconButton("bubble.left.and.exclamationmark.bubble.right") {
+                    Windows.shared.openFeedback(model, feature: model.notchTab.feedbackFeature)
+                    onClose()
+                }
+                .help("Feedback on \(model.notchTab.feedbackFeature.title)")
                 iconButton("gearshape") {
                     Windows.shared.openSettings(model)
                     onClose()
