@@ -15,8 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use the newest Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app
+      - name: Use the newest Xcode on the runner
+        run: |
+          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "using $latest"
+          sudo xcode-select -s "$latest"
+          swift --version
 
       - name: Cache SwiftPM
         uses: actions/cache@v4
