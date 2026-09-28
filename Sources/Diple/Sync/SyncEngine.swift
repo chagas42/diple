@@ -29,6 +29,10 @@ actor SyncEngine {
         lastFull = now()
     }
 
+    private var watching: Set<String> = []
+
+    func setWatching(_ w: Set<String>) { watching = w }
+
     func sync(full: Bool = false) async throws -> Queue {
         if full || needsReconcile {
             return try await fullSync()
@@ -55,7 +59,7 @@ actor SyncEngine {
     }
 
     private func fullSync() async throws -> Queue {
-        let queue = try await client.fetchQueue()
+        let queue = try await client.fetchQueue(watching: watching)
         known = [:]
         remember(queue)
         lastFull = now()

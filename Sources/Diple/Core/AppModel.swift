@@ -237,7 +237,7 @@ final class AppModel: ObservableObject {
                 body: signed(finding.comment ?? finding.summary, on: pr)
             )
             posted.insert(finding.id)
-            await refresh()
+            await reread(pr)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -246,6 +246,19 @@ final class AppModel: ObservableObject {
     func signed(_ body: String, on pr: PR) -> String {
         guard settings.attributionMode.applies(mine: pr.isMine) else { return body }
         return body + "\n\n<sub>via [Diple](https://github.com/chagas42/diple) — drafted by a Claude review running locally</sub>"
+    }
+
+    func reread(_ pr: PR) async {
+        guard let fresh = try? await client.fetchPR(repo: pr.repo, number: pr.number) else {
+            await refresh()
+            return
+        }
+        func swap(_ list: [PR]) -> [PR] { list.map { $0.key == fresh.key ? fresh : $0 } }
+        queue.mine = swap(queue.mine)
+        queue.toReview = swap(queue.toReview)
+        queue.following = swap(queue.following)
+        if selected?.key == fresh.key { selected = fresh }
+        if repoPRs.contains(where: { $0.key == fresh.key }) { repoPRs = swap(repoPRs) }
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
@@ -447,6 +460,7 @@ final class AppModel: ObservableObject {
         defer { loading = false }
 
         do {
+            await sync.setWatching(watching)
             let wantsFull = full || pendingFull
             if let seed = pendingSeed {
                 pendingSeed = nil
@@ -798,6 +812,7 @@ final class AppModel: ObservableObject {
         case .reviewRequested:   ("Rafael requested your review", "4 files · +94 −12")
         case .checkFailed:     ("A check failed on your PR", "checks / test · 1 de 5 failing")
         case .approved:       ("Your PR was approved", "ready to merge")
+        case .newPullRequest: ("Lu opened a pull request", "console #4781 · in a repository you watch")
         }
     }
 
@@ -826,6 +841,7 @@ final class AppModel: ObservableObject {
         case commented
         case checkFailed
         case approved
+        case opened
 
         init(_ kind: EventKind) {
             switch kind {
@@ -834,6 +850,7 @@ final class AppModel: ObservableObject {
             case .reviewRequested: self = .reviewRequested
             case .checkFailed:     self = .checkFailed
             case .approved:        self = .approved
+            case .newPullRequest:  self = .opened
             }
         }
 
@@ -844,6 +861,7 @@ final class AppModel: ObservableObject {
             case .reviewRequested: .reviewRequested
             case .checkFailed:     .checkFailed
             case .approved:        .approved
+            case .opened:          .newPullRequest
             }
         }
 
@@ -861,6 +879,7 @@ final class AppModel: ObservableObject {
             case .commented:       "new comment"
             case .checkFailed:     "check failing"
             case .approved:        "approved"
+            case .opened:          "opened"
             }
         }
     }
@@ -906,7 +925,7 @@ final class AppModel: ObservableObject {
         defer { sending = false }
         do {
             try await client.reply(threadId: thread, body: t)
-            await refresh()
+            if let pr = selected { await reread(pr) } else { await refresh() }
             return nil
         } catch {
             return error.localizedDescription

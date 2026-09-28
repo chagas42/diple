@@ -83,8 +83,12 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Use the newest Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app
+      - name: Use the newest Xcode on the runner
+        run: |
+          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "using $latest"
+          sudo xcode-select -s "$latest"
+          swift --version
 
       - name: Build
         run: |

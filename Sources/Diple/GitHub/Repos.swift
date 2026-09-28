@@ -35,6 +35,17 @@ private struct ReposResponse: Decodable, Sendable {
     }
 }
 
+private struct OnePRResponse: Decodable, Sendable {
+    let data: Payload?
+    let errors: [GraphQLError]?
+
+    struct Payload: Decodable, Sendable {
+        let viewer: RawResponse.RawViewer
+        let repository: Repo?
+    }
+    struct Repo: Decodable, Sendable { let pullRequest: RawPR? }
+}
+
 private struct RepoPRsResponse: Decodable, Sendable {
     let data: Payload?
     let errors: [GraphQLError]?
@@ -102,5 +113,24 @@ extension GitHubClient {
         guard let d = body.data else { throw ClientError.empty }
         let viewer = d.viewer.login
         return (d.repository?.pullRequests.nodes ?? []).compactMap { PR($0, meuLogin: viewer) }
+    }
+}
+
+extension GitHubClient {
+    func fetchPR(repo: String, number: Int) async throws -> PR? {
+        let parts = repo.split(separator: "/")
+        guard parts.count == 2 else { return nil }
+        let query = Query.prFragment + """
+        query OnePR {
+          viewer { login }
+          repository(owner: "\(parts[0])", name: "\(parts[1])") {
+            pullRequest(number: \(number)) { ...pr }
+          }
+        }
+        """
+        let body: OnePRResponse = try await send(query)
+        if let e = body.errors, !e.isEmpty { throw ClientError.graphql(e.map(\.message)) }
+        guard let d = body.data else { return nil }
+        return PR(d.repository?.pullRequest, meuLogin: d.viewer.login)
     }
 }
