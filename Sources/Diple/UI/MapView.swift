@@ -77,12 +77,28 @@ struct MapHeader: View {
                     .font(.system(size: 11.5))
                     .disabled(model.isMapping(pr.key))
             }
-            Text(map.intent.isEmpty ? pr.title : map.intent)
+            Text(Inline.markdown(map.intent.isEmpty ? pr.title : map.intent))
                 .font(.system(size: 15, weight: .medium))
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 7) {
                 chip(sizeLine, mono: true)
-                ForEach(map.deltas, id: \.self) { chip($0) }
+            }
+            if !map.deltas.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(map.deltas, id: \.self) { delta in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "arrow.turn.down.right")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                            Text(Inline.markdown(delta))
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                .padding(.top, 2)
             }
             if map.stack.count > 1 {
                 HStack(spacing: 6) {
@@ -212,7 +228,7 @@ struct MapLegend: View {
             if map.hidden > 0 {
                 Text("\(map.hidden) smaller module\(map.hidden == 1 ? "" : "s") not drawn")
             }
-            Text("drag to arrange · scroll or pinch to zoom · click to open")
+            Text("hover to read · drag to arrange · scroll or pinch to zoom · click to open")
                 .foregroundStyle(.tertiary)
         }
         .font(.system(size: 10.5))
@@ -237,5 +253,12 @@ struct MapWindowView: View {
         }
         .padding(18)
         .frame(minWidth: 760, minHeight: 520)
+    }
+}
+
+enum Inline {
+    static func markdown(_ text: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 }

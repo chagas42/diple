@@ -8,9 +8,9 @@ enum MapLayout {
     static func size(_ kind: MapNode.Kind) -> CGSize {
         switch kind {
         case .domain:   CGSize(width: 210, height: 84)
-        case .changed:  CGSize(width: 232, height: 104)
-        case .affected: CGSize(width: 232, height: 104)
-        case .context:  CGSize(width: 244, height: 130)
+        case .changed:  CGSize(width: 232, height: 116)
+        case .affected: CGSize(width: 232, height: 116)
+        case .context:  CGSize(width: 244, height: 146)
         }
     }
 
@@ -185,6 +185,15 @@ struct MapCanvasView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(.secondary.opacity(0.2)))
             .overlay(alignment: .topTrailing) { controls.padding(10) }
+            .overlay(alignment: .bottomLeading) {
+                if let h = hovered, let n = index[h] {
+                    MapNodeReader(node: n)
+                        .padding(10)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.12), value: hovered)
             .simultaneousGesture(magnify)
             .onAppear {
                 viewport = geo.size
@@ -440,10 +449,10 @@ struct MapNodeCard: View {
                     .lineLimit(1)
                     .truncationMode(.head)
             }
-            Text(node.detail)
-                .font(.system(size: 10.5))
+            Text(Inline.markdown(node.detail))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .lineLimit(node.kind == .context ? 4 : 2)
+                .lineLimit(node.kind == .context ? 5 : 3)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             HStack(spacing: 4) {
@@ -482,5 +491,44 @@ struct MapNodeCard: View {
         .shadow(color: .black.opacity(lit ? 0.18 : 0.06), radius: lit ? 8 : 3, y: 1)
         .opacity(dimmed ? 0.45 : 1)
         .contentShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+struct MapNodeReader: View {
+    let node: MapNode
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: node.kind.icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(node.kind.tint)
+                Text(node.title)
+                    .font(.system(size: 13, weight: .semibold))
+                if let d = node.diff {
+                    Text(d)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let p = node.path ?? (node.subtitle.isEmpty ? nil : node.subtitle) {
+                Text(p)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+            if !node.detail.isEmpty {
+                Text(Inline.markdown(node.detail))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: 420, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(node.kind.tint.opacity(0.45)))
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
     }
 }
