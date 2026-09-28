@@ -101,6 +101,11 @@ enum BenchScenarios {
             }
             samples.add("time_to_queue_ms", start.duration(to: .now).millis)
             samples.add("requests_before_queue", Metrics.shared.snapshot().count(.requests))
+            while model.lastSync == nil {
+                if start.duration(to: .now) > .seconds(60) { Bench.fail("the first refresh never finished") }
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+            samples.add("time_to_fresh_queue_ms", start.duration(to: .now).millis)
             while model.loading { try? await Task.sleep(for: .milliseconds(20)) }
         }
         Bench.finish("launch", samples, runs: runs)

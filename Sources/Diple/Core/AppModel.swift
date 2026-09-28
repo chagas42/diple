@@ -254,6 +254,8 @@ final class AppModel: ObservableObject {
     private var pendingSeed: Queue?
     let prefetcher: Prefetcher
     private var prefetchTask: Task<Void, Never>?
+    private var preloadTask: Task<Void, Never>?
+    var preloadsTabs = true
 
     init(client: GitHubClient = GitHubClient(), store: Store = Store(), prefetcher: Prefetcher? = nil) {
         self.client = client
@@ -275,6 +277,34 @@ final class AppModel: ObservableObject {
 
     func prefetchSettled() async {
         await prefetchTask?.value
+    }
+
+    func tabsSettled() async {
+        await preloadTask?.value
+    }
+
+    private func schedulePreload() {
+        guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline, preloadTask == nil else { return }
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled, !org.isEmpty else { return }
+        let stale = [NotchTab.ranking, .activity].filter(isStale)
+        guard !stale.isEmpty else { return }
+        preloadTask = Task(priority: .utility) { [weak self] in
+            for tab in stale {
+                guard let self, !Task.isCancelled, self.refreshingTab == nil else { break }
+                await self.fetchTab(tab)
+            }
+            self?.preloadTask = nil
+        }
+    }
+
+    private func isStale(_ tab: NotchTab) -> Bool {
+        let cache = store.state.cache
+        return switch tab {
+        case .queue:    false
+        case .team:     cache.isStale(cache.teamAt, after: 24 * 3600)
+        case .ranking:  cache.isStale(cache.rankAt(rankPeriod), after: rankPeriod.freshFor)
+        case .activity: cache.isStale(cache.activityAt, after: 3600)
+        }
     }
 
     private func schedulePrefetch() {
@@ -310,10 +340,10 @@ final class AppModel: ObservableObject {
         settings = store.state.settings
         notificador.settings = settings
 
+        Task { await refresh() }
         Task {
             hasPermission = await notificador.isAuthorized()
             if !hasPermission { hasPermission = await notificador.requestPermission() }
-            await refresh()
         }
 
         restartTimer()
@@ -432,6 +462,7 @@ final class AppModel: ObservableObject {
             await notificador.post(events)
             onCountChange?()
             schedulePrefetch()
+            schedulePreload()
             if let first = events.first(where: { $0.kind.interrupts }) {
                 onEvent?(first)
             }
@@ -465,14 +496,7 @@ final class AppModel: ObservableObject {
         let key = tab == .ranking ? "\(tab.rawValue)/\(rankPeriod.rawValue)" : tab.rawValue
         guard force || refreshKey != key else { return }
 
-        let cache = store.state.cache
-        let stale: Bool = switch tab {
-        case .queue:    false
-        case .team:     cache.isStale(cache.teamAt, after: 24 * 3600)
-        case .ranking:  cache.isStale(cache.rankAt(rankPeriod), after: rankPeriod.freshFor)
-        case .activity: cache.isStale(cache.activityAt, after: 3600)
-        }
-        guard force || stale else { return }
+        guard force || isStale(tab) else { return }
 
         refreshTask?.cancel()
         refreshGeneration += 1
