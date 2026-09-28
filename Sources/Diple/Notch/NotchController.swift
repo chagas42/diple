@@ -22,6 +22,8 @@ final class NotchController: ObservableObject {
     private var pointerTimer: Timer?
     private var blinkTask: Task<Void, Never>?
 
+    var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
+
     func mount(model: AppModel) {
         self.model = model
         panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
@@ -87,7 +89,7 @@ final class NotchController: ObservableObject {
     func alert(_ e: Event) {
         guard e.kind.interrupts else { return }
         collapseTask?.cancel()
-        pointerAnchor = NSEvent.mouseLocation
+        pointerAnchor = pointer()
         state = .alert(e)
         apply()
 
@@ -121,7 +123,7 @@ final class NotchController: ObservableObject {
         let shape = g.rect(size)
 
         let hotZone = shape.union(g.rect(g.closed))
-        let m = NSEvent.mouseLocation
+        let m = pointer()
 
         let isOpen = state == .open
         let inside = isOpen ? hotZone.insetBy(dx: -16, dy: -16).contains(m)
@@ -151,7 +153,7 @@ final class NotchController: ObservableObject {
         guard state == .hidden || state == .active else { return }
         let g = NotchGeometry.current()
         let f = g.rect(size)
-        let m = NSEvent.mouseLocation
+        let m = pointer()
         let range: CGFloat = 300
         let dx = max(-1, min(1, (m.x - f.midX) / range))
         let dy = max(-1, min(1, (f.midY - m.y) / range))

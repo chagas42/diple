@@ -161,3 +161,29 @@ The bundle is assembled by hand and ad-hoc signed, with no Xcode project and no
 paid Apple account. The icon must be a squircle on the official grid — 824
 artwork on a 1024 canvas — because macOS applies no mask of its own, and a
 circular corner radius reads visibly squarer than Apple's superellipse.
+
+## Measuring
+
+**Two kinds of proof, on purpose.** `swift test` gates CI on counts —
+requests per refresh, bytes, `gh` spawns, `state.json` writes — because those
+are deterministic. Wall-clock numbers live in `make bench`, which runs the real
+app against real GitHub and writes `bench/results/<LABEL>/*.json`. A CI runner's
+clock is too noisy to fail a build on.
+
+**`DIPLE_STATE_DIR` is not optional for benchmarks.** The bench refuses to run
+without it, so it never reads or rewrites the `state.json` of the Diple you use
+every day.
+
+**Baseline first.** `bench/results/baseline` was captured on the commit that
+only added the instruments, before any optimization. Compare anything against
+it with `make bench-compare LABEL=<folder>`.
+
+**Scenarios.** `refresh` is ten steady-state cycles after a warm-up. `launch`
+is `start()` until the queue is non-empty, over a state primed by one refresh.
+`notch-idle` runs `--demo` with a synthetic pointer circling below the notch,
+counting `body` evaluations and process CPU. `review-start` is everything
+before `claude` starts: the review context and the worktree, cold and warm —
+it needs `PR=owner/repo#number` of a repository cloned on the machine.
+
+**Signposts.** Every request, refresh and store write is an `OSSignposter`
+interval under `com.chagas42.diple`, visible in Instruments' Points of Interest.

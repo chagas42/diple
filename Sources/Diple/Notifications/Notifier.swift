@@ -66,6 +66,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
     }
 
     func post(_ events: [Event], force: Bool = false) async {
+        guard !Bench.isOn else { return }
         for e in events where force || settings.shouldInterrupt(e.kind) {
             let c = UNMutableNotificationContent()
             c.title = e.title

@@ -36,6 +36,7 @@ struct NotchView: View {
     let onClose: () -> Void
 
     var body: some View {
+        let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 shape.fill(.black)

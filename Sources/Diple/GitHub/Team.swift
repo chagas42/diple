@@ -117,22 +117,10 @@ extension GitHubClient {
     }
 
     func raw(_ query: String) async throws -> [String: Any] {
-        let token = try await Task.detached(priority: .utility) { try Token.current() }.value
-        var req = URLRequest(url: URL(string: "https://api.github.com/graphql")!)
-        req.httpMethod = "POST"
-        req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
-        req.httpBody = try JSONEncoder().encode(["query": query])
-        req.timeoutInterval = 20
-
-        let (date, response) = try await URLSession.shared.data(for: req)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ClientError.http(http.statusCode)
-        }
-        let obj = try JSONSerialization.jsonObject(with: date) as? [String: Any] ?? [:]
-        if let erros = obj["errors"] as? [[String: Any]], !erros.isEmpty {
-            throw ClientError.graphql(erros.compactMap { $0["message"] as? String })
+        let payload = try await post(query)
+        let obj = try JSONSerialization.jsonObject(with: payload) as? [String: Any] ?? [:]
+        if let errors = obj["errors"] as? [[String: Any]], !errors.isEmpty {
+            throw ClientError.graphql(errors.compactMap { $0["message"] as? String })
         }
         return obj
     }

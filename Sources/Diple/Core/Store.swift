@@ -137,15 +137,24 @@ struct Cache: Codable, Sendable {
 final class Store {
     private(set) var state = StoredState()
 
-    private let path: URL = {
-        let base = FileManager.default
+    static var defaultDirectory: URL {
+        if let dir = ProcessInfo.processInfo.environment["DIPLE_STATE_DIR"], !dir.isEmpty {
+            return URL(fileURLWithPath: (dir as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        return FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Diple", isDirectory: true)
-        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base.appendingPathComponent("state.json")
-    }()
+    }
 
-    init() { load() }
+    private let path: URL
+    private let metrics: Metrics
+
+    init(directory: URL = Store.defaultDirectory, metrics: Metrics = .shared) {
+        self.metrics = metrics
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        path = directory.appendingPathComponent("state.json")
+        load()
+    }
 
     private func load() {
         guard let bytes = try? Data(contentsOf: path) else { return }
@@ -162,9 +171,13 @@ final class Store {
     }
 
     private func save() {
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try? enc.encode(state).write(to: path, options: .atomic)
+        metrics.measure(.storeWrite) {
+            let enc = JSONEncoder()
+            enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try? enc.encode(state).write(to: path, options: .atomic)
+        }
+        metrics.count(.storeWrites)
+        if Thread.isMainThread { metrics.count(.storeWritesOnMain) }
     }
 
     func markRead(_ key: String) {
