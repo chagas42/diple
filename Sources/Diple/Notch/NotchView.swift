@@ -379,6 +379,7 @@ struct NotchView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .opacity(model.dims(pr) ? 0.4 : 1)
                         }
                     }
                 }

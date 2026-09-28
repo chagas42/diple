@@ -16,7 +16,8 @@ enum Demo {
         author: String, mine: Bool,
         checks: CheckState = .passing, approved: Bool = false, draft: Bool = false,
         minutes: Double, head: String, base: String = "main",
-        reply: (String, String, Int, String)? = nil
+        reply: (String, String, Int, String)? = nil,
+        askedYou: Bool = false
     ) -> PR {
         var threads: [PR.ReviewThread] = []
         var last: PR.HumanComment?
@@ -66,7 +67,8 @@ enum Demo {
             checks: checks,
             approved: approved,
             threads: threads,
-            lastComment: last
+            lastComment: last,
+            askedYou: askedYou
         )
     }
 
@@ -106,7 +108,10 @@ enum Demo {
                    head: "rafa-mendes/actor-kind"),
                 pr("acme/warehouse", 541, "chore: sync warehouse models with orders-api #742",
                    author: "tiago-arantes", mine: false, approved: true, minutes: 240,
-                   head: "tiago-arantes/sync-warehouse-models"),
+                   head: "tiago-arantes/sync-warehouse-models", askedYou: true),
+                pr("acme/billing", 1290, "chore: bump the invoice renderer",
+                   author: "caio-braga", mine: false, minutes: 55,
+                   head: "caio-braga/invoice-renderer"),
             ],
             following: [
                 pr("acme/orders-api", 7880, "fix: retry the reroute when the label is stale",

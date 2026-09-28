@@ -56,6 +56,32 @@ struct TeamTab: View {
                 Text("\(model.following.count) picked")
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(model.following.isEmpty ? .white.opacity(0.4) : .orange)
+                Menu {
+                    Picker("Review requests", selection: $model.settings.reviewFilter) {
+                        ForEach(ReviewFilter.allCases) { f in
+                            Text(f.title).tag(f)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    Divider()
+                    Text(model.settings.reviewFilter.detail)
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: model.settings.reviewFilter == .onlyPicked
+                              ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 10.5))
+                        Text(model.settings.reviewFilter.label)
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                    .foregroundStyle(.white.opacity(model.settings.reviewFilter == .everyone ? 0.45 : 0.85))
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Which review requests count and alert")
             }
 
             if model.team.isEmpty {
@@ -65,11 +91,12 @@ struct TeamTab: View {
                     LazyVGrid(columns: columns, spacing: 11) {
                         ForEach(people.prefix(60)) { p in
                             let picked = model.following.contains(p.login)
+                            let shaping = model.settings.reviewFilter != .everyone
                             Button { model.toggleFollow(p.login) } label: {
                                 VStack(spacing: 5) {
                                     AvatarView(person: p, side: 34)
                                         .overlay(
-                                            Circle().stroke(picked ? Color.orange : .clear, lineWidth: 2)
+                                            Circle().stroke(picked ? Color.orange.opacity(shaping ? 1 : 0.4) : .clear, lineWidth: 2)
                                         )
                                         .opacity(picked ? 1 : 0.5)
                                     Text(p.login)

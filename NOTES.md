@@ -107,6 +107,17 @@ app. The test path bypasses it explicitly.
 **`threadIdentifier`** groups several notifications from one PR into a single
 banner. **`UNTextInputNotificationAction`** is what puts a reply field in it.
 
+**Picks shape review requests only when asked to.** `review-requested:@me`
+matches requests to any GitHub team you are on, which is most of the noise.
+`reviewRequests` on each pull request tells a request to you by name (a `User`
+node with your login) from one to a team, at no extra query. The review filter
+(Everyone / Picked first / Only picked) orders requests from picked people and
+by-name requests first; Only picked also leaves the rest out of Needs you, the
+count and alerts, while keeping them dimmed in Reviewing. A quiet request
+speaks up again once someone writes on it, since its unread reason is then
+more urgent than `reviewRequested`. With nobody picked, every filter behaves
+as Everyone, so an empty team cannot silence everything.
+
 ## The PR map
 
 **Two layers, two speeds.** Domains and modules come from the GraphQL file list

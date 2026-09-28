@@ -591,6 +591,11 @@ final class AppModel: ObservableObject {
                     let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
                     return !settings.mutedRepos.contains(repo)
                 }
+                .filter { e in
+                    guard e.kind == .reviewRequested,
+                          let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
+                    return !quiets(pr)
+                }
             queue = nova
             store.saveQueue(nova)
             if let s = selected {
@@ -1068,11 +1073,25 @@ final class AppModel: ObservableObject {
     var needsYou: [PR] {
         var seen = Set<String>()
         var out: [PR] = []
-        for pr in queue.toReview + queue.all.filter({ unread.contains($0.key) }) {
+        for pr in reviewing + queue.all.filter({ unread.contains($0.key) }) {
             guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
+            guard !isQuiet(pr) else { continue }
             if seen.insert(pr.key).inserted { out.append(pr) }
         }
         return out
+    }
+
+    var reviewing: [PR] { settings.reviewFilter.order(queue.toReview, picked: following) }
+
+    func quiets(_ pr: PR) -> Bool { settings.reviewFilter.quiets(pr, picked: following) }
+
+    func dims(_ pr: PR) -> Bool {
+        quiets(pr) && queue.toReview.contains { $0.key == pr.key }
+    }
+
+    func isQuiet(_ pr: PR) -> Bool {
+        guard dims(pr) else { return false }
+        return ReviewFilter.staysQuiet(unread: unread.contains(pr.key), reason: store.state.unreadReasons[pr.key])
     }
 
     var yoursBroken: [PR] { queue.mine.filter { $0.checks == .failing } }
@@ -1083,7 +1102,7 @@ final class AppModel: ObservableObject {
         switch tab {
         case .needsYou:  needsYou
         case .mine:       queue.mine
-        case .reviewing:  queue.toReview
+        case .reviewing:  reviewing
         case .following: queue.following
         }
     }

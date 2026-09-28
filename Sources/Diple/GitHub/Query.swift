@@ -12,6 +12,9 @@ enum Query {
       repository { nameWithOwner }
       author { login __typename avatarUrl(size: 64) }
       reviewDecision
+      reviewRequests(first: 20) {
+        nodes { requestedReviewer { __typename ... on User { login } } }
+      }
       comments(last: 20) {
         nodes { author { login __typename } createdAt bodyText }
       }

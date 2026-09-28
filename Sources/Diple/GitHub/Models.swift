@@ -59,11 +59,18 @@ struct RawPR: Decodable, Sendable {
     let repository: RawRepo
     let author: GHActor?
     let reviewDecision: String?
+    let reviewRequests: RawRequests?
     let comments: RawComments
     let reviewThreads: RawThreads
     let commits: RawCommits
 
     struct RawRepo: Decodable, Sendable { let nameWithOwner: String }
+    struct RawRequests: Decodable, Sendable { let nodes: [RawRequest?] }
+    struct RawRequest: Decodable, Sendable { let requestedReviewer: RawReviewer? }
+    struct RawReviewer: Decodable, Sendable {
+        let __typename: String
+        let login: String?
+    }
     struct RawComments: Decodable, Sendable { let nodes: [RawComment?] }
     struct RawComment: Decodable, Sendable {
         let author: GHActor?
@@ -122,6 +129,10 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
 
     let lastComment: HumanComment?
 
+    let askedYou: Bool?
+
+    var asksYouByName: Bool { askedYou == true }
+
     struct ReviewThread: Identifiable, Sendable, Equatable, Codable {
         let id: String
         let path: String
@@ -166,7 +177,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         id: String, repo: String, number: Int, title: String, url: URL,
         updatedAt: Date, createdAt: Date, draft: Bool, author: String, authorAvatar: URL?, isMine: Bool,
         headRef: String, baseRef: String, checks: CheckState, approved: Bool,
-        threads: [ReviewThread], lastComment: HumanComment?
+        threads: [ReviewThread], lastComment: HumanComment?, askedYou: Bool = false
     ) {
         self.id = id
         self.repo = repo
@@ -185,6 +196,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         self.approved = approved
         self.threads = threads
         self.lastComment = lastComment
+        self.askedYou = askedYou
     }
 
     var key: String { "\(repo)#\(number)" }
@@ -206,6 +218,9 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         baseRef = c.baseRefName
         checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         approved = c.reviewDecision == "APPROVED"
+        askedYou = c.reviewRequests?.nodes.contains {
+            $0?.requestedReviewer?.__typename == "User" && $0?.requestedReviewer?.login == meuLogin
+        } ?? false
 
         func humano(_ com: RawPR.RawComment) -> Bool {
             guard let a = com.author else { return false }
