@@ -136,6 +136,7 @@ struct Cache: Codable, Sendable, Equatable {
         d.reposAt = try c.decodeIfPresent(Date.self, forKey: .reposAt)
         d.rankByPeriod = try c.decodeIfPresent([String: [RankRow]].self, forKey: .rankByPeriod)
         d.rankAtByPeriod = try c.decodeIfPresent([String: Date].self, forKey: .rankAtByPeriod)
+        d.lastQueue = try? c.decodeIfPresent(Lenient<Queue>.self, forKey: .lastQueue)
         self = d
     }
 
