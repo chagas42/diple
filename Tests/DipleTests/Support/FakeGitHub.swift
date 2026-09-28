@@ -56,7 +56,7 @@ final class FakeGitHub: @unchecked Sendable {
 
     func hideFromDetails(_ ids: Set<String>) { lock.withLock { hidden = ids } }
 
-    private func reply(_ query: String) -> StubTransport.Reply {
+    func reply(_ query: String) -> StubTransport.Reply {
         let (w, h) = lock.withLock { (current, hidden) }
         if query.contains("query Beat") { return .init(body: w.heartbeatResponse(for: query)) }
         if query.contains("query Detail") { return .init(body: w.detailResponse(Self.ids(in: query), hiding: h)) }
