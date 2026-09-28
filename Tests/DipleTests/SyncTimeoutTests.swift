@@ -158,12 +158,15 @@ import Testing
         await model.refresh()
         #expect(model.queue.mine.count == 14)
         #expect(model.syncProblem == "Following could not sync — showing what it had")
-        #expect(model.failures == 1)
+        #expect(model.failures == 0)
+        #expect(model.partialFailures == 1)
+        #expect(model.policy.nextDelay() == SyncPolicy.partialRetry)
 
         github.timeOut([])
         await model.refresh()
         #expect(model.syncProblem == nil)
         #expect(model.queue.following.count == 18)
         #expect(model.failures == 0)
+        #expect(model.partialFailures == 0)
     }
 }

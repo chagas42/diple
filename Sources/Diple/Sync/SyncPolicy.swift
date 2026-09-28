@@ -3,6 +3,7 @@ import Foundation
 struct SyncPolicy: Sendable, Equatable {
     var base: TimeInterval
     var failures = 0
+    var partialFailures = 0
     var online = true
     var visible = false
     var lowPower = false
@@ -10,6 +11,7 @@ struct SyncPolicy: Sendable, Equatable {
     var rateLimitResetAt: Date?
 
     static let maxBackoff: TimeInterval = 600
+    static let partialRetry: TimeInterval = 30
     static let rateLimitFloor = 100
 
     func nextDelay(now: Date = Date()) -> TimeInterval? {
@@ -27,6 +29,10 @@ struct SyncPolicy: Sendable, Equatable {
 
         var delay = visible ? base : base * 2
         if lowPower { delay *= 2 }
+        if partialFailures > 0 {
+            let exponent = Double(min(partialFailures - 1, 10))
+            return min(Self.partialRetry * pow(2, exponent), delay)
+        }
         return delay
     }
 
