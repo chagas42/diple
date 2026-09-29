@@ -64,6 +64,27 @@ struct NotchGeometry {
         return nearest - notchRight
     }
 
+    var isUnderFullScreen: Bool {
+        guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
+              let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue(),
+              let name = CFUUIDCreateString(nil, uuid) as String?
+        else { return false }
+        return Self.isUnderFullScreen(display: name, spaces: ManagedSpaces.copy())
+    }
+
+    static func isUnderFullScreen(display: String, spaces: [[String: Any]]) -> Bool {
+        let entry = spaces.count == 1 ? spaces.first
+            : spaces.first { ($0["Display Identifier"] as? String)?.caseInsensitiveCompare(display) == .orderedSame }
+        let current = entry?["Current Space"] as? [String: Any]
+        return current?["type"] as? Int == ManagedSpaces.fullScreenType
+    }
+
+    static func revealsMenuBar(pointer: CGPoint, screen: CGRect, barHeight: CGFloat, shown: Bool) -> Bool {
+        guard pointer.x >= screen.minX, pointer.x < screen.maxX, pointer.y <= screen.maxY else { return false }
+        if pointer.y >= screen.maxY - 1 { return true }
+        return shown && pointer.y >= screen.maxY - barHeight
+    }
+
     func windowFrame() -> NSRect {
         let l = max(open.width, alert.width)
         let a = max(open.height, alert.height)
@@ -81,6 +102,26 @@ struct NotchGeometry {
     static func current() -> NotchGeometry {
         let notched = NSScreen.screens.first { $0.auxiliaryTopLeftArea != nil }
         return NotchGeometry(screen: notched ?? NSScreen.main ?? NSScreen.screens[0])
+    }
+}
+
+enum ManagedSpaces {
+    static let fullScreenType = 4
+
+    private typealias MainConnection = @convention(c) () -> Int32
+    private typealias CopyDisplaySpaces = @convention(c) (Int32) -> Unmanaged<CFArray>?
+
+    private static let symbols: (MainConnection, CopyDisplaySpaces)? = {
+        guard let h = dlopen("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", RTLD_LAZY),
+              let main = dlsym(h, "CGSMainConnectionID"),
+              let copy = dlsym(h, "CGSCopyManagedDisplaySpaces")
+        else { return nil }
+        return (unsafeBitCast(main, to: MainConnection.self), unsafeBitCast(copy, to: CopyDisplaySpaces.self))
+    }()
+
+    static func copy() -> [[String: Any]] {
+        guard let (main, copy) = symbols else { return [] }
+        return copy(main())?.takeRetainedValue() as? [[String: Any]] ?? []
     }
 }
 

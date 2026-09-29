@@ -103,6 +103,24 @@ spring; shrinking uses a critically damped one. A bounce on the way in
 overshoots past the resting size, and the resting size hugs the notch, so the
 overshoot pulls the shape inside the cutout and shows its raw edges.
 
+**Over a fullscreen app the notch idles hidden.** It shrinks to the cutout
+itself and draws nothing, but the cutout is still the hot zone, so hovering
+opens it and leaving hides it again; alerts still drop down. The window list
+cannot tell fullscreen apart: the `Menubar` window stays listed on a fullscreen
+display, and a fullscreen window's frame equals a zoomed one's when the Dock
+lives on another display. The Space can: `CGSCopyManagedDisplaySpaces` gives
+each display's current Space, and type 4 is a fullscreen one. It is private, so
+it is looked up with `dlsym` and a missing symbol reads as not fullscreen. With
+"Displays have separate Spaces" off there is one entry, named `Main`, for all
+displays. It is re-read on every Space change and on the 2 s menu-bar tick.
+
+**The fullscreen menu bar is followed by the pointer.** Pushing against the top
+edge slides the menu bar down over a fullscreen app, and Diple comes back with
+it. Nothing in the window list changes when that happens (the `Menubar` window
+is listed throughout, and no status item windows appear), so Diple applies the
+rule macOS does: the top edge reveals it, and it stays while the pointer is
+within the bar's height.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
