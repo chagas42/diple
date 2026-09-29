@@ -26,6 +26,8 @@ struct StoredState: Codable, Sendable, Equatable {
     var lastActiveDay: String? = nil
     var requestSeenAt: [String: Date] = [:]
     var artifacts: [String: Int] = [:]
+    var rewardDay: String? = nil
+    var rewardsThatDay = 0
 
     init() {}
 
@@ -47,6 +49,8 @@ struct StoredState: Codable, Sendable, Equatable {
         d.lastActiveDay = try c.decodeIfPresent(String.self, forKey: .lastActiveDay)
         d.requestSeenAt = (try? c.decodeIfPresent([String: Date].self, forKey: .requestSeenAt)) ?? d.requestSeenAt
         d.artifacts = (try? c.decodeIfPresent([String: Int].self, forKey: .artifacts)) ?? d.artifacts
+        d.rewardDay = try c.decodeIfPresent(String.self, forKey: .rewardDay)
+        d.rewardsThatDay = try c.decodeIfPresent(Int.self, forKey: .rewardsThatDay) ?? d.rewardsThatDay
         self = d
     }
 
@@ -320,9 +324,16 @@ final class Store {
 
     private(set) var unrequested: [Unrequested] = []
 
-    func collect(_ artifact: Artifact) {
+    @discardableResult
+    func collect(_ artifact: Artifact, on day: String) -> Int {
         state.artifacts[artifact.id, default: 0] += 1
+        if state.rewardDay != day {
+            state.rewardDay = day
+            state.rewardsThatDay = 0
+        }
+        state.rewardsThatDay += 1
         save()
+        return state.rewardsThatDay
     }
 
     func diff(_ queue: Queue, meuLogin: String) -> [Event] {

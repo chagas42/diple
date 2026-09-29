@@ -37,7 +37,8 @@ struct NotchView: View {
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
-    var celebration: Rarity?
+    var celebration: Reward?
+    var celebrationStart = Date()
     var unclaimed: [Reward] = []
     var onClaim: () -> Void = {}
     let eye: EyeState
@@ -61,13 +62,6 @@ struct NotchView: View {
             .frame(width: size.width, height: size.height)
 
             .clipShape(shape)
-            .overlay {
-                if let r = celebration, state == .active {
-                    Celebration(rarity: r, shape: shape)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeOut(duration: 0.3), value: celebration)
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
@@ -79,6 +73,13 @@ struct NotchView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .top) {
+            if let r = celebration, state == .active {
+                SignatureCelebration(rarity: r.artifact.rarity, today: r.today, start: celebrationStart)
+                    .offset(x: shift, y: notchHeight + 4)
+                    .id(r.id)
+            }
+        }
         .overlay(alignment: .top) {
             if let since = sleepingSince {
                 SleepyZs(start: since)
@@ -622,31 +623,5 @@ struct NotchView: View {
         case .approved:       .green
         case .newPullRequest: .teal
         }
-    }
-}
-
-private struct Celebration: View {
-    let rarity: Rarity
-    let shape: PanelShape
-    @State private var start = Date()
-
-    var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSince(start)
-            let pulse = 0.5 + 0.5 * sin(t * 9)
-            ZStack {
-                shape
-                    .stroke(rarity.color.opacity(0.55 + 0.45 * pulse), lineWidth: 1.5)
-                    .shadow(color: rarity.color.opacity(0.9), radius: 6 + 4 * pulse)
-                HStack {
-                    Sparks(t: t, tint: rarity.color, reach: 22, count: rarity >= .rare ? 14 : 8)
-                        .frame(width: 44)
-                    Spacer()
-                    Sparks(t: t + 0.4, tint: rarity.color, reach: 22, count: rarity >= .rare ? 14 : 8)
-                        .frame(width: 44)
-                }
-            }
-        }
-        .allowsHitTesting(false)
     }
 }

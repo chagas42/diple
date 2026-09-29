@@ -239,4 +239,5 @@ struct Reward: Identifiable, Sendable, Equatable {
     let id: String
     let artifact: Artifact
     let pr: String?
+    var today = 1
 }

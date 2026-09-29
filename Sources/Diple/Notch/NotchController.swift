@@ -194,29 +194,34 @@ final class NotchController: ObservableObject {
         showPendingReward()
     }
 
-    @Published private(set) var celebration: Rarity?
+    @Published private(set) var celebration: Reward?
+    private(set) var celebrationStart = Date()
     @Published private(set) var unclaimed: [Reward] = []
-    private(set) var pendingCelebrations: [Rarity] = []
-    static let celebrationLength = Duration.milliseconds(1500)
+    private(set) var pendingCelebrations: [Reward] = []
+    static let celebrationLength = Duration.milliseconds(Int(SignatureCelebration.length * 1000))
     var claimWindow: ClaimWindow?
 
     func reward(_ r: Reward) {
         unclaimed.append(r)
-        pendingCelebrations.append(r.artifact.rarity)
+        pendingCelebrations.append(r)
         showPendingReward()
     }
 
     private func showPendingReward() {
         guard state == .active, !waking, celebration == nil, !pendingCelebrations.isEmpty else { return }
         celebration = pendingCelebrations.removeFirst()
-        eye.lidSpeed = 0.18
-        eye.lid = 0.3
+        celebrationStart = Date()
+        eye.look(at: CGPoint(x: -0.2, y: 1))
         Task { [weak self] in
+            await self?.nap(.milliseconds(1450))
+            self?.eye.lidSpeed = 0.18
+            self?.eye.lid = 0.3
             await self?.nap(.milliseconds(420))
             self?.eye.lidSpeed = 0.4
             self?.eye.lid = 1
-            await self?.nap(Self.celebrationLength - .milliseconds(420))
+            await self?.nap(Self.celebrationLength - .milliseconds(1870))
             self?.celebration = nil
+            self?.eye.look(at: .zero)
             self?.showPendingReward()
         }
     }
@@ -360,7 +365,7 @@ final class NotchController: ObservableObject {
     }
 
     private func aim() {
-        guard !waking, state == .hidden || state == .active else { return }
+        guard !waking, celebration == nil, state == .hidden || state == .active else { return }
         let g = NotchGeometry.current()
         let f = g.rect(size, shift: shift)
         let m = pointer()
@@ -401,6 +406,7 @@ final class NotchController: ObservableObject {
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
                 celebration: notch.celebration,
+                celebrationStart: notch.celebrationStart,
                 unclaimed: notch.unclaimed,
                 onClaim: { notch.claim() },
                 eye: notch.eye,

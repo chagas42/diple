@@ -1159,9 +1159,10 @@ final class AppModel: ObservableObject {
 
     func grant(pr: String?, fast: Bool, artifact: Artifact? = nil) {
         let a = artifact ?? Artifact.roll(fast: fast)
-        store.collect(a)
+        let day = Date().formatted(.iso8601.year().month().day())
+        let today = store.collect(a, on: day)
         artifacts = store.state.artifacts
-        onReward?(Reward(id: "\(pr ?? "sample")/\(Date().timeIntervalSince1970)", artifact: a, pr: pr))
+        onReward?(Reward(id: "\(pr ?? "sample")/\(Date().timeIntervalSince1970)", artifact: a, pr: pr, today: today))
     }
 
     var rest: [PR] {

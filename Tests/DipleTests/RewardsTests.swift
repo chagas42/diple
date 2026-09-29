@@ -54,11 +54,12 @@ import Testing
         #expect(store.state.requestSeenAt[key] == nil)
     }
 
-    @Test func collectingCountsEachArtifact() {
+    @Test func collectingCountsEachArtifactAndTheReviewsOfTheDay() {
         let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
-        store.collect(.sample(.rare))
-        store.collect(.sample(.rare))
+        #expect(store.collect(.sample(.rare), on: "2026-09-29") == 1)
+        #expect(store.collect(.sample(.rare), on: "2026-09-29") == 2)
         #expect(store.state.artifacts[Artifact.sample(.rare).id] == 2)
+        #expect(store.collect(.sample(.common), on: "2026-09-30") == 1)
     }
 
     final class Gate {
@@ -84,7 +85,7 @@ import Testing
         let n = notch(gate: Gate())
         n.reward(Self.reward(.epic))
         #expect(n.state == .active)
-        #expect(n.celebration == .epic)
+        #expect(n.celebration?.artifact.rarity == .epic)
         #expect(n.unclaimed.map(\.id) == ["r"])
     }
 
@@ -94,11 +95,11 @@ import Testing
         n.reward(Self.reward(.rare))
         #expect(n.state == .hidden)
         #expect(n.celebration == nil)
-        #expect(n.pendingCelebrations == [.rare])
+        #expect(n.pendingCelebrations.map(\.artifact.rarity) == [.rare])
 
         full.on = false
         n.refreshIdle()
-        #expect(n.celebration == .rare)
+        #expect(n.celebration?.artifact.rarity == .rare)
     }
 
     @Test func celebrationsPlayOneAtATime() async {
@@ -106,12 +107,12 @@ import Testing
         let n = notch(gate: gate)
         n.reward(Self.reward(.common, "a"))
         n.reward(Self.reward(.legendary, "b"))
-        #expect(n.celebration == .common)
-        for _ in 0..<4 {
+        #expect(n.celebration?.artifact.rarity == .common)
+        for _ in 0..<6 {
             while gate.waiting.isEmpty { await Task.yield() }
             gate.open()
         }
-        while n.celebration != .legendary { await Task.yield() }
+        while n.celebration?.artifact.rarity != .legendary { await Task.yield() }
         #expect(n.unclaimed.map(\.id) == ["a", "b"])
     }
 }
