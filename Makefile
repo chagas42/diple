@@ -1,7 +1,14 @@
 APP    := Diple
 BUNDLE := com.chagas42.diple
 BUILD  := .build/release
-DEST   := build/$(APP).app
+FLAVOR ?= dev
+ifeq ($(FLAVOR),release)
+NAME   := $(APP)
+else
+NAME   := $(APP) (Dev)
+endif
+DEST   := build/$(NAME).app
+INSTALLED := /Applications/$(NAME).app
 
 .PHONY: build app run install stop clean test tools probe bench bench-review bench-compare
 
@@ -10,7 +17,7 @@ BASE        ?= baseline
 BENCH_OUT   := bench/results/$(LABEL)
 BENCH_STATE := $(CURDIR)/build/bench-state
 BENCH_ENV   := DIPLE_STATE_DIR=$(BENCH_STATE) DIPLE_BENCH_COMMIT=$$(git rev-parse --short HEAD)
-BENCH_BIN   := $(DEST)/Contents/MacOS/$(APP)
+BENCH_BIN   := "$(DEST)/Contents/MacOS/$(APP)"
 
 test:
 	swift test
@@ -44,31 +51,32 @@ build:
 	@swift build -c release 2>&1 | grep -vE "^\\[|warning:|^ *[0-9]+ \\||^ *\\||^$$" || true
 
 app: build
-	@rm -rf $(DEST)
-	@mkdir -p $(DEST)/Contents/MacOS $(DEST)/Contents/Resources
-	@cp $(BUILD)/$(APP) $(DEST)/Contents/MacOS/$(APP)
-	@cp Resources/Info.plist $(DEST)/Contents/Info.plist
-	@cp Resources/Diple.icns $(DEST)/Contents/Resources/Diple.icns
-	@cp -R Resources/plugin $(DEST)/Contents/Resources/plugin
-	@codesign --force --sign - --identifier $(BUNDLE) $(DEST) 2>/dev/null
+	@rm -rf "$(DEST)"
+	@mkdir -p "$(DEST)/Contents/MacOS" "$(DEST)/Contents/Resources"
+	@cp $(BUILD)/$(APP) "$(DEST)/Contents/MacOS/$(APP)"
+	@cp Resources/Info.plist "$(DEST)/Contents/Info.plist"
+	@/usr/libexec/PlistBuddy -c "Set :CFBundleName $(NAME)" -c "Set :CFBundleDisplayName $(NAME)" "$(DEST)/Contents/Info.plist"
+	@cp Resources/Diple.icns "$(DEST)/Contents/Resources/Diple.icns"
+	@cp -R Resources/plugin "$(DEST)/Contents/Resources/plugin"
+	@codesign --force --sign - --identifier $(BUNDLE) "$(DEST)" 2>/dev/null
 	@echo "bundled  $(DEST)"
 
 run: app stop
 	@# LaunchServices guarda o ícone em cache; sem isto o Dock mostra o antigo.
-	-@touch $(DEST)
+	-@touch "$(DEST)"
 	-@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-		-f $(DEST) 2>/dev/null || true
+		-f "$(DEST)" 2>/dev/null || true
 	-@killall usernoted 2>/dev/null || true
-	open $(DEST)
+	open "$(DEST)"
 
 install: app
-	@rm -rf /Applications/$(APP).app
-	@cp -R $(DEST) /Applications/$(APP).app
+	@rm -rf "$(INSTALLED)"
+	@cp -R "$(DEST)" "$(INSTALLED)"
 	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-		-f /Applications/$(APP).app 2>/dev/null || true
+		-f "$(INSTALLED)" 2>/dev/null || true
 	@killall usernoted 2>/dev/null || true
 	@killall Dock 2>/dev/null || true
-	@echo "installed  /Applications/$(APP).app"
+	@echo "installed  $(INSTALLED)"
 	@echo
 	@./.build/release/$(APP) --tools
 
@@ -88,7 +96,7 @@ gifmaker:
 
 film:
 	@rm -rf build/film && mkdir -p build/film
-	@./build/Diple.app/Contents/MacOS/Diple --demo --film build/film | tail -1
+	@$(BENCH_BIN) --demo --film build/film | tail -1
 	@echo "  python3 tools/seq2gif.py build/film out.gif <from> <to> [width] [step]"
 
 demo-reset:
