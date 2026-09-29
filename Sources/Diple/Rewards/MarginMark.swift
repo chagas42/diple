@@ -5,7 +5,7 @@ struct MarginMark: View {
     let start: Date
 
     static let length = 2.8
-    static let drawer: CGFloat = 22
+    static let drawer: CGFloat = 28
 
     private static let ink = Color(red: 0.79, green: 0.64, blue: 0.42)
     private static let quill = Artifact(
@@ -33,6 +33,7 @@ struct MarginMark: View {
     private static let type = (from: 1.0, to: 1.75)
     private static let tally = (from: 1.7, to: 1.9)
     private static let leave = (from: 2.35, to: 2.6)
+    private static let progress = (from: 0.35, to: 1.75)
 
     var body: some View {
         TimelineView(.animation) { context in
@@ -79,10 +80,28 @@ struct MarginMark: View {
                     .offset(y: 4 * (1 - Self.ease(Self.phase(t, Self.tally))))
             }
             .padding(.horizontal, 16)
+            .padding(.bottom, 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottomLeading) { bar(Self.ease(Self.phase(t, Self.progress))) }
             .opacity(Self.phase(t, Self.appear) * (1 - Self.phase(t, Self.leave)))
         }
         .allowsHitTesting(false)
+    }
+
+    private func bar(_ p: Double) -> some View {
+        GeometryReader { geo in
+            let full = geo.size.width - 32
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.08))
+                Capsule()
+                    .fill(LinearGradient(colors: [reward.verdict.color.opacity(0.35), reward.verdict.color],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .frame(width: max(2, full * p))
+                    .shadow(color: reward.verdict.color.opacity(p < 1 ? 0.9 : 0.4), radius: 3)
+            }
+            .frame(width: full, height: 2)
+            .offset(x: 16, y: geo.size.height - 5)
+        }
     }
 
     private struct Diple: Shape {

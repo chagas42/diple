@@ -174,6 +174,7 @@ struct NotchView: View {
                         .offset(x: 6, y: -3)
                 }
             }
+            .overlay(alignment: .leading) { CountDelta(count: model.count) }
             .opacity(waking ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: waking)
     }
@@ -624,6 +625,47 @@ struct NotchView: View {
         case .checkFailed:     .red
         case .approved:       .green
         case .newPullRequest: .teal
+        }
+    }
+}
+
+struct CountDelta: View {
+    let count: Int
+
+    private static func fade(_ p: Double) -> Double { p >= 1 ? 0 : (p < 0.15 ? p / 0.15 : 1 - max(0, p - 0.55) / 0.45) }
+    private static func drift(_ p: Double) -> CGSize { CGSize(width: -3 * p, height: -7 * p) }
+    private static func grow(_ p: Double) -> Double { 0.8 + 0.2 * min(1, p * 4) }
+    @State private var shown: Int?
+    @State private var bump = 0
+
+    private var label: String {
+        guard let d = shown else { return "" }
+        return d > 0 ? "+\(d)" : "\u{2212}\(-d)"
+    }
+
+    var body: some View {
+        ZStack {
+            Text(label)
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle((shown ?? 0) > 0 ? Color(red: 0.4, green: 0.88, blue: 0.56) : .white.opacity(0.55))
+                .fixedSize()
+                .keyframeAnimator(initialValue: 1.0, trigger: bump) { view, p in
+                    view
+                        .opacity(Self.fade(p))
+                        .offset(x: Self.drift(p).width, y: Self.drift(p).height)
+                        .scaleEffect(Self.grow(p))
+                } keyframes: { _ in
+                    MoveKeyframe(0.0)
+                    LinearKeyframe(1.0, duration: 1.0)
+                }
+        }
+        .offset(x: -14)
+        .allowsHitTesting(false)
+        .onChange(of: count) { old, new in
+            guard new != old else { return }
+            shown = new - old
+            bump += 1
         }
     }
 }

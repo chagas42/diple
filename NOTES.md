@@ -158,6 +158,12 @@ hovering mid-blink cannot leave the eye half shut. It is skipped over a
 fullscreen app, under Reduce Motion, in `--film` and in benches, and hovering
 or an alert ends it at once.
 
+**The count says how it changed.** Whenever it moves, a small "+N" (green) or
+"−N" (dimmed) rises beside it for a second. The label is always in the view,
+empty at rest: a `keyframeAnimator` only runs when its trigger changes on a
+view that already exists, so inserting the label and bumping the trigger in
+the same update never animated.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
@@ -178,13 +184,14 @@ for changes are worth the same, so there is nothing to gain by rubber-stamping.
 
 **A review is marked in the margin, inside the notch.** A card in the notch
 made it tall and unpredictable, a glow said nothing, and a signature drawn
-outside the notch floated on the wallpaper. So the notch opens a 22 pt drawer
+outside the notch floated on the wallpaper. So the notch opens a 28 pt drawer
 (and widens by 16 pt) for 2.8 s, and inside it a quill draws a diple, the `>`
 that Alexandrian scholars wrote in the margin next to a passage worth
 attention, the review comment before there was code. The diple then turns into
 a terminal prompt and types what you did (`> commented`, `> approved`,
 `> changes requested`, from the review's `state`), and "+1 · N today" counts
-the day in the colour of the artifact's rarity. It fits any review, since it
+the day in the colour of the artifact's rarity, while a thin bar along the
+drawer's foot fills left to right from the first stroke to the tally. It fits any review, since it
 says "I read this and left my mark", not "approved". The drawer closes, and a
 dot by the count says a reward is waiting. The artifact appears only when asked
 for, from the gift button in the open panel, as a card floating mid-screen in
