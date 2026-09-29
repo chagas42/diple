@@ -35,6 +35,8 @@ struct NotchView: View {
     var shift: CGFloat = 0
     var shrinking = false
     var hidesByFading = false
+    var waking = false
+    var sleepingSince: Date?
     let eye: EyeState
     let onClose: () -> Void
 
@@ -67,6 +69,15 @@ struct NotchView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .top) {
+            if let since = sleepingSince {
+                SleepyZs(start: since)
+                    .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
+                            y: eyeCenter.y - SleepyZs.eye.y)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.25), value: sleepingSince == nil)
 
         .animation(resize, value: size)
         .animation(resize, value: shift)
@@ -76,6 +87,11 @@ struct NotchView: View {
 
     private var resize: Animation {
         .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
+    }
+
+    private var eyeCenter: CGPoint {
+        let wing = max(0, (size.width - notchWidth) / 2)
+        return CGPoint(x: shift - notchWidth / 2 - wing / 2, y: notchHeight / 2)
     }
 
     private var shape: PanelShape {
@@ -136,6 +152,8 @@ struct NotchView: View {
             .contentTransition(.numericText())
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
             .contentTransition(.numericText(value: Double(model.count)))
+            .opacity(waking ? 0 : 1)
+            .animation(.easeOut(duration: 0.3), value: waking)
     }
 
     private var open: some View {

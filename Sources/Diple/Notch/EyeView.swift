@@ -26,6 +26,8 @@ struct EyeShape: Shape {
 final class EyeState: ObservableObject {
     @Published private(set) var gaze: CGPoint = .zero
     @Published var blinking = false
+    @Published var lid: CGFloat = 1
+    var lidSpeed: Double = 0.4
 
     func look(at next: CGPoint) {
         guard abs(next.x - gaze.x) > 0.01 || abs(next.y - gaze.y) > 0.01 else { return }
@@ -38,7 +40,7 @@ struct EyeView: View {
     var width: CGFloat = 15
 
     private var gaze: CGPoint { eye.gaze }
-    private var openness: CGFloat { eye.blinking ? 0.05 : 1 }
+    private var openness: CGFloat { eye.blinking ? 0.05 : max(0.14, eye.lid) }
     private var shape: EyeShape { EyeShape(openness: openness) }
     private var pupil: CGFloat { width * 0.30 }
     private var range: CGFloat { width * 0.17 }
@@ -61,7 +63,8 @@ struct EyeView: View {
         }
         .frame(width: width, height: width * 0.62)
         .clipShape(shape)
-        .animation(.easeInOut(duration: 0.085), value: openness)
+        .animation(.easeInOut(duration: 0.085), value: eye.blinking)
+        .animation(.easeInOut(duration: eye.lidSpeed), value: eye.lid)
         .animation(.spring(response: 0.24, dampingFraction: 0.6), value: gaze)
     }
 }

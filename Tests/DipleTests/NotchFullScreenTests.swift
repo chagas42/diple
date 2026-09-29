@@ -173,4 +173,54 @@ import Testing
         n.checkPointer()
         #expect(n.state == .hidden)
     }
+
+    @Test func launchingOverAFullScreenAppStartsHiddenWithoutShowingTheWingsFirst() {
+        let n = notch(fullScreen: Flag(true)) { Self.away }
+        n.settleBeforeFirstFrame()
+        #expect(n.state == .hidden)
+    }
+
+    @Test func launchingOnADesktopStartsWithTheWings() {
+        let n = notch(fullScreen: Flag(false)) { Self.away }
+        n.settleBeforeFirstFrame()
+        #expect(n.state == .active)
+    }
+
+    final class Clock {
+        var now = Date(timeIntervalSince1970: 0)
+    }
+
+    @Test func fullScreenWindowsOnScreenLongerThanASwitchNoLongerHideTheNotch() {
+        let clock = Clock()
+        let n = notch(fullScreen: Flag(false)) { Self.away }
+        n.fullScreenArriving = { true }
+        n.clock = { clock.now }
+        n.checkPointer()
+        #expect(n.state == .hidden)
+
+        clock.now += NotchController.longestSwitch - 0.1
+        n.checkPointer()
+        #expect(n.state == .hidden)
+
+        clock.now += 0.2
+        n.checkPointer()
+        #expect(n.state == .active)
+    }
+
+    @Test func aNewSwipeAfterTheWindowsLeftHidesAgain() {
+        let clock = Clock(), arriving = Flag(true)
+        let n = notch(fullScreen: Flag(false)) { Self.away }
+        n.fullScreenArriving = { arriving.on }
+        n.clock = { clock.now }
+        n.checkPointer()
+        clock.now += 5
+        n.checkPointer()
+        #expect(n.state == .active)
+
+        arriving.on = false
+        n.checkPointer()
+        arriving.on = true
+        n.checkPointer()
+        #expect(n.state == .hidden)
+    }
 }
