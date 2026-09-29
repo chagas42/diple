@@ -74,7 +74,8 @@ final class Windows: NSObject, NSWindowDelegate {
             title: "Diple Settings",
             size: NSSize(width: 620, height: 470),
             content: SettingsView(model: model),
-            resizable: false
+            resizable: false,
+            underTitlebar: false
         )
         j.delegate = self
         settings = j
@@ -104,10 +105,12 @@ final class Windows: NSObject, NSWindowDelegate {
         title: String,
         size: NSSize,
         content: C,
-        resizable: Bool = true
+        resizable: Bool = true,
+        underTitlebar: Bool = true
     ) -> NSWindow {
-        var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable]
         if resizable { style.insert(.resizable) }
+        if underTitlebar { style.insert(.fullSizeContentView) }
 
         let j = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
