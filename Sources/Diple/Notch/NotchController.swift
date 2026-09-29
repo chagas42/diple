@@ -11,6 +11,9 @@ final class NotchController: ObservableObject {
     @Published private(set) var shift: CGFloat = 0
     @Published private(set) var shrinking = false
     @Published private(set) var hasNotch = true
+    @Published private(set) var waking = false
+    @Published private(set) var asleep = false
+    private(set) var fellAsleep = Date()
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -30,6 +33,9 @@ final class NotchController: ObservableObject {
     var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
     var fullScreen: @MainActor () -> Bool = { NotchGeometry.current().isUnderFullScreen }
     var fullScreenArriving: (@MainActor () -> Bool)?
+    var wakes = !Film.isOn && !Bench.isOn && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    var nap: @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+    private var wakeTask: Task<Void, Never>?
     var clock: @MainActor () -> Date = Date.init
     static let longestSwitch: TimeInterval = 1.5
     private var arrivingSince: Date?
@@ -42,11 +48,13 @@ final class NotchController: ObservableObject {
     func mount(model: AppModel) {
         self.model = model
         settleBeforeFirstFrame()
+        fallAsleep()
         panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
         measure()
         panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
         panel.orderFrontRegardless()
         refreshIdle()
+        startWaking()
         trackPointer()
         watchMenuBar()
         blinkOccasionally()
@@ -104,7 +112,69 @@ final class NotchController: ObservableObject {
         (underFullScreen || arriving) && !menuBarRevealed ? .hidden : .active
     }
 
+    func fallAsleep() {
+        guard wakes, state == .active else { return }
+        asleep = true
+        fellAsleep = Date()
+        waking = true
+        eye.lid = 0
+    }
+
+    private func startWaking() {
+        guard waking else { return }
+        wakeTask = Task { [weak self] in await self?.wake() }
+    }
+
+    func wake() async {
+        guard waking else { return }
+        guard await rest(3200) else { return }
+        asleep = false
+        guard state == .active else { return finishWaking() }
+        eye.lid = 0.45
+        guard await rest(600), await slowBlink(), await rest(300),
+              await slowBlink(), await rest(350) else { return }
+        for (lid, ms) in [(0.12, 450), (0.18, 500), (0.6, 350), (1, 0)] as [(CGFloat, Int)] {
+            eye.lid = lid
+            guard await rest(ms) else { return }
+        }
+        guard await rest(400), await slowBlink(), await rest(250) else { return }
+        for (gaze, ms) in [(CGPoint(x: -0.8, y: 0.1), 350), (CGPoint(x: 0.8, y: 0.1), 350), (.zero, 200)] {
+            eye.look(at: gaze)
+            guard await rest(ms) else { return }
+        }
+        finishWaking()
+    }
+
+    private func rest(_ ms: Int) async -> Bool {
+        await nap(.milliseconds(ms))
+        return waking
+    }
+
+    private func slowBlink() async -> Bool {
+        let open = eye.lid
+        eye.lidSpeed = 0.12
+        eye.lid = 0.05
+        guard await rest(300) else { return false }
+        eye.lidSpeed = 0.35
+        eye.lid = open
+        guard await rest(350) else { return false }
+        eye.lidSpeed = 0.4
+        return true
+    }
+
+    private func finishWaking() {
+        wakeTask?.cancel()
+        wakeTask = nil
+        guard waking || asleep else { return }
+        asleep = false
+        waking = false
+        eye.lidSpeed = 0.4
+        eye.lid = 1
+        settleIdle()
+    }
+
     func open() {
+        finishWaking()
         collapseTask?.cancel()
         guard state != .open else { return }
         state = .open
@@ -124,6 +194,7 @@ final class NotchController: ObservableObject {
 
     func alert(_ e: Event) {
         guard e.kind.interrupts else { return }
+        finishWaking()
         holdingAlert = false
         state = .alert(e)
         apply()
@@ -248,7 +319,7 @@ final class NotchController: ObservableObject {
     }
 
     private func aim() {
-        guard state == .hidden || state == .active else { return }
+        guard !waking, state == .hidden || state == .active else { return }
         let g = NotchGeometry.current()
         let f = g.rect(size, shift: shift)
         let m = pointer()
@@ -286,6 +357,8 @@ final class NotchController: ObservableObject {
                 shift: notch.shift,
                 shrinking: notch.shrinking,
                 hidesByFading: !notch.hasNotch,
+                waking: notch.waking,
+                sleepingSince: notch.asleep ? notch.fellAsleep : nil,
                 eye: notch.eye,
                 onClose: { notch.closeNow() }
             )

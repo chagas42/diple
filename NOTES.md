@@ -145,6 +145,19 @@ is listed throughout, and no status item windows appear), so Diple applies the
 rule macOS does: the top edge reveals it, and it stays while the pointer is
 within the bar's height.
 
+**Diple wakes up at launch.** It opens with its wings out and the eye shut,
+dozing for 3.2 s, the shut eye a visible sliver, while z's drift slowly off it
+along three alternating paths once the eye has faded in (0.9 s). Then it opens
+the eye halfway, blinks twice slowly, yawns (the eye squeezes shut, squints,
+and reopens over 1.3 s), blinks once more, looks left and right, and only then
+shows the count, about 7.5 s in all. A slow blink shuts the lid in 0.12 s and
+opens it in 0.35 s, like a real one. It makes no sound: a recorded yawn read
+as someone groaning, the system "Pop" as an interface sound, and the wake
+reads better silent. Every step checks that the wake is still on, so
+hovering mid-blink cannot leave the eye half shut. It is skipped over a
+fullscreen app, under Reduce Motion, in `--film` and in benches, and hovering
+or an alert ends it at once.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
