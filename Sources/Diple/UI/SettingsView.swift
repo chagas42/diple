@@ -1,26 +1,37 @@
 import SwiftUI
 import AppKit
 
+enum SettingsTab: Hashable {
+    case notifications, repositories, appearance, claude, account, rewards, privacy
+}
+
 struct SettingsView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        TabView {
+        TabView(selection: $model.settingsTab) {
             NotificationsPane(model: model)
                 .tabItem { Label("Notifications", systemImage: "bell") }
+                .tag(SettingsTab.notifications)
             ReposPane(model: model)
                 .tabItem { Label("Repositories", systemImage: "book.closed") }
+                .tag(SettingsTab.repositories)
 
             AppearanceSettings(model: model)
                 .tabItem { Label("Appearance", systemImage: "paintpalette") }
+                .tag(SettingsTab.appearance)
             ClaudePane(model: model)
                 .tabItem { Label("Claude", systemImage: "sparkles") }
+                .tag(SettingsTab.claude)
             AccountPane(model: model)
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                .tag(SettingsTab.account)
             RewardsPane(model: model)
                 .tabItem { Label("Rewards", systemImage: "sparkles.rectangle.stack") }
+                .tag(SettingsTab.rewards)
             PrivacyPane(model: model)
                 .tabItem { Label("Privacy", systemImage: "hand.raised") }
+                .tag(SettingsTab.privacy)
         }
         .padding(.top, 12)
         .frame(minWidth: Self.minimum.width, maxWidth: .infinity,

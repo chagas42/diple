@@ -11,7 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let model = AppModel.shared
         model.onEvent = { [weak self] event in self?.notch.alert(event) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
-        model.onReward = { [weak self] reward in self?.notch.reward(reward) }
+        model.onTick = { [weak self] tick in self?.notch.tick(tick) }
         notch.onClaimed = { reward in model.claimed(reward) }
         notch.mount(model: model)
         model.start()
@@ -30,11 +30,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             let wanted = CommandLine.arguments.dropFirst(i + 1).first.flatMap(Rarity.init(rawValue:))
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
-                for (i, r) in (wanted.map({ [$0] }) ?? Rarity.allCases).enumerated() {
-                    let verdict = ReviewVerdict.allCases[i % ReviewVerdict.allCases.count]
-                    model.grant(pr: "acme/orders-api#7867", fast: false, verdict: verdict, artifact: .sample(r))
-                }
+                let step = wanted.flatMap { r in Trail.rarities.firstIndex(of: r) } ?? 0
+                model.rehearse(toward: Trail.milestones[step])
             }
+        }
+
+        if Tour.isOn {
+            Task { @MainActor in await Tour.run(notch: notch, model: model) }
         }
 
         if Film.isOn {

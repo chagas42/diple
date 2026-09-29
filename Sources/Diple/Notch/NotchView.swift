@@ -37,7 +37,7 @@ struct NotchView: View {
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
-    var celebration: Reward?
+    var celebration: ReviewTick?
     var celebrationStart = Date()
     var unclaimed: [Reward] = []
     var onClaim: () -> Void = {}
@@ -73,6 +73,13 @@ struct NotchView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .top) {
+            if let t = celebration, state == .active {
+                PaperFlight(style: model.settings.paperStyle, tint: t.verdict.color, start: celebrationStart)
+                    .offset(x: shift + notchWidth / 2 + 10, y: notchHeight + ReviewStrip.drawer - 10)
+                    .id(t.id)
+            }
+        }
         .overlay(alignment: .top) {
             if let since = sleepingSince {
                 SleepyZs(start: since)
@@ -123,10 +130,10 @@ struct NotchView: View {
         case .active:
             VStack(spacing: 0) {
                 wings
-                if let r = celebration {
-                    MarginMark(reward: r, start: celebrationStart)
-                        .frame(height: MarginMark.drawer)
-                        .id(r.id)
+                if let t = celebration {
+                    ReviewStrip(tick: t, start: celebrationStart)
+                        .frame(height: ReviewStrip.drawer)
+                        .id(t.id)
                         .transition(.opacity)
                 }
             }

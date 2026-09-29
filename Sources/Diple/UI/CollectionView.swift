@@ -14,9 +14,10 @@ struct CollectionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                trail
                 HStack(spacing: 12) {
-                    stat("\(owned)/\(Artifact.catalog.count)", "artifacts found")
-                    stat("\(total)", total == 1 ? "review rewarded" : "reviews rewarded")
+                    stat("\(owned)/\(Artifact.catalog.count)", "stickers found")
+                    stat("\(total)", total == 1 ? "sticker earned" : "stickers earned")
                     stat(rarest?.rarity.title ?? "—", "rarest so far", tint: rarest?.rarity.color)
                 }
                 rarityBar
@@ -27,6 +28,50 @@ struct CollectionView: View {
             .padding(20)
         }
         .navigationTitle("Collection")
+    }
+
+    private var trail: some View {
+        let count = model.seasonReviews
+        let next = Trail.milestones.first { $0 > count }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(Trail.season(of: Date())) trail")
+                    .font(.system(size: 15, weight: .bold))
+                Text("\(count) \(count == 1 ? "review" : "reviews")")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(next.map { "next sticker at \($0)" } ?? "trail complete \u{2713}")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            GeometryReader { g in
+                let w = g.size.width
+                let last = Double(Trail.milestones.last!)
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.quaternary).frame(height: 4)
+                    Capsule().fill(Color.accentColor)
+                        .frame(width: w * min(1, Double(count) / last), height: 4)
+                    ForEach(Array(Trail.milestones.enumerated()), id: \.offset) { i, m in
+                        let r = Trail.rarities[i]
+                        let reached = count >= m
+                        VStack(spacing: 3) {
+                            Circle()
+                                .fill(reached ? r.color : Color.secondary.opacity(0.25))
+                                .frame(width: 11, height: 11)
+                                .overlay(Circle().stroke(r.color, lineWidth: 1.5))
+                            Text("\(m)")
+                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                .foregroundStyle(reached ? r.color : .secondary)
+                        }
+                        .offset(x: w * Double(m) / last - 5.5, y: 9)
+                    }
+                }
+            }
+            .frame(height: 34)
+        }
+        .padding(14)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func stat(_ value: String, _ label: String, tint: Color? = nil) -> some View {
@@ -120,17 +165,12 @@ struct JourneyView: View {
         Group {
             if model.earned.isEmpty {
                 ContentUnavailableView(
-                    "No reviews rewarded yet",
+                    "No stickers yet",
                     systemImage: "sparkles",
-                    description: Text("Each review you send drops an artifact here.")
+                    description: Text("Your first sticker waits at \(Trail.milestones[0]) reviews this quarter.")
                 )
             } else {
                 List {
-                    if let goal = model.settings.rewardsProfile?.dailyGoal {
-                        Section {
-                            goalRow(goal)
-                        }
-                    }
                     ForEach(days, id: \.day) { d in
                         Section(d.day.formatted(.dateTime.weekday(.wide).day().month())) {
                             ForEach(d.items) { row($0) }
@@ -140,23 +180,6 @@ struct JourneyView: View {
             }
         }
         .navigationTitle("Journey")
-    }
-
-    private func goalRow(_ goal: Int) -> some View {
-        let today = model.earned.filter { Calendar.current.isDateInToday($0.at) }.count
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Today")
-                    .font(.system(size: 12, weight: .semibold))
-                Spacer()
-                Text(today >= goal ? "Goal reached \u{2713}" : "\(today) of \(goal)")
-                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(today >= goal ? Color.green : .secondary)
-            }
-            ProgressView(value: Double(min(today, goal)), total: Double(goal))
-                .tint(today >= goal ? .green : .accentColor)
-        }
-        .padding(.vertical, 4)
     }
 
     private func row(_ e: EarnedArtifact) -> some View {
@@ -184,7 +207,7 @@ struct JourneyView: View {
             if e.claimedAt == nil {
                 Image(systemName: "gift.fill")
                     .foregroundStyle(a?.rarity.color ?? .secondary)
-                    .help("Not in your bag yet")
+                    .help("Not in your backpack yet")
             }
             Text(e.at.formatted(date: .omitted, time: .shortened))
                 .font(.system(size: 10.5, design: .monospaced))

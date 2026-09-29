@@ -7,6 +7,7 @@ import Testing
     @Test func everyRarityHasAnArtifact() {
         for r in Rarity.allCases {
             #expect(Artifact.catalog.contains { $0.rarity == r })
+            #expect(Artifact.pick(r).rarity == r)
         }
     }
 
@@ -20,17 +21,62 @@ import Testing
         }
     }
 
-    @Test func theLowestRollIsCommonAndTheHighestLegendary() {
-        #expect(Artifact.roll(fast: false, dice: { 0 }).rarity == .common)
-        #expect(Artifact.roll(fast: false, dice: { 0.9999 }).rarity == .legendary)
+    @Test func githubReviewStatesReadAsVerdicts() {
+        #expect(ReviewVerdict(github: "APPROVED") == .approved)
+        #expect(ReviewVerdict(github: "CHANGES_REQUESTED") == .changesRequested)
+        #expect(ReviewVerdict(github: "COMMENTED") == .commented)
+        #expect(ReviewVerdict(github: nil) == .commented)
     }
 
-    @Test func aFastReviewMakesRareOrBetterMoreLikely() {
-        let steps = (0..<1000).map { Double($0) / 1000 }
-        func rareShare(_ fast: Bool) -> Int {
-            steps.filter { d in Artifact.roll(fast: fast, dice: { d }).rarity >= .rare }.count
-        }
-        #expect(rareShare(true) > rareShare(false))
+    @Test func aSeasonIsAQuarter() {
+        let cal = Calendar(identifier: .gregorian)
+        func at(_ m: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: m, day: 15))! }
+        #expect(Trail.season(of: at(1), calendar: cal) == "2026-Q1")
+        #expect(Trail.season(of: at(9), calendar: cal) == "2026-Q3")
+        #expect(Trail.season(of: at(10), calendar: cal) == "2026-Q4")
+    }
+
+    @Test func sixStickersAQuarterAtWideningMilestones() {
+        #expect(Trail.milestones == [10, 30, 60, 100, 180, 300])
+        #expect(Trail.milestone(at: 10) == 0)
+        #expect(Trail.milestone(at: 11) == nil)
+        #expect(Trail.rarities.last == .legendary)
+        #expect(Trail.leg(for: 12)! == (10, 30))
+        #expect(Trail.leg(for: 30)! == (10, 30))
+        #expect(Trail.leg(for: 301) == nil)
+    }
+
+    static func tick(_ count: Int, sticker: Rarity? = nil, _ id: String = "t") -> ReviewTick {
+        ReviewTick(id: id, pr: "acme/orders-api#7867", verdict: .approved, count: count,
+                   reward: sticker.map { Reward(id: id, artifact: .sample($0), pr: "acme/orders-api#7867") })
+    }
+
+    @Test func theStripSaysWhereYouAreOnTheLeg() {
+        #expect(ReviewStrip.shortPR("acme/orders-api#7867") == "orders-api#7867")
+        #expect(ReviewStrip.label(Self.tick(12)) == "12/30")
+        #expect(abs(ReviewStrip.fill(Self.tick(12), 0) - 0.05) < 0.001)
+        #expect(abs(ReviewStrip.fill(Self.tick(12), 1) - 0.10) < 0.001)
+        #expect(ReviewStrip.fill(Self.tick(10), 1) == 1)
+        #expect(ReviewStrip.label(Self.tick(320)) == "320 this season")
+    }
+
+    @Test func aReviewIsCountedOnceAndTheSeasonStartsOver() {
+        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        let at = Date()
+        #expect(store.countReview("o/r#1", at: at, season: "2026-Q3") == 1)
+        #expect(store.countReview("o/r#1", at: at, season: "2026-Q3") == nil)
+        #expect(store.countReview("o/r#1", at: at.addingTimeInterval(600), season: "2026-Q3") == 2)
+        #expect(store.countReview("o/r#2", at: at, season: "2026-Q4") == 1)
+    }
+
+    @Test func earnedStickersAreKeptAndMarkedWhenClaimed() {
+        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        let e = EarnedArtifact(id: "x", artifact: "floppy", pr: "o/r#1", verdict: .approved, at: Date())
+        store.collect(.sample(.uncommon), on: "2026-09-29", record: e)
+        #expect(store.state.artifacts["floppy"] == 1)
+        #expect(store.state.earned.first?.claimedAt == nil)
+        store.markClaimed("x")
+        #expect(store.state.earned.first?.claimedAt != nil)
     }
 
     static func queue(_ world: FakeWorld) async throws -> Queue {
@@ -54,14 +100,6 @@ import Testing
         #expect(store.state.requestSeenAt[key] == nil)
     }
 
-    @Test func collectingCountsEachArtifactAndTheReviewsOfTheDay() {
-        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
-        #expect(store.collect(.sample(.rare), on: "2026-09-29") == 1)
-        #expect(store.collect(.sample(.rare), on: "2026-09-29") == 2)
-        #expect(store.state.artifacts[Artifact.sample(.rare).id] == 2)
-        #expect(store.collect(.sample(.common), on: "2026-09-30") == 1)
-    }
-
     final class Gate {
         var waiting: [CheckedContinuation<Void, Never>] = []
         func open() { let w = waiting; waiting = []; w.forEach { $0.resume() } }
@@ -77,106 +115,49 @@ import Testing
         return n
     }
 
-    static func reward(_ r: Rarity, _ id: String = "r") -> Reward {
-        Reward(id: id, artifact: .sample(r), pr: "o/r#1")
+    func drain(_ gate: Gate, _ n: NotchController) async {
+        while n.celebration != nil || !n.pendingCelebrations.isEmpty {
+            if gate.waiting.isEmpty { await Task.yield() } else { gate.open() }
+        }
     }
 
-    @Test func githubReviewStatesReadAsVerdicts() {
-        #expect(ReviewVerdict(github: "APPROVED") == .approved)
-        #expect(ReviewVerdict(github: "CHANGES_REQUESTED") == .changesRequested)
-        #expect(ReviewVerdict(github: "COMMENTED") == .commented)
-        #expect(ReviewVerdict(github: nil) == .commented)
-    }
-
-    @Test func aReviewOpensADrawerUnderTheNotchAndClosesIt() async {
+    @Test func aReviewOpensAThinStripAndClosesIt() async {
         let gate = Gate()
         let n = notch(gate: gate)
         let resting = NotchGeometry.current().active
-        n.reward(Self.reward(.epic))
-        #expect(n.state == .active)
-        #expect(n.size.height == resting.height + MarginMark.drawer)
-        #expect(n.size.width > resting.width)
-        for _ in 0..<3 {
-            while gate.waiting.isEmpty { await Task.yield() }
-            gate.open()
-        }
-        while n.celebration != nil { await Task.yield() }
+        n.tick(Self.tick(12))
+        #expect(n.celebration?.count == 12)
+        #expect(n.size.height == resting.height + ReviewStrip.drawer)
+        await drain(gate, n)
         #expect(n.size == resting)
+        #expect(n.unclaimed.isEmpty)
     }
 
-    @Test func aReviewCelebratesInTheIdleNotch() {
-        let n = notch(gate: Gate())
-        n.reward(Self.reward(.epic))
-        #expect(n.state == .active)
-        #expect(n.celebration?.artifact.rarity == .epic)
-        #expect(n.unclaimed.map(\.id) == ["r"])
-    }
-
-    @Test func overAFullScreenAppTheCelebrationWaitsForTheNotchToComeBack() {
-        let full = StoreFlag(true)
-        let n = notch(full: full, gate: Gate())
-        n.reward(Self.reward(.rare))
-        #expect(n.state == .hidden)
-        #expect(n.celebration == nil)
-        #expect(n.pendingCelebrations.map(\.artifact.rarity) == [.rare])
-
-        full.on = false
-        n.refreshIdle()
-        #expect(n.celebration?.artifact.rarity == .rare)
-    }
-
-    @Test func celebrationsPlayOneAtATime() async {
+    @Test func onlyAMilestoneLeavesAStickerToClaim() async {
         let gate = Gate()
         let n = notch(gate: gate)
-        n.reward(Self.reward(.common, "a"))
-        n.reward(Self.reward(.legendary, "b"))
-        #expect(n.celebration?.artifact.rarity == .common)
-        for _ in 0..<6 {
-            while gate.waiting.isEmpty { await Task.yield() }
-            gate.open()
-        }
-        while n.celebration?.artifact.rarity != .legendary { await Task.yield() }
-        #expect(n.unclaimed.map(\.id) == ["a", "b"])
+        n.tick(Self.tick(9, "a"))
+        n.tick(Self.tick(10, sticker: .common, "b"))
+        await drain(gate, n)
+        #expect(n.unclaimed.map(\.id) == ["b"])
     }
 
-    @Test func withAGoalTheTallyCountsTowardsItAndTheBarShowsTheDay() {
-        var r = Self.reward(.rare)
-        r.today = 2
-        r.goal = 3
-        #expect(MarginMark.tally(r) == "+1 · 2/3 today")
-        #expect(abs(MarginMark.fill(r, 0) - 1.0 / 3) < 0.001)
-        #expect(abs(MarginMark.fill(r, 1) - 2.0 / 3) < 0.001)
-        r.today = 3
-        #expect(MarginMark.tally(r) == "+1 · daily goal \u{2713}")
-        #expect(MarginMark.fill(r, 1) == 1)
-        r.goal = nil
-        #expect(MarginMark.tally(r) == "+1 · 3 today")
-        #expect(MarginMark.fill(r, 0.4) == 0.4)
+    @Test func overAFullScreenAppTheStripWaitsForTheNotchToComeBack() {
+        let full = StoreFlag(true)
+        let n = notch(full: full, gate: Gate())
+        n.tick(Self.tick(12))
+        #expect(n.state == .hidden)
+        #expect(n.celebration == nil)
+        full.on = false
+        n.refreshIdle()
+        #expect(n.celebration?.count == 12)
     }
 
-    @Test func earnedArtifactsAreKeptAndMarkedWhenClaimed() {
-        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
-        let e = EarnedArtifact(id: "x", artifact: "floppy", pr: "o/r#1", verdict: .approved, at: Date())
-        store.collect(.sample(.uncommon), on: "2026-09-29", record: e)
-        #expect(store.state.earned.map(\.id) == ["x"])
-        #expect(store.state.earned.first?.claimedAt == nil)
-        store.markClaimed("x")
-        #expect(store.state.earned.first?.claimedAt != nil)
-    }
-
-    @Test func wantingToUnblockTheTeamRewardsSpeedMore() {
-        let steps = (0..<1000).map { Double($0) / 1000 }
-        func rare(_ boost: Double) -> Int {
-            steps.filter { d in Artifact.roll(fast: true, boost: boost, dice: { d }).rarity >= .rare }.count
-        }
-        #expect(RewardsProfile(reason: .unblock).fastBoost == 3)
-        #expect(RewardsProfile(reason: .learn).fastBoost == 2)
-        #expect(rare(3) > rare(2))
-    }
-
-    @Test func whileClaimingHoveringTheNotchDoesNotOpenIt() {
-        let n = notch(gate: Gate())
-        n.reward(Self.reward(.rare))
+    @Test func whileClaimingHoveringTheNotchDoesNotOpenIt() async {
+        let gate = Gate()
+        let n = notch(gate: gate)
+        n.tick(Self.tick(10, sticker: .common))
+        await drain(gate, n)
         n.pointer = {
             let g = NotchGeometry.current()
             let r = g.rect(g.closed)
@@ -185,10 +166,9 @@ import Testing
         var shown: [String] = []
         n.presentClaim = { r, _ in shown.append(r.id) }
         n.claim()
-        #expect(shown == ["r"])
+        #expect(shown == ["t"])
         n.checkPointer()
         #expect(n.state != .open)
-        #expect(n.claiming)
     }
 }
 

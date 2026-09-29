@@ -178,52 +178,53 @@ failed to sync), so each candidate is confirmed with one query for a review of
 yours submitted after the request was first seen (`requestSeenAt`). Reviews
 done anywhere count, not only from Diple, within a sync.
 
-**Rarity rewards speed, never the verdict.** An answer within two hours of the
-request doubles the weight of rare, epic and legendary. Approving and asking
-for changes are worth the same, so there is nothing to gain by rubber-stamping.
+**Stickers wait along a quarterly trail, not after every review.** Someone
+doing 300 reviews a quarter would drown in one sticker per review, so each
+review is one step on the season's trail (a season is a calendar quarter) and
+stickers wait at 10, 30, 60, 100, 180 and 300, common to legendary: about six
+a quarter at that pace, three for someone doing 60. A review is counted once
+(`countedReviews` keeps the last one per PR), whatever its verdict, and Diple
+never judges how you review: time, length or verdict say nothing reliable
+about quality, so none of them changes what you get.
 
-**A review is marked in the margin, inside the notch.** A card in the notch
-made it tall and unpredictable, a glow said nothing, and a signature drawn
-outside the notch floated on the wallpaper. So the notch opens a 28 pt drawer
-(and widens by 16 pt) for 2.8 s, and inside it a quill draws a diple, the `>`
-that Alexandrian scholars wrote in the margin next to a passage worth
-attention, the review comment before there was code. The diple then turns into
-a terminal prompt and types what you did (`> commented`, `> approved`,
-`> changes requested`, from the review's `state`), and "+1 · N today" counts
-the day in the colour of the artifact's rarity, while a thin bar along the
-drawer's foot fills left to right from the first stroke to the tally. It fits any review, since it
-says "I read this and left my mark", not "approved". The drawer closes, and a
-dot by the count says a reward is waiting. The artifact appears only when asked
-for, from the gift button in the open panel, as a card floating mid-screen in
-its own window; a click keeps it. Celebrations wait for the idle notch (not
-over a fullscreen app, the open panel, an alert or the wake-up) and play one
-at a time.
+**A review is a thin strip, not a show.** For someone reviewing all day,
+anything louder is noise, so the notch opens an 18 pt strip for 1.5 s:
+`› approved  orders-api#7867` on the left, a short bar with "12/30" towards
+the next sticker on the right. At a milestone it stays 2.3 s, the sticker pops
+at the end of the bar and the eye squints; only then does the dot by the count
+ask you to claim it. With the strip, a small sheet of paper either flies up
+into the notch ("filed") or slips out and falls ("dropped off the pile"), a
+choice in Settings → Rewards while both are being tried.
 
-**Claiming drops the card into a bag.** The gift button opens the card mid-
-screen, 120 pt below the notch; clicking it shrinks the card into a pixel-art
-bag that squashes as it lands, with an 8-bit coin (two square-wave notes, B5
-then E6, made by `tools/coin.py` into `Resources/Sounds/coin.wav`, 35% volume).
-It plays even in quiet hours, since the click asked for it. While a card is
-up, hovering the notch does not open the panel: the pointer is still there
-from the click, and the panel used to open back over the card.
+**Opening a PR from Diple watches it for your review.** The sync notices a
+review only on its next pass, up to a minute late, so a PR opened from Diple is
+checked every 10 s for 30 minutes and the strip shows within seconds of the
+review.
 
-**Onboarding asks three things, once.** Turning Rewards on in Settings asks
-what you do, why you want to review more and a daily goal. The goal turns the
-drawer's tally into "2/3 today" and its bar into the day's progress (from 1/3
-to 2/3 for the second review); "My teammates wait on my reviews" makes a fast
-answer triple the odds of rare and up instead of doubling them. The answers
-stay on this Mac, in settings.
+**Claiming zips the sticker into a backpack.** The gift button opens the card
+mid-screen, 120 pt below the notch; clicking it shrinks the card into a
+pixel-art backpack with a MacBook peeking out, which squashes as it lands.
+The sound is `Resources/Sounds/zipper.*` when there is one, the 8-bit coin
+from `tools/coin.py` until then, at 35% volume; it plays even in quiet hours,
+since the click asked for it. While a card is up, hovering the notch does not
+open the panel.
+
+**Onboarding asks two things, once.** Turning Rewards on asks what you do and
+why you want to review more, for the characters that will come later; the
+answers stay on this Mac.
 
 **The collection lives in the main window.** With Rewards on, the sidebar
-gets a Collection row: the artifacts by rarity in the content column, and the
-Journey in the detail, every artifact earned by day with the verdict, the PR
-and whether it is in the bag yet, under today's goal.
+gets a Collection row: the season's trail with its six milestones, the
+stickers by rarity, and the Journey, every sticker by day with the verdict,
+the PR and whether it is in the backpack yet.
+
+`--celebrate [rarity]` rehearses three reviews up to the milestone for that
+rarity, and `--tour` walks the whole flow over demo data.
 
 **Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
 palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
 get a holographic foil (an `AngularGradient` in `.overlay`, masked by the
-sprite), epic a sweeping shine, legendary sparks. `--celebrate [rarity]`
-grants one (or all five) without reviewing anything.
+sprite), epic a sweeping shine, legendary sparks.
 
 ## Notifications
 

@@ -7,7 +7,6 @@ final class AppModel: ObservableObject {
     static let shared = AppModel()
 
     var onEvent: ((Event) -> Void)?
-    var onReward: ((Reward) -> Void)?
     var onCountChange: (() -> Void)?
 
     @Published private(set) var queue = Queue()
@@ -18,7 +17,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var unread: Set<String> = []
     @Published private(set) var artifacts: [String: Int] = [:]
     @Published private(set) var earned: [EarnedArtifact] = []
+    @Published private(set) var seasonReviews = 0
     @Published var showsCollection = false
+    @Published var settingsTab = SettingsTab.notifications
 
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var team: [Person] = []
@@ -503,6 +504,7 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
         artifacts = store.state.artifacts
         earned = store.state.earned
+        seasonReviews = store.state.season?.id == Trail.season(of: Date()) ? store.state.season?.reviews ?? 0 : 0
         following = store.state.following
         watching = store.state.watching ?? []
         let cache = store.state.cache
@@ -1005,6 +1007,7 @@ final class AppModel: ObservableObject {
 
     func open(_ pr: PR, from source: TelemetryEvent.Source = .window) {
         openURL(pr.url)
+        watchForReview(pr.key)
         telemetry.capture(.prOpened(source: source))
         store.markRead(pr.key)
         unread = store.state.unread
@@ -1146,8 +1149,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    static let fastReview: TimeInterval = 2 * 3600
-
     private func rewardReviews(_ candidates: [Store.Unrequested]) {
         guard !candidates.isEmpty else { return }
         Task { [weak self] in
@@ -1155,22 +1156,55 @@ final class AppModel: ObservableObject {
                 guard let self,
                       let review = try? await self.client.myReview(onPullRequest: c.key, since: c.since)
                 else { continue }
-                self.grant(pr: c.key, fast: review.at.timeIntervalSince(c.since) < Self.fastReview,
-                           verdict: ReviewVerdict(github: review.state))
+                self.counted(pr: c.key, at: review.at, verdict: ReviewVerdict(github: review.state))
             }
         }
     }
 
-    func grant(pr: String?, fast: Bool, verdict: ReviewVerdict = .commented, artifact: Artifact? = nil) {
-        let profile = settings.rewardsProfile
-        let a = artifact ?? Artifact.roll(fast: fast, boost: profile?.fastBoost ?? 2)
-        let now = Date()
-        let id = "\(pr ?? "sample")/\(now.timeIntervalSince1970)"
-        let day = now.formatted(.iso8601.year().month().day())
-        let today = store.collect(a, on: day, record: EarnedArtifact(id: id, artifact: a.id, pr: pr, verdict: verdict, at: now))
-        artifacts = store.state.artifacts
-        earned = store.state.earned
-        onReward?(Reward(id: id, artifact: a, pr: pr, verdict: verdict, today: today, goal: profile?.dailyGoal))
+    private var watches: [String: Task<Void, Never>] = [:]
+    var watchEvery: Duration = .seconds(10)
+    var watchFor: TimeInterval = 30 * 60
+
+    func watchForReview(_ key: String) {
+        guard settings.rewardsBeta, !Demo.isOn else { return }
+        watches[key]?.cancel()
+        let since = Date()
+        watches[key] = Task { [weak self] in
+            while let self, !Task.isCancelled, Date().timeIntervalSince(since) < self.watchFor {
+                try? await Task.sleep(for: self.watchEvery)
+                if let review = try? await self.client.myReview(onPullRequest: key, since: since) {
+                    self.counted(pr: key, at: review.at, verdict: ReviewVerdict(github: review.state))
+                    break
+                }
+            }
+            self?.watches[key] = nil
+        }
+    }
+
+    var onTick: ((ReviewTick) -> Void)?
+
+    func rehearse(toward milestone: Int) {
+        store.setSeason(SeasonProgress(id: Trail.season(of: Date()), reviews: milestone - 3))
+        let prs = ["acme/console#4753", "acme/orders-api#7867", "acme/warehouse#541"]
+        for (i, v) in [ReviewVerdict.commented, .changesRequested, .approved].enumerated() {
+            counted(pr: prs[i], at: Date().addingTimeInterval(Double(i)), verdict: v)
+        }
+    }
+
+    func counted(pr: String, at: Date, verdict: ReviewVerdict) {
+        guard let count = store.countReview(pr, at: at, season: Trail.season(of: at)) else { return }
+        var reward: Reward?
+        if let step = Trail.milestone(at: count) {
+            let a = Artifact.pick(Trail.rarities[step])
+            let id = "\(pr)/\(at.timeIntervalSince1970)"
+            store.collect(a, on: at.formatted(.iso8601.year().month().day()),
+                          record: EarnedArtifact(id: id, artifact: a.id, pr: pr, verdict: verdict, at: at))
+            artifacts = store.state.artifacts
+            earned = store.state.earned
+            reward = Reward(id: id, artifact: a, pr: pr, verdict: verdict)
+        }
+        seasonReviews = count
+        onTick?(ReviewTick(id: "\(pr)/\(at.timeIntervalSince1970)", pr: pr, verdict: verdict, count: count, reward: reward))
     }
 
     func claimed(_ reward: Reward) {

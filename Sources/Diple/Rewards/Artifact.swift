@@ -46,15 +46,7 @@ struct Artifact: Identifiable, Sendable, Equatable {
 
     static func named(_ id: String) -> Artifact? { catalog.first { $0.id == id } }
 
-    static func roll(fast: Bool, boost fastBoost: Double = 2, dice: () -> Double = { .random(in: 0..<1) }) -> Artifact {
-        let boost = fast ? fastBoost : 1.0
-        let weights = Rarity.allCases.map { ($0, $0 >= .rare ? $0.weight * boost : $0.weight) }
-        var pick = dice() * weights.map(\.1).reduce(0, +)
-        var rarity = Rarity.common
-        for (r, w) in weights {
-            if pick < w { rarity = r; break }
-            pick -= w
-        }
+    static func pick(_ rarity: Rarity, dice: () -> Double = { .random(in: 0..<1) }) -> Artifact {
         let pool = catalog.filter { $0.rarity == rarity }
         return pool[min(pool.count - 1, Int(dice() * Double(pool.count)))]
     }
@@ -254,6 +246,8 @@ enum ReviewVerdict: String, Codable, Sendable, CaseIterable {
         }
     }
 
+    var short: String { self == .changesRequested ? "changes" : word }
+
     var color: Color {
         switch self {
         case .commented:        Color(red: 0.93, green: 0.94, blue: 0.96)
@@ -268,8 +262,6 @@ struct Reward: Identifiable, Sendable, Equatable {
     let artifact: Artifact
     let pr: String?
     var verdict = ReviewVerdict.commented
-    var today = 1
-    var goal: Int?
 }
 
 struct EarnedArtifact: Codable, Sendable, Equatable, Identifiable {
@@ -310,7 +302,4 @@ struct RewardsProfile: Codable, Sendable, Equatable {
 
     var role: Role = .developer
     var reason: Reason = .unblock
-    var dailyGoal = 3
-
-    var fastBoost: Double { reason == .unblock ? 3 : 2 }
 }

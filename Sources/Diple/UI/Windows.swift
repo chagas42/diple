@@ -64,7 +64,8 @@ final class Windows: NSObject, NSWindowDelegate {
         syncDockPolicy()
     }
 
-    func openSettings(_ model: AppModel) {
+    func openSettings(_ model: AppModel, tab: SettingsTab? = nil) {
+        if let tab { model.settingsTab = tab }
         NSApp.activate(ignoringOtherApps: true)
         if let j = settings {
             j.makeKeyAndOrderFront(nil)

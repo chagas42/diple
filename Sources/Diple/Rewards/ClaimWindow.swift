@@ -6,14 +6,18 @@ final class ClaimWindow {
     let panel: NSPanel
     private var onKept: (() -> Void)?
     private let coin: NSSound? = {
-        guard let url = Bundle.main.url(forResource: "coin", withExtension: "wav", subdirectory: "Sounds"),
-              let s = NSSound(contentsOf: url, byReference: false)
+        let url = ["zipper", "coin"].lazy
+            .flatMap { name in ["wav", "m4a", "mp3", "aiff"].lazy.map { (name, $0) } }
+            .compactMap { Bundle.main.url(forResource: $0.0, withExtension: $0.1, subdirectory: "Sounds") }
+            .first
+        guard let url, let s = NSSound(contentsOf: url, byReference: false)
         else { return nil }
         s.volume = 0.35
         return s
     }()
 
     static let size = CGSize(width: 340, height: 600)
+    static var autoKeep: Duration?
 
     init() {
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
@@ -77,7 +81,7 @@ final class ClaimWindow {
                         .frame(width: 78, height: 78)
                         .scaleEffect(x: squash ? 1.18 : 1, y: squash ? 0.82 : 1, anchor: .bottom)
                         .shadow(color: reward.artifact.rarity.color.opacity(step == .bagged ? 0.8 : 0), radius: 12)
-                    Text("+1 · in your bag")
+                    Text("+1 · in your backpack")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 9).padding(.vertical, 4)
@@ -92,6 +96,11 @@ final class ClaimWindow {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .onTapGesture(perform: keep)
+            .task {
+                guard let wait = ClaimWindow.autoKeep else { return }
+                try? await Task.sleep(for: wait)
+                keep()
+            }
         }
 
         private func keep() {
@@ -111,26 +120,26 @@ final class ClaimWindow {
         }
 
         static let bag = Artifact(
-            id: "bag", name: "Bag", flavor: "", rarity: .common,
+            id: "backpack", name: "Backpack", flavor: "", rarity: .common,
             pixels: [
                 "................",
-                "......KKKK......",
-                ".....K.KK.K.....",
-                "......KKKK......",
-                ".....BBBBBB.....",
-                "....BBBBBBBB....",
-                "...BBBLLBBBBB...",
-                "..BBBLLBBBBBBB..",
+                ".....TTTTTT.....",
+                "....T......T....",
+                "...BBBBBBBBBB...",
+                "..BBBLLLLLLBBB..",
+                "..BBBLLLLLLBBB..",
                 "..BBBBBBBBBBBB..",
-                ".BBBBBBBBBBBBBB.",
-                ".BBBBBBBBBBBBBB.",
-                ".BBBBBBBBBBBBBD.",
-                ".DBBBBBBBBBBBDD.",
-                "..DDBBBBBBBBDD..",
-                "...DDDDDDDDDD...",
+                "..BBZZZZZZZZBB..",
+                "..BBPPPPPPPPBB..",
+                "..BBPPPPPPPPBB..",
+                "..BBPPPKPPPPBB..",
+                "..BBPPPPPPPPBB..",
+                "..BBPPPPPPPPBB..",
+                "..DBBBBBBBBBBD..",
+                "...DD......DD...",
                 "................",
             ],
-            palette: ["K": 0xD9B26F, "B": 0x8A5A34, "L": 0xB5824F, "D": 0x6B4226]
+            palette: ["B": 0x3B4A5C, "L": 0xC9CED6, "P": 0x4E6078, "Z": 0xE0B34A, "T": 0x2C3746, "K": 0xE0B34A, "D": 0x2A3542]
         )
     }
 }

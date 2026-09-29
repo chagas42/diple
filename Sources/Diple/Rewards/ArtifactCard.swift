@@ -102,7 +102,7 @@ struct ClaimCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
-            Text("Click to put it in your bag")
+            Text("Click to put it in your backpack")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.55))
                 .padding(.top, 4)

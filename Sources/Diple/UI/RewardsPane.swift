@@ -9,7 +9,13 @@ struct RewardsPane: View {
         Form {
             Section {
                 Toggle("Rewards (beta)", isOn: $model.settings.rewardsBeta)
-                Text("Each review you send drops an artifact from the notch. Answering a review request within two hours makes a rare one more likely. Approving never counts more than commenting or asking for changes.")
+                if model.settings.rewardsBeta {
+                    Picker("When you review", selection: $model.settings.paperStyle) {
+                        ForEach(PaperStyle.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Text("Every review you send moves you one step along this quarter's trail, and stickers wait at 10, 30, 60, 100, 180 and 300 reviews. Any review counts the same: commenting, approving or asking for changes. Diple never judges how you review.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -21,7 +27,6 @@ struct RewardsPane: View {
                     Section("Your journey") {
                         LabeledContent("You", value: p.role.title)
                         LabeledContent("Why you review", value: p.reason.title)
-                        LabeledContent("Daily goal", value: p.dailyGoal == 1 ? "1 review" : "\(p.dailyGoal) reviews")
                         HStack {
                             Button("Edit") { draft = p; editing = true }
                             Spacer()
@@ -30,7 +35,7 @@ struct RewardsPane: View {
                     }
                 }
             }
-            Section("Collection · \(owned) of \(Artifact.catalog.count)") {
+            Section("Stickers · \(owned) of \(Artifact.catalog.count)") {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(Artifact.catalog) { a in cell(a) }
                 }
@@ -46,9 +51,9 @@ struct RewardsPane: View {
     private var onboarding: some View {
         Section {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Three questions before your first artifact")
+                Text("Two questions before your first sticker")
                     .font(.system(size: 13, weight: .semibold))
-                Text("They set what counts most, and your daily goal. Only this Mac keeps them.")
+                Text("They shape the characters you will meet along the trail. Only this Mac keeps them.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -60,14 +65,6 @@ struct RewardsPane: View {
                 ForEach(RewardsProfile.Reason.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.radioGroup)
-            Stepper(value: $draft.dailyGoal, in: 1...10) {
-                Text("Daily goal: \(draft.dailyGoal) \(draft.dailyGoal == 1 ? "review" : "reviews")")
-            }
-            if draft.reason == .unblock {
-                Text("Answering a review request within two hours makes a rare artifact three times as likely.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
             HStack {
                 Spacer()
                 Button(editing ? "Save" : "Start") {

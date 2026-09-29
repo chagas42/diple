@@ -29,6 +29,8 @@ struct StoredState: Codable, Sendable, Equatable {
     var rewardDay: String? = nil
     var rewardsThatDay = 0
     var earned: [EarnedArtifact] = []
+    var season: SeasonProgress? = nil
+    var countedReviews: [String: Date] = [:]
 
     init() {}
 
@@ -53,6 +55,8 @@ struct StoredState: Codable, Sendable, Equatable {
         d.rewardDay = try c.decodeIfPresent(String.self, forKey: .rewardDay)
         d.rewardsThatDay = try c.decodeIfPresent(Int.self, forKey: .rewardsThatDay) ?? d.rewardsThatDay
         d.earned = (try? c.decodeIfPresent([EarnedArtifact].self, forKey: .earned)) ?? d.earned
+        d.season = try? c.decodeIfPresent(SeasonProgress.self, forKey: .season)
+        d.countedReviews = (try? c.decodeIfPresent([String: Date].self, forKey: .countedReviews)) ?? d.countedReviews
         self = d
     }
 
@@ -317,6 +321,20 @@ final class Store {
         state.unread.removeAll()
         state.unreadReasons.removeAll()
         save()
+    }
+
+    func setSeason(_ s: SeasonProgress) {
+        state.season = s
+        save()
+    }
+
+    func countReview(_ key: String, at: Date, season id: String) -> Int? {
+        if let last = state.countedReviews[key], abs(last.timeIntervalSince(at)) < 1 { return nil }
+        state.countedReviews[key] = at
+        if state.season?.id != id { state.season = SeasonProgress(id: id, reviews: 0) }
+        state.season?.reviews += 1
+        save()
+        return state.season?.reviews
     }
 
     func markClaimed(_ id: String) {
