@@ -62,6 +62,18 @@ struct DipleApp: App {
             Text(model.count > 0 ? "⟩ \(model.count)" : "⟩")
         }
         .menuBarExtraStyle(.window)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { Windows.shared.openSettings(model) }
+                    .keyboardShortcut(",")
+            }
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { Windows.shared.openSettings(model) }
+                    .keyboardShortcut(",")
+            }
+        }
     }
 }
 
