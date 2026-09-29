@@ -51,6 +51,13 @@ import Testing
                    reward: sticker.map { Reward(id: id, artifact: .sample($0), pr: "acme/orders-api#7867") })
     }
 
+    @Test func theTrailFillsEvenlyBetweenMilestones() {
+        #expect(CollectionView.trailFill(0) == 0)
+        #expect(abs(CollectionView.trailFill(10) - 1.0 / 6) < 0.001)
+        #expect(abs(CollectionView.trailFill(20) - 1.5 / 6) < 0.001)
+        #expect(CollectionView.trailFill(300) == 1)
+    }
+
     @Test func theStripSaysWhereYouAreOnTheLeg() {
         #expect(ReviewStrip.shortPR("acme/orders-api#7867") == "orders-api#7867")
         #expect(ReviewStrip.label(Self.tick(12)) == "12/30")

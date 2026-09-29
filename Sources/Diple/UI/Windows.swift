@@ -74,7 +74,7 @@ final class Windows: NSObject, NSWindowDelegate {
         }
         let j = make(
             title: "Diple Settings",
-            size: NSSize(width: 620, height: 472),
+            size: NSSize(width: 860, height: 472),
             content: SettingsView(model: model)
         )
         j.contentMinSize = SettingsView.minimum

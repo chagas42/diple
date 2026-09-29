@@ -38,7 +38,7 @@ struct SettingsView: View {
                minHeight: Self.minimum.height, maxHeight: .infinity)
     }
 
-    static let minimum = CGSize(width: 620, height: 472)
+    static let minimum = CGSize(width: 860, height: 472)
 }
 
 struct NotificationsPane: View {

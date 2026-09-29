@@ -16,12 +16,12 @@ struct MainWindowView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 280)
         } content: {
             Group {
-                if model.showsCollection { CollectionView(model: model) } else { list }
+                if model.showsCollection { JourneyView(model: model) } else { list }
             }
             .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 520)
         } detail: {
             if model.showsCollection {
-                JourneyView(model: model)
+                CollectionView(model: model)
             } else if let pr = model.selected {
                 DetailView(model: model, pr: pr)
             } else {

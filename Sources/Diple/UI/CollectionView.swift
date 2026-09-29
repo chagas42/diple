@@ -3,7 +3,7 @@ import SwiftUI
 struct CollectionView: View {
     @ObservedObject var model: AppModel
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 14)]
+    private let columns = [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16, alignment: .top)]
 
     private var owned: Int { Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }
     private var total: Int { model.artifacts.values.reduce(0, +) }
@@ -25,7 +25,9 @@ struct CollectionView: View {
                     ForEach(Artifact.catalog) { cell($0) }
                 }
             }
-            .padding(20)
+            .padding(24)
+            .frame(maxWidth: 860)
+            .frame(maxWidth: .infinity)
         }
         .navigationTitle("Collection")
     }
@@ -46,25 +48,28 @@ struct CollectionView: View {
                     .foregroundStyle(.secondary)
             }
             GeometryReader { g in
-                let w = g.size.width
-                let last = Double(Trail.milestones.last!)
+                let w = g.size.width - 12
+                let steps = Double(Trail.milestones.count)
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.quaternary).frame(height: 4)
+                    Capsule().fill(.quaternary).frame(width: w, height: 4).offset(x: 6)
                     Capsule().fill(Color.accentColor)
-                        .frame(width: w * min(1, Double(count) / last), height: 4)
+                        .frame(width: w * Self.trailFill(count) , height: 4)
+                        .offset(x: 6)
                     ForEach(Array(Trail.milestones.enumerated()), id: \.offset) { i, m in
                         let r = Trail.rarities[i]
                         let reached = count >= m
                         VStack(spacing: 3) {
                             Circle()
                                 .fill(reached ? r.color : Color.secondary.opacity(0.25))
-                                .frame(width: 11, height: 11)
+                                .frame(width: 12, height: 12)
                                 .overlay(Circle().stroke(r.color, lineWidth: 1.5))
                             Text("\(m)")
-                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
                                 .foregroundStyle(reached ? r.color : .secondary)
+                                .fixedSize()
                         }
-                        .offset(x: w * Double(m) / last - 5.5, y: 9)
+                        .frame(width: 40)
+                        .offset(x: 6 + w * Double(i + 1) / steps - 20, y: 10)
                     }
                 }
             }
@@ -74,12 +79,27 @@ struct CollectionView: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
+    static func trailFill(_ count: Int) -> Double {
+        let ms = Trail.milestones
+        var from = 0
+        for (i, m) in ms.enumerated() {
+            if count < m {
+                let within = Double(count - from) / Double(m - from)
+                return (Double(i) + within) / Double(ms.count)
+            }
+            from = m
+        }
+        return 1
+    }
+
     private func stat(_ value: String, _ label: String, tint: Color? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(tint ?? .primary)
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Text(label)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
@@ -110,6 +130,8 @@ struct CollectionView: View {
                         Text("\(r.title) \(have)/\(pool.count)")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(r.color)
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                 }
             }
@@ -179,7 +201,7 @@ struct JourneyView: View {
                 }
             }
         }
-        .navigationTitle("Journey")
+        .navigationTitle("Collection")
     }
 
     private func row(_ e: EarnedArtifact) -> some View {
