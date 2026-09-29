@@ -9,6 +9,7 @@ final class NotchController: ObservableObject {
     @Published private(set) var notchHeight: CGFloat = 32
     @Published private(set) var wings = Wings(left: 42, right: 42)
     @Published private(set) var shift: CGFloat = 0
+    @Published private(set) var hasNotch = true
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -26,6 +27,9 @@ final class NotchController: ObservableObject {
     private var wingTimer: Timer?
 
     var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
+    var fullScreen: @MainActor () -> Bool = { NotchGeometry.current().isUnderFullScreen }
+    private var underFullScreen = false
+    private var menuBarRevealed = false
 
     func mount(model: AppModel) {
         self.model = model
@@ -33,6 +37,7 @@ final class NotchController: ObservableObject {
         measure()
         panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
         panel.orderFrontRegardless()
+        refreshIdle()
         trackPointer()
         watchMenuBar()
         blinkOccasionally()
@@ -47,10 +52,18 @@ final class NotchController: ObservableObject {
                 self.panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
             }
         }
+
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshIdle() }
+        }
     }
 
     private func measure() {
         let g = NotchGeometry.current()
+        hasNotch = g.hasNotch
         notchWidth = g.notchWidth
         notchHeight = g.topInset
         apply()
@@ -74,7 +87,7 @@ final class NotchController: ObservableObject {
         }
     }
 
-    private func idle() -> NotchState { .active }
+    private func idle() -> NotchState { underFullScreen && !menuBarRevealed ? .hidden : .active }
 
     func open() {
         collapseTask?.cancel()
@@ -112,8 +125,15 @@ final class NotchController: ObservableObject {
     }
 
     func refreshIdle() {
+        underFullScreen = fullScreen()
+        settleIdle()
+    }
+
+    private func settleIdle() {
         guard state == .hidden || state == .active else { return }
-        state = idle()
+        let next = idle()
+        guard next != state || NotchGeometry.current().wings != wings else { return }
+        state = next
         apply()
     }
 
@@ -131,11 +151,7 @@ final class NotchController: ObservableObject {
     private func watchMenuBar() {
         if Film.isOn { return }
         wingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, self.state == .active,
-                      NotchGeometry.current().wings != self.wings else { return }
-                self.apply()
-            }
+            Task { @MainActor in self?.refreshIdle() }
         }
     }
 
@@ -146,6 +162,13 @@ final class NotchController: ObservableObject {
 
         let hotZone = shape.union(g.rect(g.closed))
         let m = pointer()
+
+        let revealed = underFullScreen
+            && NotchGeometry.revealsMenuBar(pointer: m, screen: g.screen.frame, barHeight: g.topInset, shown: menuBarRevealed)
+        if revealed != menuBarRevealed {
+            menuBarRevealed = revealed
+            settleIdle()
+        }
 
         let isOpen = state == .open
         let inside = isOpen ? hotZone.insetBy(dx: -16, dy: -16).contains(m)
@@ -214,6 +237,7 @@ final class NotchController: ObservableObject {
                 notchHeight: notch.notchHeight,
                 countOnLeft: notch.wings.countOnLeft,
                 shift: notch.shift,
+                hidesByFading: !notch.hasNotch,
                 eye: notch.eye,
                 onClose: { notch.closeNow() }
             )

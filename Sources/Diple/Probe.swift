@@ -80,6 +80,7 @@ enum NotchProbe {
             print("  active: \(g.active)  -> \(g.rect(g.active, shift: g.wings.shift))")
             print("  open:    \(g.open)  -> \(g.rect(g.open))")
             print("  fixed windowFrame: \(g.windowFrame())")
+            print("  under full screen: \(g.isUnderFullScreen)")
         }
     }
 }

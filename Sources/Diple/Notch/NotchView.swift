@@ -33,6 +33,7 @@ struct NotchView: View {
     let notchHeight: CGFloat
     var countOnLeft = false
     var shift: CGFloat = 0
+    var hidesByFading = false
     let eye: EyeState
     let onClose: () -> Void
 
@@ -54,6 +55,7 @@ struct NotchView: View {
             .frame(width: size.width, height: size.height)
 
             .clipShape(shape)
+            .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
                 Button("Settings…") { Windows.shared.openSettings(model) }
