@@ -30,6 +30,9 @@ final class NotchController: ObservableObject {
     var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
     var fullScreen: @MainActor () -> Bool = { NotchGeometry.current().isUnderFullScreen }
     var fullScreenArriving: (@MainActor () -> Bool)?
+    var clock: @MainActor () -> Date = Date.init
+    static let longestSwitch: TimeInterval = 1.5
+    private var arrivingSince: Date?
     private var underFullScreen = false
     private var arriving = false
     private var menuBarRevealed = false
@@ -38,6 +41,7 @@ final class NotchController: ObservableObject {
 
     func mount(model: AppModel) {
         self.model = model
+        settleBeforeFirstFrame()
         panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
         measure()
         panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
@@ -135,6 +139,11 @@ final class NotchController: ObservableObject {
         }
     }
 
+    func settleBeforeFirstFrame() {
+        underFullScreen = fullScreen()
+        state = idle()
+    }
+
     func refreshIdle() {
         underFullScreen = fullScreen()
         if underFullScreen { arriving = false }
@@ -154,7 +163,9 @@ final class NotchController: ObservableObject {
     }
 
     private func checkArriving() {
-        let now = !underFullScreen && (fullScreenArriving?() ?? FullScreenWindows.anyOnScreen(fullScreenWindows))
+        let seen = !underFullScreen && (fullScreenArriving?() ?? FullScreenWindows.anyOnScreen(fullScreenWindows))
+        if seen { arrivingSince = arrivingSince ?? clock() } else { arrivingSince = nil }
+        let now = arrivingSince.map { clock().timeIntervalSince($0) < Self.longestSwitch } ?? false
         guard now != arriving else { return }
         arriving = now
         settleIdle()

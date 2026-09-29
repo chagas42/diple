@@ -125,7 +125,16 @@ though, so the windows of the display's fullscreen Spaces are mapped (`CGSCopySp
 one window at a time, ~35 ms for 150 windows, off the main thread, redone when
 the fullscreen Spaces change or on a Space change) and the 30 Hz tick asks
 whether any of them is on screen (~0.2 ms). If one is, the notch hides; if the
-swipe is given up, they leave the screen and the wings come back.
+swipe is given up, they leave the screen and the wings come back. A switch
+never takes longer than about 600 ms, so that signal counts for 1.5 s at most:
+windows of a fullscreen Space seen on screen for longer, with the current Space
+still not fullscreen, are not a switch, and the wings come back rather than
+staying hidden until the next Space change.
+
+**The first frame already knows about fullscreen.** The panel used to be drawn
+in `.active` and only then check the Space, so launching over a fullscreen app
+flashed the wings for a frame. `mount` settles the idle state before the
+hosting view exists.
 `CGWindowListCreateDescriptionFromArray` wants the window ids as raw values in
 a callback-less `CFArray`: an array of `NSNumber` returns nothing.
 
