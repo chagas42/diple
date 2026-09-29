@@ -101,7 +101,7 @@ jobs:
       - name: Build
         run: |
           swift build -c release
-          make app
+          make app FLAVOR=release
 
       - name: It has to actually launch
         run: |
