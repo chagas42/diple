@@ -29,8 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             let wanted = CommandLine.arguments.dropFirst(i + 1).first.flatMap(Rarity.init(rawValue:))
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
-                for r in wanted.map({ [$0] }) ?? Rarity.allCases {
-                    model.grant(pr: "acme/orders-api#7867", fast: false, artifact: .sample(r))
+                for (i, r) in (wanted.map({ [$0] }) ?? Rarity.allCases).enumerated() {
+                    let verdict = ReviewVerdict.allCases[i % ReviewVerdict.allCases.count]
+                    model.grant(pr: "acme/orders-api#7867", fast: false, verdict: verdict, artifact: .sample(r))
                 }
             }
         }

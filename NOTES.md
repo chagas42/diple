@@ -176,17 +176,21 @@ done anywhere count, not only from Diple, within a sync.
 request doubles the weight of rare, epic and legendary. Approving and asking
 for changes are worth the same, so there is nothing to gain by rubber-stamping.
 
-**The notch only celebrates; the artifact is claimed elsewhere.** A card
-inside the notch made it tall and unpredictable, and a glow alone said
-nothing, so a review is signed: just under the notch, which keeps its size, a
-pencil writes "Reviewed" (Snell Roundhand, revealed left to right) while the
-eye looks down at it, a check draws in the rarity's colour with a few sparks,
-"+1 · N today" pops up, and the signature flies up into the notch, 2.6 s in
-all. A dot by the count then says a reward is waiting. The artifact appears
-only when asked for, from the gift button in the open panel, as a card
-floating mid-screen in its own window; a click keeps it. Celebrations wait for
-the idle notch (not over a fullscreen app, the open panel, an alert or the
-wake-up) and play one at a time.
+**A review is marked in the margin, inside the notch.** A card in the notch
+made it tall and unpredictable, a glow said nothing, and a signature drawn
+outside the notch floated on the wallpaper. So the notch opens a 22 pt drawer
+(and widens by 16 pt) for 2.8 s, and inside it a quill draws a diple, the `>`
+that Alexandrian scholars wrote in the margin next to a passage worth
+attention, the review comment before there was code. The diple then turns into
+a terminal prompt and types what you did (`> commented`, `> approved`,
+`> changes requested`, from the review's `state`), and "+1 · N today" counts
+the day in the colour of the artifact's rarity. It fits any review, since it
+says "I read this and left my mark", not "approved". The drawer closes, and a
+dot by the count says a reward is waiting. The artifact appears only when asked
+for, from the gift button in the open panel, as a card floating mid-screen in
+its own window; a click keeps it. Celebrations wait for the idle notch (not
+over a fullscreen app, the open panel, an alert or the wake-up) and play one
+at a time.
 
 **Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
 palette, painted with `Canvas`, so the beta ships no image assets. Rare and up

@@ -74,13 +74,6 @@ struct NotchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .top) {
-            if let r = celebration, state == .active {
-                SignatureCelebration(rarity: r.artifact.rarity, today: r.today, start: celebrationStart)
-                    .offset(x: shift, y: notchHeight + 4)
-                    .id(r.id)
-            }
-        }
-        .overlay(alignment: .top) {
             if let since = sleepingSince {
                 SleepyZs(start: since)
                     .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
@@ -128,7 +121,16 @@ struct NotchView: View {
         case .hidden:
             Color.clear
         case .active:
-            wings
+            VStack(spacing: 0) {
+                wings
+                if let r = celebration {
+                    MarginMark(reward: r, start: celebrationStart)
+                        .frame(height: MarginMark.drawer)
+                        .id(r.id)
+                        .transition(.opacity)
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
         case .open:
             open
         case .alert(let e):

@@ -95,7 +95,8 @@ final class NotchController: ObservableObject {
         shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
-        case .active: g.active
+        case .active: celebration == nil ? g.active
+            : CGSize(width: g.active.width + 16, height: g.active.height + MarginMark.drawer)
         case .open:    g.open
         case .alert:    g.alert
         }
@@ -198,7 +199,7 @@ final class NotchController: ObservableObject {
     private(set) var celebrationStart = Date()
     @Published private(set) var unclaimed: [Reward] = []
     private(set) var pendingCelebrations: [Reward] = []
-    static let celebrationLength = Duration.milliseconds(Int(SignatureCelebration.length * 1000))
+    static let celebrationLength = Duration.milliseconds(Int(MarginMark.length * 1000))
     var claimWindow: ClaimWindow?
 
     func reward(_ r: Reward) {
@@ -211,16 +212,18 @@ final class NotchController: ObservableObject {
         guard state == .active, !waking, celebration == nil, !pendingCelebrations.isEmpty else { return }
         celebration = pendingCelebrations.removeFirst()
         celebrationStart = Date()
-        eye.look(at: CGPoint(x: -0.2, y: 1))
+        apply()
+        eye.look(at: CGPoint(x: -0.3, y: 1))
         Task { [weak self] in
-            await self?.nap(.milliseconds(1450))
+            await self?.nap(.milliseconds(1750))
             self?.eye.lidSpeed = 0.18
             self?.eye.lid = 0.3
             await self?.nap(.milliseconds(420))
             self?.eye.lidSpeed = 0.4
             self?.eye.lid = 1
-            await self?.nap(Self.celebrationLength - .milliseconds(1870))
+            await self?.nap(Self.celebrationLength - .milliseconds(2170))
             self?.celebration = nil
+            self?.apply()
             self?.eye.look(at: .zero)
             self?.showPendingReward()
         }

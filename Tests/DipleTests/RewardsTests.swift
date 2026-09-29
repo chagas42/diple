@@ -81,7 +81,30 @@ import Testing
         Reward(id: id, artifact: .sample(r), pr: "o/r#1")
     }
 
-    @Test func aReviewCelebratesWithoutGrowingTheNotch() {
+    @Test func githubReviewStatesReadAsVerdicts() {
+        #expect(ReviewVerdict(github: "APPROVED") == .approved)
+        #expect(ReviewVerdict(github: "CHANGES_REQUESTED") == .changesRequested)
+        #expect(ReviewVerdict(github: "COMMENTED") == .commented)
+        #expect(ReviewVerdict(github: nil) == .commented)
+    }
+
+    @Test func aReviewOpensADrawerUnderTheNotchAndClosesIt() async {
+        let gate = Gate()
+        let n = notch(gate: gate)
+        let resting = NotchGeometry.current().active
+        n.reward(Self.reward(.epic))
+        #expect(n.state == .active)
+        #expect(n.size.height == resting.height + MarginMark.drawer)
+        #expect(n.size.width > resting.width)
+        for _ in 0..<3 {
+            while gate.waiting.isEmpty { await Task.yield() }
+            gate.open()
+        }
+        while n.celebration != nil { await Task.yield() }
+        #expect(n.size == resting)
+    }
+
+    @Test func aReviewCelebratesInTheIdleNotch() {
         let n = notch(gate: Gate())
         n.reward(Self.reward(.epic))
         #expect(n.state == .active)

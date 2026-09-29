@@ -1150,19 +1150,20 @@ final class AppModel: ObservableObject {
         Task { [weak self] in
             for c in candidates.prefix(5) {
                 guard let self,
-                      let at = try? await self.client.myReview(onPullRequest: c.key, since: c.since)
+                      let review = try? await self.client.myReview(onPullRequest: c.key, since: c.since)
                 else { continue }
-                self.grant(pr: c.key, fast: at.timeIntervalSince(c.since) < Self.fastReview)
+                self.grant(pr: c.key, fast: review.at.timeIntervalSince(c.since) < Self.fastReview,
+                           verdict: ReviewVerdict(github: review.state))
             }
         }
     }
 
-    func grant(pr: String?, fast: Bool, artifact: Artifact? = nil) {
+    func grant(pr: String?, fast: Bool, verdict: ReviewVerdict = .commented, artifact: Artifact? = nil) {
         let a = artifact ?? Artifact.roll(fast: fast)
         let day = Date().formatted(.iso8601.year().month().day())
         let today = store.collect(a, on: day)
         artifacts = store.state.artifacts
-        onReward?(Reward(id: "\(pr ?? "sample")/\(Date().timeIntervalSince1970)", artifact: a, pr: pr, today: today))
+        onReward?(Reward(id: "\(pr ?? "sample")/\(Date().timeIntervalSince1970)", artifact: a, pr: pr, verdict: verdict, today: today))
     }
 
     var rest: [PR] {
