@@ -24,6 +24,8 @@ struct StoredState: Codable, Sendable, Equatable {
     var installId: String? = nil
     var usageNoticeSeen = false
     var lastActiveDay: String? = nil
+    var requestSeenAt: [String: Date] = [:]
+    var artifacts: [String: Int] = [:]
 
     init() {}
 
@@ -43,6 +45,8 @@ struct StoredState: Codable, Sendable, Equatable {
         d.installId = try c.decodeIfPresent(String.self, forKey: .installId)
         d.usageNoticeSeen = try c.decodeIfPresent(Bool.self, forKey: .usageNoticeSeen) ?? d.usageNoticeSeen
         d.lastActiveDay = try c.decodeIfPresent(String.self, forKey: .lastActiveDay)
+        d.requestSeenAt = (try? c.decodeIfPresent([String: Date].self, forKey: .requestSeenAt)) ?? d.requestSeenAt
+        d.artifacts = (try? c.decodeIfPresent([String: Int].self, forKey: .artifacts)) ?? d.artifacts
         self = d
     }
 
@@ -309,6 +313,18 @@ final class Store {
         save()
     }
 
+    struct Unrequested: Equatable, Sendable {
+        let key: String
+        let since: Date
+    }
+
+    private(set) var unrequested: [Unrequested] = []
+
+    func collect(_ artifact: Artifact) {
+        state.artifacts[artifact.id, default: 0] += 1
+        save()
+    }
+
     func diff(_ queue: Queue, meuLogin: String) -> [Event] {
         var events: [Event] = []
         var next: [String: Snapshot] = [:]
@@ -330,6 +346,7 @@ final class Store {
             let before = state.prs[pr.key]
 
             if now.reviewRequested, before?.reviewRequested != true {
+                state.requestSeenAt[pr.key] = Date()
                 events.append(Event(
                     id: "\(pr.key)/review/\(pr.updatedAt.timeIntervalSince1970)",
                     kind: .reviewRequested, key: pr.key, url: pr.url,
@@ -387,6 +404,12 @@ final class Store {
                 body: "\(pr.key) · \(pr.title)"
             ))
         }
+
+        unrequested = state.prs.compactMap { key, before in
+            guard before.reviewRequested, next[key]?.reviewRequested != true else { return nil }
+            return Unrequested(key: key, since: state.requestSeenAt[key] ?? before.updatedAt)
+        }
+        for u in unrequested { state.requestSeenAt[u.key] = nil }
 
         state.prs = next
         state.hasRunBefore = true

@@ -37,6 +37,9 @@ struct NotchView: View {
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
+    var celebration: Rarity?
+    var unclaimed: [Reward] = []
+    var onClaim: () -> Void = {}
     let eye: EyeState
     let onClose: () -> Void
 
@@ -58,6 +61,13 @@ struct NotchView: View {
             .frame(width: size.width, height: size.height)
 
             .clipShape(shape)
+            .overlay {
+                if let r = celebration, state == .active {
+                    Celebration(rarity: r, shape: shape)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.3), value: celebration)
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
@@ -152,6 +162,15 @@ struct NotchView: View {
             .contentTransition(.numericText())
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
             .contentTransition(.numericText(value: Double(model.count)))
+            .overlay(alignment: .topTrailing) {
+                if let best = unclaimed.map(\.artifact.rarity).max() {
+                    Circle()
+                        .fill(best.color)
+                        .frame(width: 5, height: 5)
+                        .shadow(color: best.color, radius: 3)
+                        .offset(x: 6, y: -3)
+                }
+            }
             .opacity(waking ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: waking)
     }
@@ -195,6 +214,24 @@ struct NotchView: View {
 
             HStack(spacing: 7) {
                 Spacer(minLength: 0)
+                if let best = unclaimed.map(\.artifact.rarity).max() {
+                    Button(action: onClaim) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("\(unclaimed.count)")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(best.color)
+                        .padding(.horizontal, 9)
+                        .frame(height: 26)
+                        .background(best.color.opacity(0.16), in: Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help(unclaimed.count == 1 ? "A reward is waiting" : "\(unclaimed.count) rewards are waiting")
+                }
                 iconButton("macwindow") {
                     Windows.shared.openMain(model)
                     onClose()
@@ -585,5 +622,31 @@ struct NotchView: View {
         case .approved:       .green
         case .newPullRequest: .teal
         }
+    }
+}
+
+private struct Celebration: View {
+    let rarity: Rarity
+    let shape: PanelShape
+    @State private var start = Date()
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSince(start)
+            let pulse = 0.5 + 0.5 * sin(t * 9)
+            ZStack {
+                shape
+                    .stroke(rarity.color.opacity(0.55 + 0.45 * pulse), lineWidth: 1.5)
+                    .shadow(color: rarity.color.opacity(0.9), radius: 6 + 4 * pulse)
+                HStack {
+                    Sparks(t: t, tint: rarity.color, reach: 22, count: rarity >= .rare ? 14 : 8)
+                        .frame(width: 44)
+                    Spacer()
+                    Sparks(t: t + 0.4, tint: rarity.color, reach: 22, count: rarity >= .rare ? 14 : 8)
+                        .frame(width: 44)
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }

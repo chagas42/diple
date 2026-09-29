@@ -171,6 +171,7 @@ final class NotchController: ObservableObject {
         eye.lidSpeed = 0.4
         eye.lid = 1
         settleIdle()
+        showPendingReward()
     }
 
     func open() {
@@ -190,6 +191,45 @@ final class NotchController: ObservableObject {
         state = idle()
         apply()
         model?.setNotchOpen(false)
+        showPendingReward()
+    }
+
+    @Published private(set) var celebration: Rarity?
+    @Published private(set) var unclaimed: [Reward] = []
+    private(set) var pendingCelebrations: [Rarity] = []
+    static let celebrationLength = Duration.milliseconds(1500)
+    var claimWindow: ClaimWindow?
+
+    func reward(_ r: Reward) {
+        unclaimed.append(r)
+        pendingCelebrations.append(r.artifact.rarity)
+        showPendingReward()
+    }
+
+    private func showPendingReward() {
+        guard state == .active, !waking, celebration == nil, !pendingCelebrations.isEmpty else { return }
+        celebration = pendingCelebrations.removeFirst()
+        eye.lidSpeed = 0.18
+        eye.lid = 0.3
+        Task { [weak self] in
+            await self?.nap(.milliseconds(420))
+            self?.eye.lidSpeed = 0.4
+            self?.eye.lid = 1
+            await self?.nap(Self.celebrationLength - .milliseconds(420))
+            self?.celebration = nil
+            self?.showPendingReward()
+        }
+    }
+
+    func claim() {
+        guard !unclaimed.isEmpty else { return }
+        closeNow()
+        let r = unclaimed.removeFirst()
+        if claimWindow == nil { claimWindow = ClaimWindow() }
+        claimWindow?.show(r, under: NotchGeometry.current()) { [weak self] in
+            guard let self, !self.unclaimed.isEmpty else { return }
+            self.claim()
+        }
     }
 
     func alert(_ e: Event) {
@@ -248,6 +288,7 @@ final class NotchController: ObservableObject {
         guard next != state || NotchGeometry.current().wings != wings else { return }
         state = next
         apply()
+        showPendingReward()
     }
 
     private func trackPointer() {
@@ -359,6 +400,9 @@ final class NotchController: ObservableObject {
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
+                celebration: notch.celebration,
+                unclaimed: notch.unclaimed,
+                onClaim: { notch.claim() },
                 eye: notch.eye,
                 onClose: { notch.closeNow() }
             )

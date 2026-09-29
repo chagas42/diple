@@ -17,6 +17,8 @@ struct SettingsView: View {
                 .tabItem { Label("Claude", systemImage: "sparkles") }
             AccountPane(model: model)
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
+            RewardsPane(model: model)
+                .tabItem { Label("Rewards", systemImage: "sparkles.rectangle.stack") }
             PrivacyPane(model: model)
                 .tabItem { Label("Privacy", systemImage: "hand.raised") }
         }

@@ -7,6 +7,7 @@ final class AppModel: ObservableObject {
     static let shared = AppModel()
 
     var onEvent: ((Event) -> Void)?
+    var onReward: ((Reward) -> Void)?
     var onCountChange: (() -> Void)?
 
     @Published private(set) var queue = Queue()
@@ -15,6 +16,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastSync: Date?
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
+    @Published private(set) var artifacts: [String: Int] = [:]
 
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var team: [Person] = []
@@ -497,6 +499,7 @@ final class AppModel: ObservableObject {
 
     func restoreCached() {
         unread = store.state.unread
+        artifacts = store.state.artifacts
         following = store.state.following
         watching = store.state.watching ?? []
         let cache = store.state.cache
@@ -596,6 +599,7 @@ final class AppModel: ObservableObject {
                           let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
                     return !quiets(pr)
                 }
+            if settings.rewardsBeta { rewardReviews(store.unrequested) }
             queue = nova
             store.saveQueue(nova)
             if let s = selected {
@@ -1137,6 +1141,27 @@ final class AppModel: ObservableObject {
             report(error, in: .resolve)
             return error.localizedDescription
         }
+    }
+
+    static let fastReview: TimeInterval = 2 * 3600
+
+    private func rewardReviews(_ candidates: [Store.Unrequested]) {
+        guard !candidates.isEmpty else { return }
+        Task { [weak self] in
+            for c in candidates.prefix(5) {
+                guard let self,
+                      let at = try? await self.client.myReview(onPullRequest: c.key, since: c.since)
+                else { continue }
+                self.grant(pr: c.key, fast: at.timeIntervalSince(c.since) < Self.fastReview)
+            }
+        }
+    }
+
+    func grant(pr: String?, fast: Bool, artifact: Artifact? = nil) {
+        let a = artifact ?? Artifact.roll(fast: fast)
+        store.collect(a)
+        artifacts = store.state.artifacts
+        onReward?(Reward(id: "\(pr ?? "sample")/\(Date().timeIntervalSince1970)", artifact: a, pr: pr))
     }
 
     var rest: [PR] {

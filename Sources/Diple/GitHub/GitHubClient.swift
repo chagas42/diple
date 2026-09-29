@@ -322,6 +322,25 @@ extension GitHubClient {
         }
     }
 
+    func myReview(onPullRequest key: String, since: Date) async throws -> Date? {
+        let parts = key.split(separator: "#")
+        let repo = parts.first.map { $0.split(separator: "/") } ?? []
+        guard parts.count == 2, repo.count == 2, let number = Int(parts[1]) else { return nil }
+        let d = try await check("""
+        repository(owner: "\(escaped(String(repo[0])))", name: "\(escaped(String(repo[1])))") {
+          pullRequest(number: \(number)) { reviews(last: 20) { nodes { author { login } submittedAt } } }
+        }
+        """)
+        guard let me = Self.login(d) else { return nil }
+        let pr = ((d["repository"] as? [String: Any])?["pullRequest"] as? [String: Any])
+        let reviews = ((pr?["reviews"] as? [String: Any])?["nodes"] as? [[String: Any]]) ?? []
+        return reviews
+            .filter { (($0["author"] as? [String: Any])?["login"] as? String) == me }
+            .compactMap { Self.date($0["submittedAt"]) }
+            .filter { $0 >= since.addingTimeInterval(-60) }
+            .max()
+    }
+
     func submittedReview(prId: String, since: Date) async throws -> Bool {
         let d = try await check("""
         node(id: "\(escaped(prId))") { ... on PullRequest {

@@ -162,6 +162,36 @@ or an alert ends it at once.
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
 
+## Rewards (beta)
+
+**A review is noticed when its request leaves the list.** GitHub drops you
+from a pull request's requested reviewers as soon as you review it, so a PR
+whose snapshot had `reviewRequested` and now does not is a candidate. That
+alone is not proof (the request may have been withdrawn, or a section may have
+failed to sync), so each candidate is confirmed with one query for a review of
+yours submitted after the request was first seen (`requestSeenAt`). Reviews
+done anywhere count, not only from Diple, within a sync.
+
+**Rarity rewards speed, never the verdict.** An answer within two hours of the
+request doubles the weight of rare, epic and legendary. Approving and asking
+for changes are worth the same, so there is nothing to gain by rubber-stamping.
+
+**The notch only celebrates; the artifact is claimed elsewhere.** A card
+inside the notch made it tall and unpredictable, so a review shows the same
+small moment every time: the notch keeps its size, the eye squints, the
+outline glows in the rarity's colour with a few sparks, and 1.5 s later a dot
+by the count says a reward is waiting. The artifact appears only when asked
+for, from the gift button in the open panel, as a card floating mid-screen in
+its own window; a click keeps it. Celebrations wait for the idle notch (not
+over a fullscreen app, the open panel, an alert or the wake-up) and play one
+at a time.
+
+**Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
+palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
+get a holographic foil (an `AngularGradient` in `.overlay`, masked by the
+sprite), epic a sweeping shine, legendary sparks. `--celebrate [rarity]`
+grants one (or all five) without reviewing anything.
+
 ## Notifications
 
 **Quiet hours silence the test too.** The rule lets only direct replies through

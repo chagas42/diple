@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let model = AppModel.shared
         model.onEvent = { [weak self] event in self?.notch.alert(event) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
+        model.onReward = { [weak self] reward in self?.notch.reward(reward) }
         notch.mount(model: model)
         model.start()
         checkScreen()
@@ -22,6 +23,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         if CommandLine.arguments.contains("--windowFrame") {
             Windows.shared.openMain(model)
+        }
+
+        if let i = CommandLine.arguments.firstIndex(of: "--celebrate") {
+            let wanted = CommandLine.arguments.dropFirst(i + 1).first.flatMap(Rarity.init(rawValue:))
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                for r in wanted.map({ [$0] }) ?? Rarity.allCases {
+                    model.grant(pr: "acme/orders-api#7867", fast: false, artifact: .sample(r))
+                }
+            }
         }
 
         if Film.isOn {
