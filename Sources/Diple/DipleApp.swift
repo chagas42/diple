@@ -68,12 +68,6 @@ struct DipleApp: App {
                     .keyboardShortcut(",")
             }
         }
-        .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button("Settings…") { Windows.shared.openSettings(model) }
-                    .keyboardShortcut(",")
-            }
-        }
     }
 }
 
