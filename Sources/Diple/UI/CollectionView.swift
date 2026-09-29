@@ -5,6 +5,12 @@ struct CollectionView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16, alignment: .top)]
     @State private var inspected: Artifact?
+    @State private var tryouts: [(id: String, artifact: Artifact)] = []
+    @State private var justStuck: String?
+
+    private var onLid: [(id: String, artifact: Artifact)] {
+        model.earned.compactMap { e in Artifact.named(e.artifact).map { (e.id, $0) } } + tryouts
+    }
 
     private var sheet: StickerSheet { .current }
     private var owned: Int { sheet.stickers.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }
@@ -16,6 +22,7 @@ struct CollectionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                lid
                 trail
                 HStack(spacing: 12) {
                     stat("\(owned)/\(sheet.stickers.count)", "\(sheet.title) stickers")
@@ -33,6 +40,38 @@ struct CollectionView: View {
         .navigationTitle("Collection")
         .sheet(item: $inspected) { a in
             StickerInspector(artifact: a, earned: model.earned.filter { $0.artifact == a.id }) { inspected = nil }
+        }
+    }
+
+    private var lid: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Your lid")
+                    .font(.system(size: 15, weight: .bold))
+                Text("\(onLid.count) \(onLid.count == 1 ? "sticker" : "stickers")")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if model.settings.rewardsPreview {
+                    Button {
+                        let a = StickerSheet.everySticker.randomElement()!
+                        let id = "tryout/\(a.id)/\(Date().timeIntervalSince1970)"
+                        justStuck = id
+                        tryouts.append((id, a))
+                    } label: {
+                        Label("Stick one", systemImage: "hand.point.down.fill")
+                    }
+                    .controlSize(.small)
+                    .help("Sticks a random sticker on the lid to try the feel. Not saved.")
+                    if !tryouts.isEmpty {
+                        Button("Peel them off") { tryouts.removeAll() }
+                            .controlSize(.small)
+                    }
+                }
+            }
+            LidView(stickers: onLid, justStuck: justStuck)
+                .frame(maxWidth: 620)
+                .frame(maxWidth: .infinity)
         }
     }
 

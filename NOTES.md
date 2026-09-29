@@ -242,6 +242,17 @@ that step, so a sheet always runs common to legendary. The jokes are about the
 memes and the culture, never a real person by name or face, and they poke at
 every AI lab alike.
 
+**The lid is where stickers live (prototype, 2D).** The collection opens on a
+brushed-aluminium MacBook lid with every sticker earned stuck on it. Each lands
+where its id puts it (a seeded position, a tilt within ±18° and a size), so a
+lid stays the same between launches, stickers overlap like real ones, and the
+centre stays clear for the logo, a plain `›` rather than Apple's. A new one
+drops in larger, lifted and turned, and settles with a spring as its shadow
+shrinks, as if pressed down. With "Preview every sticker" on, "Stick one" adds
+a random sticker to feel it, without saving. This is the 2D trial before a
+modelled MacBook: the lid is meant to become one composed texture on a 3D
+model, and only there, never in the notch.
+
 **Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
 palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
 get a holographic foil (an `AngularGradient` in `.overlay`, masked by the

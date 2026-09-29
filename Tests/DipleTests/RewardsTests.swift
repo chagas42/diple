@@ -67,6 +67,15 @@ import Testing
         #expect(CollectionView.trailFill(300) == 1)
     }
 
+    @Test func aStickerAlwaysLandsInTheSameSpotAndLeavesTheLogoClear() {
+        for i in 0..<200 {
+            let p = LidView.placement(for: "sticker-\(i)")
+            #expect(p == LidView.placement(for: "sticker-\(i)"))
+            #expect(!(abs(p.x - 0.5) < 0.14 && abs(p.y - 0.5) < 0.18))
+            #expect(p.x > 0 && p.x < 1 && p.y > 0 && p.y < 1)
+        }
+    }
+
     @Test func theStripSaysWhereYouAreOnTheLeg() {
         #expect(ReviewStrip.shortPR("acme/orders-api#7867") == "orders-api#7867")
         #expect(ReviewStrip.label(Self.tick(12)) == "12/30")
