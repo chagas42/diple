@@ -10,6 +10,8 @@ struct RewardsPane: View {
             Section {
                 Toggle("Rewards (beta)", isOn: $model.settings.rewardsBeta)
                 if model.settings.rewardsBeta {
+                    Toggle("Preview every sticker", isOn: $model.settings.rewardsPreview)
+                        .help("Reveals every sheet in the collection with a Try it button that plays the claim. For testing; nothing is added to your collection.")
                     Picker("When you review", selection: $model.settings.paperStyle) {
                         ForEach(PaperStyle.allCases) { Text($0.title).tag($0) }
                     }

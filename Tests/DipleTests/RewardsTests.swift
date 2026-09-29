@@ -169,6 +169,16 @@ import Testing
         #expect(n.celebration?.count == 12)
     }
 
+    @Test func tryingAStickerPlaysTheClaimWithoutAddingIt() {
+        let n = notch(gate: Gate())
+        var shown: [String] = []
+        n.presentClaim = { r, _ in shown.append(r.artifact.id) }
+        n.preview(Reward(id: "p", artifact: StickerSheet.aiSeason.stickers[5], pr: nil))
+        #expect(shown == ["last-human-reviewer"])
+        #expect(n.unclaimed.isEmpty)
+        #expect(!n.claiming)
+    }
+
     @Test func whileClaimingHoveringTheNotchDoesNotOpenIt() async {
         let gate = Gate()
         let n = notch(gate: gate)

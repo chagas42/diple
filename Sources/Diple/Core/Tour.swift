@@ -6,6 +6,7 @@ enum Tour {
 
     static func run(notch: NotchController, model: AppModel) async {
         model.settings.rewardsBeta = true
+        model.settings.rewardsPreview = true
         if model.settings.rewardsProfile == nil {
             model.settings.rewardsProfile = RewardsProfile(role: .lead, reason: .unblock)
         }

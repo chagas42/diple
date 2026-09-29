@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         model.onEvent = { [weak self] event in self?.notch.alert(event) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
         model.onTick = { [weak self] tick in self?.notch.tick(tick) }
+        model.onPreviewClaim = { [weak self] reward in self?.notch.preview(reward) }
         notch.onClaimed = { reward in model.claimed(reward) }
         notch.mount(model: model)
         model.start()

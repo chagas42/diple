@@ -242,6 +242,10 @@ final class NotchController: ObservableObject {
     private(set) var claiming = false
     var holdsOpen = false
 
+    func preview(_ r: Reward) {
+        presentClaim(r) {}
+    }
+
     func claim() {
         guard !unclaimed.isEmpty else { return }
         claiming = true

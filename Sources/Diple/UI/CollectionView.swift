@@ -161,9 +161,11 @@ struct CollectionView: View {
 
     private func cell(_ a: Artifact) -> some View {
         let count = model.artifacts[a.id] ?? 0
+        let preview = model.settings.rewardsPreview
+        let shown = count > 0 || preview
         return VStack(spacing: 8) {
             Group {
-                if count > 0 {
+                if shown {
                     ArtifactTile(artifact: a, side: 96)
                 } else {
                     PixelArt(artifact: a)
@@ -175,26 +177,37 @@ struct CollectionView: View {
                         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 }
             }
-            Text(count > 0 ? a.name : "???")
+            Text(shown ? a.name : "???")
                 .font(.system(size: 12, weight: .semibold))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
             Text(count > 1 ? "\(a.rarity.title) · ×\(count)" : a.rarity.title)
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(a.rarity.color)
-            if count > 0 {
+            if shown {
                 Text(a.flavor)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
             }
+            if preview {
+                Button {
+                    model.previewClaim(a)
+                } label: {
+                    Label("Try it", systemImage: "play.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Play the claim: the card, then into the backpack. Nothing is added to your collection.")
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-        .onTapGesture { if count > 0 { inspected = a } }
-        .help(count > 0 ? "Inspect \(a.name)" : "Not found yet")
+        .onTapGesture { if shown { inspected = a } }
+        .help(shown ? "Inspect \(a.name)" : "Not found yet")
     }
 }
 

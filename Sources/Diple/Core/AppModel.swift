@@ -1182,6 +1182,11 @@ final class AppModel: ObservableObject {
     }
 
     var onTick: ((ReviewTick) -> Void)?
+    var onPreviewClaim: ((Reward) -> Void)?
+
+    func previewClaim(_ a: Artifact) {
+        onPreviewClaim?(Reward(id: "preview/\(a.id)/\(Date().timeIntervalSince1970)", artifact: a, pr: "acme/orders-api#7867"))
+    }
 
     func rehearse(toward milestone: Int) {
         store.setSeason(SeasonProgress(id: Trail.season(of: Date()), reviews: milestone - 3))

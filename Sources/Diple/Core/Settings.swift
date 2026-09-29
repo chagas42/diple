@@ -26,6 +26,7 @@ struct Settings: Codable, Sendable, Equatable {
     var rewardsBeta = false
     var rewardsProfile: RewardsProfile? = nil
     var paperStyle = PaperStyle.filed
+    var rewardsPreview = false
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -104,6 +105,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.rewardsBeta = try c.decodeIfPresent(Bool.self, forKey: .rewardsBeta) ?? d.rewardsBeta
         d.rewardsProfile = try? c.decodeIfPresent(RewardsProfile.self, forKey: .rewardsProfile)
         d.paperStyle = (try? c.decodeIfPresent(PaperStyle.self, forKey: .paperStyle)) ?? d.paperStyle
+        d.rewardsPreview = try c.decodeIfPresent(Bool.self, forKey: .rewardsPreview) ?? d.rewardsPreview
         self = d
     }
 
