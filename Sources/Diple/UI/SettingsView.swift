@@ -213,6 +213,7 @@ struct ReposPane: View {
 
 struct AccountPane: View {
     @ObservedObject var model: AppModel
+    @StateObject private var login = LoginItem()
 
     var body: some View {
         Form {
@@ -244,6 +245,24 @@ struct AccountPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Startup") {
+                Toggle("Start at login", isOn: Binding(get: { login.isOn }, set: { login.set($0) }))
+                if login.awaitsApproval {
+                    HStack {
+                        Text("macOS is waiting for you to allow Diple in Login Items.")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Open Login Items") { login.openLoginItems() }
+                    }
+                }
+                if let failure = login.failure {
+                    Text(failure)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.red)
+                }
+            }
+
             Section {
                 HStack {
                     Button("Sincronizar now") { Task { await model.refresh() } }
@@ -255,6 +274,10 @@ struct AccountPane: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { login.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            login.refresh()
+        }
     }
 }
 

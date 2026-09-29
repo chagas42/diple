@@ -251,6 +251,12 @@ paid Apple account. The icon must be a squircle on the official grid — 824
 artwork on a 1024 canvas — because macOS applies no mask of its own, and a
 circular corner radius reads visibly squarer than Apple's superellipse.
 
+**Start at login registers this copy.** `SMAppService.mainApp` records the
+bundle that called it, at the path it ran from, so turning it on from a build
+in `build/` starts that build at login. Its status, not a stored setting, is
+the source of truth: removing Diple in System Settings → Login Items turns the
+switch off the next time Settings is shown.
+
 ## Measuring
 
 **Two kinds of proof, on purpose.** `swift test` gates CI on counts —
