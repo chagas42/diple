@@ -232,6 +232,14 @@ Dragging turns it over, scrolling zooms, and it sways on its own at rest.
 `DIPLE_RENDER_STICKERS=<dir> swift test --filter StickerRenderProbe` renders
 every sticker front and back to PNGs, for checking art without the app.
 
+**Each season has its own sheet of six.** 2026-Q3 is "AI Season" (Strawberry
+to The Last Human Reviewer), 2026-Q4 "Dev Folklore" (It Was DNS to the
+Load-Bearing TODO), later quarters rotate through the sheets, and the first
+seven artifacts are the "Classics". A milestone gives the sheet's sticker for
+that step, so a sheet always runs common to legendary. The jokes are about the
+memes and the culture, never a real person by name or face, and they poke at
+every AI lab alike.
+
 **Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
 palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
 get a holographic foil (an `AngularGradient` in `.overlay`, masked by the

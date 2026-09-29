@@ -6,10 +6,11 @@ struct CollectionView: View {
     private let columns = [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16, alignment: .top)]
     @State private var inspected: Artifact?
 
-    private var owned: Int { Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }
+    private var sheet: StickerSheet { .current }
+    private var owned: Int { sheet.stickers.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }
     private var total: Int { model.artifacts.values.reduce(0, +) }
     private var rarest: Artifact? {
-        Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.max { $0.rarity < $1.rarity }
+        StickerSheet.everySticker.filter { (model.artifacts[$0.id] ?? 0) > 0 }.max { $0.rarity < $1.rarity }
     }
 
     var body: some View {
@@ -17,14 +18,13 @@ struct CollectionView: View {
             VStack(alignment: .leading, spacing: 18) {
                 trail
                 HStack(spacing: 12) {
-                    stat("\(owned)/\(Artifact.catalog.count)", "stickers found")
+                    stat("\(owned)/\(sheet.stickers.count)", "\(sheet.title) stickers")
                     stat("\(total)", total == 1 ? "sticker earned" : "stickers earned")
                     stat(rarest?.rarity.title ?? "—", "rarest so far", tint: rarest?.rarity.color)
                 }
                 rarityBar
-                LazyVGrid(columns: columns, spacing: 14) {
-                    ForEach(Artifact.catalog) { cell($0) }
-                }
+                sheetGrid(sheet, current: true)
+                ForEach(sheet.others) { sheetGrid($0, current: false) }
             }
             .padding(24)
             .frame(maxWidth: 860)
@@ -96,6 +96,23 @@ struct CollectionView: View {
         return 1
     }
 
+    private func sheetGrid(_ s: StickerSheet, current: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(s.title)
+                    .font(.system(size: 14, weight: .bold))
+                Text(current ? "this season's sheet" : "\(s.stickers.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count)/\(s.stickers.count)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            LazyVGrid(columns: columns, spacing: 14) {
+                ForEach(s.stickers) { cell($0) }
+            }
+        }
+        .padding(.top, 6)
+        .opacity(current ? 1 : 0.85)
+    }
+
     private func stat(_ value: String, _ label: String, tint: Color? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
@@ -120,7 +137,7 @@ struct CollectionView: View {
                 .foregroundStyle(.secondary)
             HStack(spacing: 6) {
                 ForEach(Rarity.allCases, id: \.self) { r in
-                    let pool = Artifact.catalog.filter { $0.rarity == r }
+                    let pool = sheet.stickers.filter { $0.rarity == r }
                     let have = pool.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count
                     VStack(alignment: .leading, spacing: 4) {
                         Capsule().fill(r.color.opacity(0.18))

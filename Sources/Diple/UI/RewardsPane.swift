@@ -35,9 +35,9 @@ struct RewardsPane: View {
                     }
                 }
             }
-            Section("Stickers · \(owned) of \(Artifact.catalog.count)") {
+            Section("\(StickerSheet.current.title) · \(owned) of \(StickerSheet.current.stickers.count)") {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(Artifact.catalog) { a in cell(a) }
+                    ForEach(StickerSheet.current.stickers) { a in cell(a) }
                 }
                 .padding(.vertical, 4)
             }
@@ -76,7 +76,7 @@ struct RewardsPane: View {
         }
     }
 
-    private var owned: Int { Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }
+    private var owned: Int { StickerSheet.current.stickers.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }
 
     private func cell(_ a: Artifact) -> some View {
         let count = model.artifacts[a.id] ?? 0

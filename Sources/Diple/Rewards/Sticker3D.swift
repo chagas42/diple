@@ -157,8 +157,25 @@ enum StickerShape {
     _output.color.rgb = mix(_output.color.rgb, _output.color.rgb * 0.8 + rainbow * 0.35, 0.25 + 0.35 * f);
     """
 
+    static let mat: NSImage = {
+        let size: CGFloat = 1024
+        return NSImage(size: NSSize(width: size, height: size), flipped: false) { r in
+            NSColor(srgbRed: 0.10, green: 0.25, blue: 0.21, alpha: 1).setFill()
+            r.fill()
+            for i in 0...32 {
+                let x = CGFloat(i) * size / 32
+                let strong = i % 4 == 0
+                NSColor(srgbRed: 0.45, green: 0.72, blue: 0.62, alpha: strong ? 0.35 : 0.14).setFill()
+                NSRect(x: x, y: 0, width: strong ? 2 : 1, height: size).fill()
+                NSRect(x: 0, y: x, width: size, height: strong ? 2 : 1).fill()
+            }
+            return true
+        }
+    }()
+
     static func scene(_ a: Artifact, caption: String) -> SCNScene {
         let scene = SCNScene()
+        scene.background.contents = mat
         let sticker = node(a, caption: caption)
         sticker.eulerAngles = SCNVector3(-0.15, 0.35, 0)
         let spin = SCNAction.repeatForever(.sequence([

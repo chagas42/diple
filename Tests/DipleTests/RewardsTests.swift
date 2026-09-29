@@ -12,13 +12,22 @@ import Testing
     }
 
     @Test func everySpriteIsSixteenBySixteenAndFullyColoured() {
-        for a in Artifact.catalog {
+        for a in StickerSheet.everySticker {
             #expect(a.pixels.count == 16)
             for row in a.pixels {
                 #expect(row.count == 16)
                 #expect(row.allSatisfy { $0 == "." || a.palette[$0] != nil })
             }
         }
+    }
+
+    @Test func eachSeasonSheetGivesOneStickerPerMilestoneInRarityOrder() {
+        for sheet in [StickerSheet.aiSeason, .devFolklore] {
+            #expect(sheet.stickers.map(\.rarity) == Trail.rarities)
+        }
+        #expect(StickerSheet.of(season: "2026-Q3").id == "ai-season")
+        #expect(StickerSheet.of(season: "2026-Q4").id == "dev-folklore")
+        #expect(Set(StickerSheet.everySticker.map(\.id)).count == StickerSheet.everySticker.count)
     }
 
     @Test func githubReviewStatesReadAsVerdicts() {

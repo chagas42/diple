@@ -91,7 +91,7 @@ struct MainWindowView: View {
                     HStack {
                         Label("Collection", systemImage: "sparkles.rectangle.stack")
                         Spacer()
-                        Text("\(Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count)/\(Artifact.catalog.count)")
+                        Text("\(StickerSheet.current.stickers.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count)/\(StickerSheet.current.stickers.count)")
                             .font(.system(size: 11.5, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }

@@ -44,7 +44,7 @@ struct Artifact: Identifiable, Sendable, Equatable {
 
     static func == (a: Artifact, b: Artifact) -> Bool { a.id == b.id }
 
-    static func named(_ id: String) -> Artifact? { catalog.first { $0.id == id } }
+    static func named(_ id: String) -> Artifact? { StickerSheet.everySticker.first { $0.id == id } }
 
     static func pick(_ rarity: Rarity, dice: () -> Double = { .random(in: 0..<1) }) -> Artifact {
         let pool = catalog.filter { $0.rarity == rarity }

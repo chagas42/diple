@@ -1195,7 +1195,7 @@ final class AppModel: ObservableObject {
         guard let count = store.countReview(pr, at: at, season: Trail.season(of: at)) else { return }
         var reward: Reward?
         if let step = Trail.milestone(at: count) {
-            let a = Artifact.pick(Trail.rarities[step])
+            let a = StickerSheet.of(season: Trail.season(of: at)).stickers[step]
             let id = "\(pr)/\(at.timeIntervalSince1970)"
             store.collect(a, on: at.formatted(.iso8601.year().month().day()),
                           record: EarnedArtifact(id: id, artifact: a.id, pr: pr, verdict: verdict, at: at))

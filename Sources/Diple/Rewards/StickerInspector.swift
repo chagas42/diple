@@ -16,7 +16,6 @@ struct StickerInspector: View {
             SceneView(scene: StickerShape.scene(artifact, caption: caption),
                       options: [.allowsCameraControl])
                 .frame(width: 360, height: 300)
-                .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             Text("Drag to turn it over · scroll to zoom")
                 .font(.system(size: 10.5))
