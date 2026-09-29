@@ -21,6 +21,7 @@ struct SettingsView: View {
                 .tabItem { Label("Privacy", systemImage: "hand.raised") }
         }
         .frame(width: 620, height: 460)
+        .padding(.top, 12)
     }
 }
 
