@@ -26,8 +26,6 @@ enum Rarity: String, Codable, Sendable, CaseIterable, Comparable {
     }
 
     var shimmers: Bool { self >= .rare }
-    var shines: Bool { self >= .epic }
-    var sparks: Bool { self == .legendary }
 
     static func < (a: Rarity, b: Rarity) -> Bool {
         allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)!

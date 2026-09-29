@@ -121,15 +121,17 @@ enum StickerShape {
         }
         path.close()
         path.flatness = 0.1
-        let shape = SCNShape(path: path, extrusionDepth: 0.35)
-        shape.chamferRadius = 0.12
+        let shape = SCNShape(path: path, extrusionDepth: 0.14)
+        shape.chamferRadius = 0.05
 
         let front = SCNMaterial()
         front.diffuse.contents = image(a)
         front.diffuse.magnificationFilter = .nearest
         front.lightingModel = .physicallyBased
-        front.roughness.contents = a.rarity >= .rare ? 0.45 : 0.6
-        front.metalness.contents = a.rarity >= .rare ? 0.1 : 0.0
+        front.roughness.contents = 0.55
+        front.metalness.contents = 0.0
+        front.clearCoat.contents = 0.7
+        front.clearCoatRoughness.contents = 0.18
         if a.rarity >= .rare { front.shaderModifiers = [.fragment: holo] }
 
         let back = SCNMaterial()
@@ -154,7 +156,7 @@ enum StickerShape {
     float f = pow(1.0 - abs(dot(v, nn)), 1.2);
     float h = fract(dot(v.xy, float2(1.7, 2.3)) + f * 1.5);
     float3 rainbow = 0.5 + 0.5 * cos(6.2831 * (h + float3(0.0, 0.33, 0.67)));
-    _output.color.rgb = mix(_output.color.rgb, _output.color.rgb * 0.8 + rainbow * 0.35, 0.25 + 0.35 * f);
+    _output.color.rgb = mix(_output.color.rgb, _output.color.rgb * (0.85 + rainbow * 0.3), 0.12 + 0.3 * f);
     """
 
     static let mat: NSImage = {
@@ -175,34 +177,59 @@ enum StickerShape {
 
     static func scene(_ a: Artifact, caption: String) -> SCNScene {
         let scene = SCNScene()
-        scene.background.contents = mat
+        scene.background.contents = NSColor(srgbRed: 0.07, green: 0.16, blue: 0.14, alpha: 1)
+
+        let matGeometry = SCNPlane(width: 12, height: 12)
+        let matMaterial = SCNMaterial()
+        matMaterial.diffuse.contents = mat
+        matMaterial.diffuse.contentsTransform = SCNMatrix4MakeScale(3, 3, 1)
+        matMaterial.diffuse.wrapS = .repeat
+        matMaterial.diffuse.wrapT = .repeat
+        matMaterial.lightingModel = .physicallyBased
+        matMaterial.roughness.contents = 0.9
+        matGeometry.materials = [matMaterial]
+        let matNode = SCNNode(geometry: matGeometry)
+        matNode.position = SCNVector3(0, 0, -0.02)
+        scene.rootNode.addChildNode(matNode)
+
+        let holder = SCNNode()
         let sticker = node(a, caption: caption)
-        sticker.eulerAngles = SCNVector3(-0.15, 0.35, 0)
-        let spin = SCNAction.repeatForever(.sequence([
-            .rotateBy(x: 0, y: 0.6, z: 0, duration: 2.2),
-            .rotateBy(x: 0, y: -0.6, z: 0, duration: 2.2),
+        sticker.name = "sticker"
+        sticker.position = SCNVector3(0, 0, 0.32)
+        holder.addChildNode(sticker)
+        holder.eulerAngles = SCNVector3(0, 0, CGFloat(ArtifactTile.tilt(a)) * .pi / 180)
+        let sway = SCNAction.repeatForever(.sequence([
+            .rotateBy(x: 0.18, y: 0.28, z: 0, duration: 2.6),
+            .rotateBy(x: -0.18, y: -0.28, z: 0, duration: 2.6),
         ]))
-        spin.timingMode = .easeInEaseOut
-        sticker.runAction(spin, forKey: "idle")
-        scene.rootNode.addChildNode(sticker)
+        sway.timingMode = .easeInEaseOut
+        sticker.runAction(sway, forKey: "idle")
+        scene.rootNode.addChildNode(holder)
 
         let camera = SCNNode()
         camera.camera = SCNCamera()
-        camera.camera?.fieldOfView = 35
-        camera.position = SCNVector3(0, 0, 4.2)
+        camera.camera?.fieldOfView = 32
+        camera.camera?.wantsDepthOfField = false
+        camera.position = SCNVector3(0, -1.1, 3.6)
+        camera.look(at: SCNVector3(0, 0, 0))
         scene.rootNode.addChildNode(camera)
 
         let key = SCNNode()
         key.light = SCNLight()
         key.light?.type = .directional
-        key.light?.intensity = 900
-        key.eulerAngles = SCNVector3(-0.6, 0.5, 0)
+        key.light?.intensity = 1100
+        key.light?.castsShadow = true
+        key.light?.shadowRadius = 6
+        key.light?.shadowSampleCount = 16
+        key.light?.shadowColor = NSColor.black.withAlphaComponent(0.45)
+        key.light?.shadowMode = .deferred
+        key.eulerAngles = SCNVector3(-0.5, 0.35, 0.2)
         scene.rootNode.addChildNode(key)
 
         let fill = SCNNode()
         fill.light = SCNLight()
         fill.light?.type = .ambient
-        fill.light?.intensity = 450
+        fill.light?.intensity = 380
         scene.rootNode.addChildNode(fill)
         return scene
     }

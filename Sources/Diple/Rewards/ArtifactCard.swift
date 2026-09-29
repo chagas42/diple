@@ -26,48 +26,67 @@ struct ArtifactTile: View {
     var start = Date()
 
     private var tint: Color { artifact.rarity.color }
-    private var inset: CGFloat { side * 0.14 }
     private var corner: CGFloat { side * 0.14 }
 
     var body: some View {
-        TimelineView(.animation(paused: !artifact.rarity.shimmers)) { context in
-            let t = context.date.timeIntervalSince(start)
-            ZStack {
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(LinearGradient(colors: [tint.opacity(0.32), tint.opacity(0.08)],
-                                         startPoint: .top, endPoint: .bottom))
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(tint.opacity(0.7), lineWidth: artifact.rarity >= .rare ? 1.5 : 1)
-                if artifact.rarity.sparks { Sparks(t: t, tint: tint, reach: side * 0.45) }
-                PixelArt(artifact: artifact)
-                    .padding(inset)
-                    .shadow(color: tint.opacity(artifact.rarity >= .uncommon ? 0.6 : 0), radius: side * 0.08)
-                if artifact.rarity.shimmers { holo(t) }
-                if artifact.rarity.shines { shine(t) }
-            }
-            .frame(width: side, height: side)
-            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(LinearGradient(colors: [tint.opacity(0.18), tint.opacity(0.05)],
+                                     startPoint: .top, endPoint: .bottom))
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(tint.opacity(0.35), lineWidth: 1)
+            StickerFace(artifact: artifact, start: start)
+                .padding(side * 0.1)
+                .rotationEffect(.degrees(Self.tilt(artifact)))
         }
+        .frame(width: side, height: side)
     }
 
-    private func holo(_ t: Double) -> some View {
-        AngularGradient(
-            colors: [.pink, .yellow, .green, .cyan, .blue, .purple, .pink],
-            center: .center, angle: .degrees(t * 70)
-        )
-        .opacity(0.28)
-        .blendMode(.overlay)
-        .mask(PixelArt(artifact: artifact).padding(inset))
+    static func tilt(_ a: Artifact) -> Double {
+        Double(a.id.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 7 - 3) * 1.2
+    }
+}
+
+struct StickerFace: View {
+    let artifact: Artifact
+    var start = Date()
+
+    private static var cache: [String: NSImage] = [:]
+
+    static func image(_ a: Artifact) -> NSImage {
+        if let hit = cache[a.id] { return hit }
+        let img = StickerShape.image(a)
+        cache[a.id] = img
+        return img
     }
 
-    private func shine(_ t: Double) -> some View {
-        let p = (t.truncatingRemainder(dividingBy: 1.8)) / 1.8
-        return LinearGradient(colors: [.clear, .white.opacity(0.55), .clear],
-                              startPoint: .leading, endPoint: .trailing)
-            .frame(width: side * 0.33)
-            .rotationEffect(.degrees(20))
-            .offset(x: side * (-0.9 + 1.8 * p))
-            .blendMode(.plusLighter)
+    var body: some View {
+        let img = Self.image(artifact)
+        let face = Image(nsImage: img).resizable().interpolation(.none).aspectRatio(contentMode: .fit)
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: !artifact.rarity.shimmers)) { context in
+            let t = context.date.timeIntervalSince(start)
+            face
+                .overlay {
+                    if artifact.rarity.shimmers {
+                        LinearGradient(
+                            colors: [.pink, .yellow, .mint, .cyan, .purple, .pink],
+                            startPoint: UnitPoint(x: 0.5 + 0.5 * cos(t * 0.6), y: 0),
+                            endPoint: UnitPoint(x: 0.5 - 0.5 * cos(t * 0.6), y: 1)
+                        )
+                        .opacity(artifact.rarity == .legendary ? 0.22 : 0.16)
+                        .blendMode(.overlay)
+                        .mask(face)
+                    }
+                }
+                .overlay {
+                    LinearGradient(colors: [.white.opacity(0.18), .clear, .black.opacity(0.06)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .blendMode(.softLight)
+                        .mask(face)
+                }
+                .shadow(color: .black.opacity(0.28), radius: 1.2, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.18), radius: 4, x: 0, y: 3)
+        }
     }
 }
 
@@ -125,30 +144,6 @@ struct ClaimCard: View {
         .onAppear {
             start = Date()
             withAnimation(.spring(response: 0.6, dampingFraction: 0.66)) { shown = true }
-        }
-    }
-}
-
-struct Sparks: View {
-    let t: Double
-    let tint: Color
-    var reach: CGFloat = 46
-    var count = 18
-
-    var body: some View {
-        Canvas { ctx, size in
-            let c = CGPoint(x: size.width / 2, y: size.height / 2)
-            for i in 0..<count {
-                let life = 1.4
-                let p = ((t + Double(i) * 0.19).truncatingRemainder(dividingBy: life)) / life
-                let a = Double(i) * 2.39996
-                let d = reach * (0.2 + 0.8 * p)
-                let pt = CGPoint(x: c.x + cos(a) * d, y: c.y + sin(a) * d)
-                let s = 3.2 * (1 - p)
-                ctx.opacity = 1 - p
-                ctx.fill(Path(ellipseIn: CGRect(x: pt.x - s / 2, y: pt.y - s / 2, width: s, height: s)),
-                         with: .color(i.isMultiple(of: 3) ? .white : tint))
-            }
         }
     }
 }

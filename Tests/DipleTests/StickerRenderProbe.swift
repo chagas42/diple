@@ -1,5 +1,6 @@
 import AppKit
 import SceneKit
+import SwiftUI
 import Testing
 @testable import Diple
 
@@ -13,13 +14,19 @@ import Testing
         for (i, a) in StickerSheet.everySticker.enumerated() {
             for (j, angle) in [0.35, 2.6].enumerated() {
                 let scene = StickerShape.scene(a, caption: "2026-Q3 · sticker \(i + 1)/7")
-                let sticker = scene.rootNode.childNodes.first!
+                let sticker = scene.rootNode.childNode(withName: "sticker", recursively: true)!
                 sticker.removeAllActions()
-                sticker.eulerAngles = SCNVector3(-0.25, angle, 0.05)
+                sticker.eulerAngles = SCNVector3(j == 0 ? 0.1 : 0.05, j == 0 ? 0.25 : 2.7, 0)
                 renderer.scene = scene
                 let img = renderer.snapshot(atTime: 0, with: CGSize(width: 360, height: 360), antialiasingMode: .multisampling4X)
                 let rep = NSBitmapImageRep(data: img.tiffRepresentation!)!
                 try rep.representation(using: .png, properties: [:])!.write(to: dir.appendingPathComponent("\(a.id)-\(j).png"))
+            }
+            let flat = ImageRenderer(content: ArtifactTile(artifact: a, side: 140).padding(10).background(Color(white: 0.16)))
+            flat.scale = 2
+            if let cg = flat.cgImage {
+                try NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])!
+                    .write(to: dir.appendingPathComponent("\(a.id)-2d.png"))
             }
         }
     }

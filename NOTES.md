@@ -221,16 +221,18 @@ the PR and whether it is in the backpack yet.
 `--celebrate [rarity]` rehearses three reviews up to the milestone for that
 rarity, and `--tour` walks the whole flow over demo data.
 
-**Stickers are real 3D objects when inspected.** Clicking a sticker in the
-collection opens it in a SceneKit view (no dependency): the outline is traced
-from the sprite dilated by one cell, which is the white vinyl border of a
-die-cut sticker, extruded 0.35 cells with a chamfer. The front texture is the
-sprite cropped to that outline's bounds, since `SCNShape` maps the front face
-over the path's bounding box; the back is the printed backing paper. Rare and
-up get a holographic shader modifier that shifts hue with the view angle.
-Dragging turns it over, scrolling zooms, and it sways on its own at rest.
+**Stickers look like vinyl, flat or inspected.** Everywhere in 2D a sticker is
+the sprite with a one-cell white die-cut border, tilted a degree or two (from
+its id, so it stays put), with a short and a long shadow; rare and up get a
+faint holographic gradient masked to the sticker, and nothing sweeps across
+it, since the earlier shine band read as an interface effect. Clicking one in
+the collection opens it in SceneKit (no dependency): the outline is traced from
+that dilated sprite and extruded 0.14 cells with a small chamfer, the front is
+the sprite under a clear coat, the back is the printed backing paper, and it
+floats just above a cutting mat that catches its shadow. SceneKit is
+deprecated, so this stays small until the MacBook lid replaces it.
 `DIPLE_RENDER_STICKERS=<dir> swift test --filter StickerRenderProbe` renders
-every sticker front and back to PNGs, for checking art without the app.
+every sticker front, back and flat to PNGs.
 
 **Each season has its own sheet of six.** 2026-Q3 is "AI Season" (Strawberry
 to The Last Human Reviewer), 2026-Q4 "Dev Folklore" (It Was DNS to the
