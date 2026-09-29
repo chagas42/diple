@@ -98,6 +98,11 @@ drawn inside one full-width menu bar window, and reading their extents takes
 Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
 gap, to see each layout without arranging the menu bar.
 
+**The panel springs out and settles back in.** Growing uses an underdamped
+spring; shrinking uses a critically damped one. A bounce on the way in
+overshoots past the resting size, and the resting size hugs the notch, so the
+overshoot pulls the shape inside the cutout and shows its raw edges.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.

@@ -9,6 +9,7 @@ final class NotchController: ObservableObject {
     @Published private(set) var notchHeight: CGFloat = 32
     @Published private(set) var wings = Wings(left: 42, right: 42)
     @Published private(set) var shift: CGFloat = 0
+    @Published private(set) var shrinking = false
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -66,6 +67,7 @@ final class NotchController: ObservableObject {
         case .open:    g.open
         case .alert:    g.alert
         }
+        shrinking = next.width < size.width || next.height < size.height
         size = next
 
         switch state {
@@ -214,6 +216,7 @@ final class NotchController: ObservableObject {
                 notchHeight: notch.notchHeight,
                 countOnLeft: notch.wings.countOnLeft,
                 shift: notch.shift,
+                shrinking: notch.shrinking,
                 eye: notch.eye,
                 onClose: { notch.closeNow() }
             )

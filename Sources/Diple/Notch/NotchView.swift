@@ -33,6 +33,7 @@ struct NotchView: View {
     let notchHeight: CGFloat
     var countOnLeft = false
     var shift: CGFloat = 0
+    var shrinking = false
     let eye: EyeState
     let onClose: () -> Void
 
@@ -65,10 +66,14 @@ struct NotchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-        .animation(.spring(response: 0.3, dampingFraction: 0.72), value: size)
-        .animation(.spring(response: 0.3, dampingFraction: 0.72), value: shift)
+        .animation(resize, value: size)
+        .animation(resize, value: shift)
         .animation(.easeOut(duration: 0.22), value: state.kind)
         .animation(.bouncy(duration: 0.35), value: model.count)
+    }
+
+    private var resize: Animation {
+        .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
     }
 
     private var shape: PanelShape {
