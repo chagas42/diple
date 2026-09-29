@@ -146,7 +146,7 @@ setup screen and nothing to paste.
 ```bash
 git clone https://github.com/chagas42/diple.git
 cd diple
-make install
+make install FLAVOR=release
 ```
 
 That builds, signs, copies to `/Applications` and prints where it found each
@@ -182,7 +182,7 @@ no city, region or coordinates are attached to it.
 
 ```bash
 make run        # build, bundle, launch — the fast loop
-make install    # /Applications; use this when testing notifications
+make install    # /Applications/Diple (Dev).app; use this when testing notifications
 make tools      # show which binaries were found, and where
 make probe      # print the queue in the terminal, no UI
 make film       # run a scripted take over the demo fixtures
@@ -193,9 +193,12 @@ make stop
 a queue in it. `--alert <kind>` fires one notification and exits:
 
 ```bash
-open /Applications/Diple.app --args --demo
-/Applications/Diple.app/Contents/MacOS/Diple --alert repliedToYou
+open "/Applications/Diple (Dev).app" --args --demo
+"/Applications/Diple (Dev).app/Contents/MacOS/Diple" --alert repliedToYou
 ```
+
+What `make` builds is named **Diple (Dev)**, so it can sit next to a released
+Diple and still be told apart. `FLAVOR=release` builds plain **Diple**.
 
 No `.xcodeproj`. The whole project is Swift Package Manager plus a Makefile
 that assembles and signs the bundle, so everything is plain text.

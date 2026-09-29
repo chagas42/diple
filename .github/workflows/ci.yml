@@ -40,7 +40,7 @@ jobs:
 
       - name: It has to actually launch
         run: |
-          ./build/Diple.app/Contents/MacOS/Diple > /tmp/launch.log 2>&1 &
+          "./build/Diple (Dev).app/Contents/MacOS/Diple" > /tmp/launch.log 2>&1 &
           pid=$!
           sleep 15
           if ! kill -0 $pid 2>/dev/null; then
