@@ -114,6 +114,21 @@ it is looked up with `dlsym` and a missing symbol reads as not fullscreen. With
 "Displays have separate Spaces" off there is one entry, named `Main`, for all
 displays. It is re-read on every Space change and on the 2 s menu-bar tick.
 
+**A fullscreen Space is caught as it slides in, not when it lands.** The
+current Space and `activeSpaceDidChangeNotification` change together, at the
+end of the switch: about 600 ms after a swipe starts, or never while the swipe
+is held halfway. The panel is not drawn during the slide, and when the switch
+lands it comes back with the state it had, so the eye and count showed over the
+fullscreen app for a frame before the Space change hid them, a blink. The
+incoming Space's windows are on screen from the first frame of the swipe,
+though, so the windows of the display's fullscreen Spaces are mapped (`CGSCopySpacesForWindows`,
+one window at a time, ~35 ms for 150 windows, off the main thread, redone when
+the fullscreen Spaces change or on a Space change) and the 30 Hz tick asks
+whether any of them is on screen (~0.2 ms). If one is, the notch hides; if the
+swipe is given up, they leave the screen and the wings come back.
+`CGWindowListCreateDescriptionFromArray` wants the window ids as raw values in
+a callback-less `CFArray`: an array of `NSNumber` returns nothing.
+
 **The fullscreen menu bar is followed by the pointer.** Pushing against the top
 edge slides the menu bar down over a fullscreen app, and Diple comes back with
 it. Nothing in the window list changes when that happens (the `Menubar` window
