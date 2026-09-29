@@ -221,6 +221,17 @@ the PR and whether it is in the backpack yet.
 `--celebrate [rarity]` rehearses three reviews up to the milestone for that
 rarity, and `--tour` walks the whole flow over demo data.
 
+**Stickers are real 3D objects when inspected.** Clicking a sticker in the
+collection opens it in a SceneKit view (no dependency): the outline is traced
+from the sprite dilated by one cell, which is the white vinyl border of a
+die-cut sticker, extruded 0.35 cells with a chamfer. The front texture is the
+sprite cropped to that outline's bounds, since `SCNShape` maps the front face
+over the path's bounding box; the back is the printed backing paper. Rare and
+up get a holographic shader modifier that shifts hue with the view angle.
+Dragging turns it over, scrolling zooms, and it sways on its own at rest.
+`DIPLE_RENDER_STICKERS=<dir> swift test --filter StickerRenderProbe` renders
+every sticker front and back to PNGs, for checking art without the app.
+
 **Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
 palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
 get a holographic foil (an `AngularGradient` in `.overlay`, masked by the

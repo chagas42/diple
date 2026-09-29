@@ -4,6 +4,7 @@ struct CollectionView: View {
     @ObservedObject var model: AppModel
 
     private let columns = [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16, alignment: .top)]
+    @State private var inspected: Artifact?
 
     private var owned: Int { Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }
     private var total: Int { model.artifacts.values.reduce(0, +) }
@@ -30,6 +31,9 @@ struct CollectionView: View {
             .frame(maxWidth: .infinity)
         }
         .navigationTitle("Collection")
+        .sheet(item: $inspected) { a in
+            StickerInspector(artifact: a, earned: model.earned.filter { $0.artifact == a.id }) { inspected = nil }
+        }
     }
 
     private var trail: some View {
@@ -171,6 +175,9 @@ struct CollectionView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .onTapGesture { if count > 0 { inspected = a } }
+        .help(count > 0 ? "Inspect \(a.name)" : "Not found yet")
     }
 }
 
