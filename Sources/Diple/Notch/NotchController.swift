@@ -146,9 +146,10 @@ final class NotchController: ObservableObject {
         let spaces = NotchGeometry.current().fullScreenSpaces
         guard force || spaces != fullScreenSpaces else { return }
         fullScreenSpaces = spaces
-        Task.detached(priority: .utility) { [weak self] in
-            let ids = FullScreenWindows.ids(in: spaces)
-            await MainActor.run { self?.fullScreenWindows = ids }
+        let mapping = Task.detached(priority: .utility) { FullScreenWindows.ids(in: spaces) }
+        Task { [weak self] in
+            let ids = await mapping.value
+            self?.fullScreenWindows = ids
         }
     }
 
