@@ -73,6 +73,7 @@ import Testing
             #expect(p == LidView.placement(for: "sticker-\(i)"))
             #expect(!(abs(p.x - 0.5) < 0.14 && abs(p.y - 0.5) < 0.18))
             #expect(p.x > 0 && p.x < 1 && p.y > 0 && p.y < 1)
+            #expect(LidView.clamped(LidSpot(x: 2, y: -1, angle: 0, size: 0.1)) == LidSpot(x: 0.95, y: 0.07, angle: 0, size: 0.1))
         }
     }
 
@@ -92,6 +93,15 @@ import Testing
         #expect(store.countReview("o/r#1", at: at, season: "2026-Q3") == nil)
         #expect(store.countReview("o/r#1", at: at.addingTimeInterval(600), season: "2026-Q3") == 2)
         #expect(store.countReview("o/r#2", at: at, season: "2026-Q4") == 1)
+    }
+
+    @Test func whereAStickerIsStuckIsKept() {
+        let dir = StoreDiffTests.tempDirectory()
+        let spot = LidSpot(x: 0.3, y: 0.4, angle: -8, size: 0.15)
+        let store = Store(directory: dir, metrics: Metrics())
+        store.stick("x", at: spot)
+        store.flushNow()
+        #expect(Store(directory: dir, metrics: Metrics()).state.lidSpots["x"] == spot)
     }
 
     @Test func earnedStickersAreKeptAndMarkedWhenClaimed() {

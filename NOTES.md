@@ -246,10 +246,13 @@ every AI lab alike.
 brushed-aluminium MacBook lid with every sticker earned stuck on it. Each lands
 where its id puts it (a seeded position, a tilt within ±18° and a size), so a
 lid stays the same between launches, stickers overlap like real ones, and the
-centre stays clear for the logo, a plain `›` rather than Apple's. A new one
-drops in larger, lifted and turned, and settles with a spring as its shadow
-shrinks, as if pressed down. With "Preview every sticker" on, "Stick one" adds
-a random sticker to feel it, without saving. This is the 2D trial before a
+centre stays clear for the logo: Diple's `›` glowing through a Space Gray lid
+like the backlit logos of older MacBooks, since Apple's logo is a trademark
+third-party apps may not use, Mac-only or not. A new sticker waits lifted above
+the lid, bobbing with its shadow; drag it where you want it and press "Stick
+it", and it settles with a spring and stays there (`lidSpots`), since a real
+sticker does not move once stuck. With "Preview every sticker" on,
+"Stick one" adds a random sticker to place, without saving. This is the 2D trial before a
 modelled MacBook: the lid is meant to become one composed texture on a 3D
 model, and only there, never in the notch.
 

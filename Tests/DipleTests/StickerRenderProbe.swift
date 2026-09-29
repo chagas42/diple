@@ -10,7 +10,9 @@ import Testing
     func renderEveryStickerToDisk() throws {
         let dir = URL(fileURLWithPath: ProcessInfo.processInfo.environment["DIPLE_RENDER_STICKERS"]!)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let lid = ImageRenderer(content: LidView(stickers: StickerSheet.everySticker.prefix(10).enumerated().map { ("lid-\($0.offset)", $0.element) })
+        let lid = ImageRenderer(content: LidView(items: StickerSheet.everySticker.prefix(10).enumerated().map {
+            LidView.Item(id: "lid-\($0.offset)", artifact: $0.element, spot: $0.offset < 8 ? LidView.placement(for: "lid-\($0.offset)") : nil)
+        }) { _, _ in }
             .frame(width: 620).padding(24).background(Color(white: 0.14)))
         lid.scale = 2
         if let cg = lid.cgImage {

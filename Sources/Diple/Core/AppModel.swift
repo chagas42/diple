@@ -18,6 +18,12 @@ final class AppModel: ObservableObject {
     @Published private(set) var artifacts: [String: Int] = [:]
     @Published private(set) var earned: [EarnedArtifact] = []
     @Published private(set) var seasonReviews = 0
+    @Published private(set) var lidSpots: [String: LidSpot] = [:]
+
+    func stick(_ id: String, at spot: LidSpot) {
+        store.stick(id, at: spot)
+        lidSpots = store.state.lidSpots
+    }
     @Published var showsCollection = false
     @Published var settingsTab = SettingsTab.notifications
 
@@ -504,6 +510,7 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
         artifacts = store.state.artifacts
         earned = store.state.earned
+        lidSpots = store.state.lidSpots
         seasonReviews = store.state.season?.id == Trail.season(of: Date()) ? store.state.season?.reviews ?? 0 : 0
         following = store.state.following
         watching = store.state.watching ?? []

@@ -6,10 +6,12 @@ struct CollectionView: View {
     private let columns = [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16, alignment: .top)]
     @State private var inspected: Artifact?
     @State private var tryouts: [(id: String, artifact: Artifact)] = []
-    @State private var justStuck: String?
+    @State private var tryoutSpots: [String: LidSpot] = [:]
 
-    private var onLid: [(id: String, artifact: Artifact)] {
-        model.earned.compactMap { e in Artifact.named(e.artifact).map { (e.id, $0) } } + tryouts
+    private var onLid: [LidView.Item] {
+        model.earned.compactMap { e in
+            Artifact.named(e.artifact).map { LidView.Item(id: e.id, artifact: $0, spot: model.lidSpots[e.id]) }
+        } + tryouts.map { LidView.Item(id: $0.id, artifact: $0.artifact, spot: tryoutSpots[$0.id]) }
     }
 
     private var sheet: StickerSheet { .current }
@@ -48,32 +50,34 @@ struct CollectionView: View {
             HStack {
                 Text("Your lid")
                     .font(.system(size: 15, weight: .bold))
-                Text("\(onLid.count) \(onLid.count == 1 ? "sticker" : "stickers")")
+                Text(waiting > 0 ? "\(waiting) waiting to be stuck, drag and stick" : "\(onLid.count) \(onLid.count == 1 ? "sticker" : "stickers")")
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(.secondary)
                 Spacer()
                 if model.settings.rewardsPreview {
                     Button {
                         let a = StickerSheet.everySticker.randomElement()!
-                        let id = "tryout/\(a.id)/\(Date().timeIntervalSince1970)"
-                        justStuck = id
-                        tryouts.append((id, a))
+                        tryouts.append(("tryout/\(a.id)/\(Date().timeIntervalSince1970)", a))
                     } label: {
                         Label("Stick one", systemImage: "hand.point.down.fill")
                     }
                     .controlSize(.small)
-                    .help("Sticks a random sticker on the lid to try the feel. Not saved.")
+                    .help("Adds a random sticker to place on the lid. Not saved.")
                     if !tryouts.isEmpty {
-                        Button("Peel them off") { tryouts.removeAll() }
+                        Button("Peel them off") { tryouts.removeAll(); tryoutSpots.removeAll() }
                             .controlSize(.small)
                     }
                 }
             }
-            LidView(stickers: onLid, justStuck: justStuck)
+            LidView(items: onLid) { id, spot in
+                if id.hasPrefix("tryout/") { tryoutSpots[id] = spot } else { model.stick(id, at: spot) }
+            }
                 .frame(maxWidth: 620)
                 .frame(maxWidth: .infinity)
         }
     }
+
+    private var waiting: Int { onLid.filter { $0.spot == nil }.count }
 
     private var trail: some View {
         let count = model.seasonReviews

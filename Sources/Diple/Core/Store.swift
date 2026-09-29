@@ -31,6 +31,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var earned: [EarnedArtifact] = []
     var season: SeasonProgress? = nil
     var countedReviews: [String: Date] = [:]
+    var lidSpots: [String: LidSpot] = [:]
 
     init() {}
 
@@ -57,6 +58,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.earned = (try? c.decodeIfPresent([EarnedArtifact].self, forKey: .earned)) ?? d.earned
         d.season = try? c.decodeIfPresent(SeasonProgress.self, forKey: .season)
         d.countedReviews = (try? c.decodeIfPresent([String: Date].self, forKey: .countedReviews)) ?? d.countedReviews
+        d.lidSpots = (try? c.decodeIfPresent([String: LidSpot].self, forKey: .lidSpots)) ?? d.lidSpots
         self = d
     }
 
@@ -335,6 +337,11 @@ final class Store {
         state.season?.reviews += 1
         save()
         return state.season?.reviews
+    }
+
+    func stick(_ id: String, at spot: LidSpot) {
+        state.lidSpots[id] = spot
+        save()
     }
 
     func markClaimed(_ id: String) {
