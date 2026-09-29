@@ -124,4 +124,53 @@ import Testing
         }
         #expect(n.state == .hidden)
     }
+
+    @Test func theFullScreenSpacesOfTheDisplayAreRead() {
+        let spaces: [[String: Any]] = [
+            ["Display Identifier": Self.external, "Spaces": [["ManagedSpaceID": 7, "type": 4]]],
+            ["Display Identifier": Self.builtIn, "Spaces": [
+                ["ManagedSpaceID": 1, "type": 0], ["ManagedSpaceID": 9789, "type": 4], ["ManagedSpaceID": 9823, "type": 4],
+            ]],
+        ]
+        #expect(NotchGeometry.fullScreenSpaces(display: Self.builtIn, spaces: spaces) == [9789, 9823])
+        #expect(NotchGeometry.fullScreenSpaces(display: Self.builtIn, spaces: []).isEmpty)
+    }
+
+    @Test func aFullScreenSpaceSlidingInHidesTheNotchBeforeTheSwitchLands() {
+        let arriving = Flag(false)
+        let n = notch(fullScreen: Flag(false)) { Self.away }
+        n.fullScreenArriving = { arriving.on }
+        n.refreshIdle()
+        n.checkPointer()
+        #expect(n.state == .active)
+
+        arriving.on = true
+        n.checkPointer()
+        #expect(n.state == .hidden)
+    }
+
+    @Test func aSwipeGivenUpHalfwayBringsTheNotchBack() {
+        let arriving = Flag(true)
+        let n = notch(fullScreen: Flag(false)) { Self.away }
+        n.fullScreenArriving = { arriving.on }
+        n.checkPointer()
+        #expect(n.state == .hidden)
+
+        arriving.on = false
+        n.checkPointer()
+        #expect(n.state == .active)
+    }
+
+    @Test func onceTheSwitchLandsTheNotchStaysHidden() {
+        let full = Flag(false), arriving = Flag(true)
+        let n = notch(fullScreen: full) { Self.away }
+        n.fullScreenArriving = { arriving.on }
+        n.checkPointer()
+
+        full.on = true
+        arriving.on = false
+        n.refreshIdle()
+        n.checkPointer()
+        #expect(n.state == .hidden)
+    }
 }

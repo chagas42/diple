@@ -64,19 +64,37 @@ struct NotchGeometry {
         return nearest - notchRight
     }
 
-    var isUnderFullScreen: Bool {
+    var displayName: String? {
         guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
-              let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue(),
-              let name = CFUUIDCreateString(nil, uuid) as String?
-        else { return false }
+              let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue()
+        else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String?
+    }
+
+    var isUnderFullScreen: Bool {
+        guard let name = displayName else { return false }
         return Self.isUnderFullScreen(display: name, spaces: ManagedSpaces.copy())
     }
 
-    static func isUnderFullScreen(display: String, spaces: [[String: Any]]) -> Bool {
-        let entry = spaces.count == 1 ? spaces.first
+    var fullScreenSpaces: Set<Int> {
+        guard let name = displayName else { return [] }
+        return Self.fullScreenSpaces(display: name, spaces: ManagedSpaces.copy())
+    }
+
+    private static func entry(display: String, spaces: [[String: Any]]) -> [String: Any]? {
+        spaces.count == 1 ? spaces.first
             : spaces.first { ($0["Display Identifier"] as? String)?.caseInsensitiveCompare(display) == .orderedSame }
-        let current = entry?["Current Space"] as? [String: Any]
+    }
+
+    static func isUnderFullScreen(display: String, spaces: [[String: Any]]) -> Bool {
+        let current = entry(display: display, spaces: spaces)?["Current Space"] as? [String: Any]
         return current?["type"] as? Int == ManagedSpaces.fullScreenType
+    }
+
+    static func fullScreenSpaces(display: String, spaces: [[String: Any]]) -> Set<Int> {
+        let all = entry(display: display, spaces: spaces)?["Spaces"] as? [[String: Any]] ?? []
+        return Set(all.filter { $0["type"] as? Int == ManagedSpaces.fullScreenType }
+            .compactMap { $0["ManagedSpaceID"] as? Int })
     }
 
     static func revealsMenuBar(pointer: CGPoint, screen: CGRect, barHeight: CGFloat, shown: Bool) -> Bool {
@@ -122,6 +140,21 @@ enum ManagedSpaces {
     static func copy() -> [[String: Any]] {
         guard let (main, copy) = symbols else { return [] }
         return copy(main())?.takeRetainedValue() as? [[String: Any]] ?? []
+    }
+
+    private typealias CopySpacesForWindows = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
+
+    private static let spacesForWindows: CopySpacesForWindows? = {
+        guard let h = dlopen("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", RTLD_LAZY),
+              let f = dlsym(h, "CGSCopySpacesForWindows")
+        else { return nil }
+        return unsafeBitCast(f, to: CopySpacesForWindows.self)
+    }()
+
+    static func spaces(of window: CGWindowID) -> Set<Int> {
+        guard let (main, _) = symbols, let f = spacesForWindows else { return [] }
+        let ids = [NSNumber(value: window)] as CFArray
+        return Set(f(main(), 7, ids)?.takeRetainedValue() as? [Int] ?? [])
     }
 }
 

@@ -28,8 +28,12 @@ final class NotchController: ObservableObject {
 
     var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
     var fullScreen: @MainActor () -> Bool = { NotchGeometry.current().isUnderFullScreen }
+    var fullScreenArriving: (@MainActor () -> Bool)?
     private var underFullScreen = false
+    private var arriving = false
     private var menuBarRevealed = false
+    private var fullScreenSpaces: Set<Int> = []
+    private var fullScreenWindows: [CGWindowID] = []
 
     func mount(model: AppModel) {
         self.model = model
@@ -57,7 +61,10 @@ final class NotchController: ObservableObject {
             forName: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.refreshIdle() }
+            Task { @MainActor in
+                self?.refreshIdle()
+                self?.mapFullScreenWindows(force: true)
+            }
         }
     }
 
@@ -87,7 +94,9 @@ final class NotchController: ObservableObject {
         }
     }
 
-    private func idle() -> NotchState { underFullScreen && !menuBarRevealed ? .hidden : .active }
+    private func idle() -> NotchState {
+        (underFullScreen || arriving) && !menuBarRevealed ? .hidden : .active
+    }
 
     func open() {
         collapseTask?.cancel()
@@ -126,6 +135,25 @@ final class NotchController: ObservableObject {
 
     func refreshIdle() {
         underFullScreen = fullScreen()
+        if underFullScreen { arriving = false }
+        settleIdle()
+    }
+
+    private func mapFullScreenWindows(force: Bool = false) {
+        guard fullScreenArriving == nil else { return }
+        let spaces = NotchGeometry.current().fullScreenSpaces
+        guard force || spaces != fullScreenSpaces else { return }
+        fullScreenSpaces = spaces
+        Task.detached(priority: .utility) { [weak self] in
+            let ids = FullScreenWindows.ids(in: spaces)
+            await MainActor.run { self?.fullScreenWindows = ids }
+        }
+    }
+
+    private func checkArriving() {
+        let now = !underFullScreen && (fullScreenArriving?() ?? FullScreenWindows.anyOnScreen(fullScreenWindows))
+        guard now != arriving else { return }
+        arriving = now
         settleIdle()
     }
 
@@ -150,8 +178,12 @@ final class NotchController: ObservableObject {
 
     private func watchMenuBar() {
         if Film.isOn { return }
+        mapFullScreenWindows(force: true)
         wingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refreshIdle() }
+            Task { @MainActor in
+                self?.refreshIdle()
+                self?.mapFullScreenWindows()
+            }
         }
     }
 
@@ -169,6 +201,7 @@ final class NotchController: ObservableObject {
             menuBarRevealed = revealed
             settleIdle()
         }
+        checkArriving()
 
         let isOpen = state == .open
         let inside = isOpen ? hotZone.insetBy(dx: -16, dy: -16).contains(m)
