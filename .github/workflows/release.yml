@@ -44,6 +44,13 @@ jobs:
           forced='${{ inputs.bump }}'
           [ "$forced" = auto ] && forced=
 
+          if [ -z "$forced" ] && [ "$(git rev-list -n 1 "$last")" = "$(git rev-parse HEAD)" ]; then
+            echo "$last already points at this commit, resuming it"
+            echo "version=${last#v}" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ -z "$subjects" ] && [ -z "$forced" ]; then
             echo "nothing since $last"
             echo "release=false" >> "$GITHUB_OUTPUT"
@@ -183,6 +190,11 @@ jobs:
           git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/chagas42/homebrew-tap.git" /tmp/tap
           cd /tmp/tap
           sed -i '' "s|  version \".*\"|  version \"$V\"|; s|  sha256 \".*\"|  sha256 \"$sha\"|" Casks/diple.rb
+          if ! grep -q "^  version \"$V\"$" Casks/diple.rb || ! grep -q "^  sha256 \"$sha\"$" Casks/diple.rb; then
+            echo "::error::Casks/diple.rb has no version or sha256 line in the shape the release rewrites, so it was left as it was."
+            sed -n '1,5p' Casks/diple.rb
+            exit 1
+          fi
           if git diff --quiet; then
             echo "cask already on $V"
             exit 0
