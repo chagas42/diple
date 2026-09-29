@@ -102,7 +102,7 @@ struct ClaimCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
-            Text("Click to keep it")
+            Text("Click to put it in your bag")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.55))
                 .padding(.top, 4)
@@ -118,10 +118,10 @@ struct ClaimCard: View {
                 )
                 .shadow(color: artifact.rarity.color.opacity(0.35), radius: 24)
         )
-        .scaleEffect(leaving ? 0.12 : (shown ? 1 : 0.4))
+        .scaleEffect(shown ? 1 : 0.4)
         .rotation3DEffect(.degrees(shown ? 0 : 160), axis: (x: 0, y: 1, z: 0))
-        .offset(y: leaving ? -320 : (shown ? 0 : -140))
-        .opacity(leaving ? 0 : (shown ? 1 : 0))
+        .offset(y: shown ? 0 : -140)
+        .opacity(shown ? 1 : 0)
         .onAppear {
             start = Date()
             withAnimation(.spring(response: 0.6, dampingFraction: 0.66)) { shown = true }

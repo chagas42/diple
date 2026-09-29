@@ -24,6 +24,7 @@ struct Settings: Codable, Sendable, Equatable {
     var shareUsage = true
     var reviewFilter = ReviewFilter.everyone
     var rewardsBeta = false
+    var rewardsProfile: RewardsProfile? = nil
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -100,6 +101,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.shareUsage = try c.decodeIfPresent(Bool.self, forKey: .shareUsage) ?? d.shareUsage
         d.reviewFilter = (try? c.decodeIfPresent(ReviewFilter.self, forKey: .reviewFilter)) ?? d.reviewFilter
         d.rewardsBeta = try c.decodeIfPresent(Bool.self, forKey: .rewardsBeta) ?? d.rewardsBeta
+        d.rewardsProfile = try? c.decodeIfPresent(RewardsProfile.self, forKey: .rewardsProfile)
         self = d
     }
 

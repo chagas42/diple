@@ -72,7 +72,7 @@ struct MarginMark: View {
 
                 Spacer(minLength: 4)
 
-                Text("+1 · \(reward.today) today")
+                Text(Self.tally(reward))
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(reward.artifact.rarity.color)
@@ -82,10 +82,22 @@ struct MarginMark: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottomLeading) { bar(Self.ease(Self.phase(t, Self.progress))) }
+            .overlay(alignment: .bottomLeading) { bar(Self.fill(reward, Self.ease(Self.phase(t, Self.progress)))) }
             .opacity(Self.phase(t, Self.appear) * (1 - Self.phase(t, Self.leave)))
         }
         .allowsHitTesting(false)
+    }
+
+    static func tally(_ r: Reward) -> String {
+        guard let goal = r.goal, goal > 0 else { return "+1 · \(r.today) today" }
+        return r.today == goal ? "+1 · daily goal \u{2713}" : "+1 · \(r.today)/\(goal) today"
+    }
+
+    static func fill(_ r: Reward, _ p: Double) -> Double {
+        guard let goal = r.goal, goal > 0 else { return p }
+        let from = min(1, Double(r.today - 1) / Double(goal))
+        let to = min(1, Double(r.today) / Double(goal))
+        return from + (to - from) * p
     }
 
     private func bar(_ p: Double) -> some View {

@@ -58,6 +58,7 @@ app: build
 	@/usr/libexec/PlistBuddy -c "Set :CFBundleName $(NAME)" -c "Set :CFBundleDisplayName $(NAME)" "$(DEST)/Contents/Info.plist"
 	@cp Resources/Diple.icns "$(DEST)/Contents/Resources/Diple.icns"
 	@cp -R Resources/plugin "$(DEST)/Contents/Resources/plugin"
+	@cp -R Resources/Sounds "$(DEST)/Contents/Resources/Sounds"
 	@codesign --force --sign - --identifier $(BUNDLE) "$(DEST)" 2>/dev/null
 	@echo "bundled  $(DEST)"
 

@@ -199,6 +199,26 @@ its own window; a click keeps it. Celebrations wait for the idle notch (not
 over a fullscreen app, the open panel, an alert or the wake-up) and play one
 at a time.
 
+**Claiming drops the card into a bag.** The gift button opens the card mid-
+screen, 120 pt below the notch; clicking it shrinks the card into a pixel-art
+bag that squashes as it lands, with an 8-bit coin (two square-wave notes, B5
+then E6, made by `tools/coin.py` into `Resources/Sounds/coin.wav`, 35% volume).
+It plays even in quiet hours, since the click asked for it. While a card is
+up, hovering the notch does not open the panel: the pointer is still there
+from the click, and the panel used to open back over the card.
+
+**Onboarding asks three things, once.** Turning Rewards on in Settings asks
+what you do, why you want to review more and a daily goal. The goal turns the
+drawer's tally into "2/3 today" and its bar into the day's progress (from 1/3
+to 2/3 for the second review); "My teammates wait on my reviews" makes a fast
+answer triple the odds of rare and up instead of doubling them. The answers
+stay on this Mac, in settings.
+
+**The collection lives in the main window.** With Rewards on, the sidebar
+gets a Collection row: the artifacts by rarity in the content column, and the
+Journey in the detail, every artifact earned by day with the verdict, the PR
+and whether it is in the bag yet, under today's goal.
+
 **Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
 palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
 get a holographic foil (an `AngularGradient` in `.overlay`, masked by the

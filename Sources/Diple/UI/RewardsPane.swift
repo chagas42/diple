@@ -14,6 +14,22 @@ struct RewardsPane: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if model.settings.rewardsBeta {
+                if model.settings.rewardsProfile == nil || editing {
+                    onboarding
+                } else if let p = model.settings.rewardsProfile {
+                    Section("Your journey") {
+                        LabeledContent("You", value: p.role.title)
+                        LabeledContent("Why you review", value: p.reason.title)
+                        LabeledContent("Daily goal", value: p.dailyGoal == 1 ? "1 review" : "\(p.dailyGoal) reviews")
+                        HStack {
+                            Button("Edit") { draft = p; editing = true }
+                            Spacer()
+                            Button("Open the collection") { Windows.shared.openMain(model, collection: true) }
+                        }
+                    }
+                }
+            }
             Section("Collection · \(owned) of \(Artifact.catalog.count)") {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(Artifact.catalog) { a in cell(a) }
@@ -22,6 +38,45 @@ struct RewardsPane: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @State private var draft = RewardsProfile()
+    @State private var editing = false
+
+    private var onboarding: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Three questions before your first artifact")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("They set what counts most, and your daily goal. Only this Mac keeps them.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Picker("What do you do?", selection: $draft.role) {
+                ForEach(RewardsProfile.Role.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.radioGroup)
+            Picker("Why review more?", selection: $draft.reason) {
+                ForEach(RewardsProfile.Reason.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.radioGroup)
+            Stepper(value: $draft.dailyGoal, in: 1...10) {
+                Text("Daily goal: \(draft.dailyGoal) \(draft.dailyGoal == 1 ? "review" : "reviews")")
+            }
+            if draft.reason == .unblock {
+                Text("Answering a review request within two hours makes a rare artifact three times as likely.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Spacer()
+                Button(editing ? "Save" : "Start") {
+                    model.settings.rewardsProfile = draft
+                    editing = false
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
     }
 
     private var owned: Int { Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count }

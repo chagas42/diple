@@ -28,6 +28,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var artifacts: [String: Int] = [:]
     var rewardDay: String? = nil
     var rewardsThatDay = 0
+    var earned: [EarnedArtifact] = []
 
     init() {}
 
@@ -51,6 +52,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.artifacts = (try? c.decodeIfPresent([String: Int].self, forKey: .artifacts)) ?? d.artifacts
         d.rewardDay = try c.decodeIfPresent(String.self, forKey: .rewardDay)
         d.rewardsThatDay = try c.decodeIfPresent(Int.self, forKey: .rewardsThatDay) ?? d.rewardsThatDay
+        d.earned = (try? c.decodeIfPresent([EarnedArtifact].self, forKey: .earned)) ?? d.earned
         self = d
     }
 
@@ -317,6 +319,12 @@ final class Store {
         save()
     }
 
+    func markClaimed(_ id: String) {
+        guard let i = state.earned.lastIndex(where: { $0.id == id }) else { return }
+        state.earned[i].claimedAt = Date()
+        save()
+    }
+
     struct Unrequested: Equatable, Sendable {
         let key: String
         let since: Date
@@ -325,8 +333,9 @@ final class Store {
     private(set) var unrequested: [Unrequested] = []
 
     @discardableResult
-    func collect(_ artifact: Artifact, on day: String) -> Int {
+    func collect(_ artifact: Artifact, on day: String, record: EarnedArtifact? = nil) -> Int {
         state.artifacts[artifact.id, default: 0] += 1
+        if let record { state.earned.append(record) }
         if state.rewardDay != day {
             state.rewardDay = day
             state.rewardsThatDay = 0

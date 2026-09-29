@@ -28,7 +28,8 @@ final class Windows: NSObject, NSWindowDelegate {
         }
     }
 
-    func openMain(_ model: AppModel) {
+    func openMain(_ model: AppModel, collection: Bool = false) {
+        if collection { model.showsCollection = true }
         NSApp.activate(ignoringOtherApps: true)
         if let j = main {
             j.makeKeyAndOrderFront(nil)

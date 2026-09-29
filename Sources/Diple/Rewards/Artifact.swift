@@ -46,8 +46,8 @@ struct Artifact: Identifiable, Sendable, Equatable {
 
     static func named(_ id: String) -> Artifact? { catalog.first { $0.id == id } }
 
-    static func roll(fast: Bool, dice: () -> Double = { .random(in: 0..<1) }) -> Artifact {
-        let boost = fast ? 2.0 : 1.0
+    static func roll(fast: Bool, boost fastBoost: Double = 2, dice: () -> Double = { .random(in: 0..<1) }) -> Artifact {
+        let boost = fast ? fastBoost : 1.0
         let weights = Rarity.allCases.map { ($0, $0 >= .rare ? $0.weight * boost : $0.weight) }
         var pick = dice() * weights.map(\.1).reduce(0, +)
         var rarity = Rarity.common
@@ -235,7 +235,7 @@ struct Artifact: Identifiable, Sendable, Equatable {
     ]
 }
 
-enum ReviewVerdict: String, Sendable, CaseIterable {
+enum ReviewVerdict: String, Codable, Sendable, CaseIterable {
     case commented, approved, changesRequested
 
     init(github state: String?) {
@@ -269,4 +269,48 @@ struct Reward: Identifiable, Sendable, Equatable {
     let pr: String?
     var verdict = ReviewVerdict.commented
     var today = 1
+    var goal: Int?
+}
+
+struct EarnedArtifact: Codable, Sendable, Equatable, Identifiable {
+    let id: String
+    let artifact: String
+    let pr: String?
+    let verdict: ReviewVerdict
+    let at: Date
+    var claimedAt: Date?
+}
+
+struct RewardsProfile: Codable, Sendable, Equatable {
+    enum Role: String, Codable, Sendable, CaseIterable, Identifiable {
+        case developer, lead, manager, other
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .developer: "I write code most of the day"
+            case .lead:      "I lead a team and still review a lot"
+            case .manager:   "I manage people, and review when I can"
+            case .other:     "Something else"
+            }
+        }
+    }
+
+    enum Reason: String, Codable, Sendable, CaseIterable, Identifiable {
+        case unblock, learn, grow, goal
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .unblock: "My teammates wait on my reviews"
+            case .learn:   "I want to know the codebase better"
+            case .grow:    "Reviewing well is part of growing"
+            case .goal:    "I have a review target to hit"
+            }
+        }
+    }
+
+    var role: Role = .developer
+    var reason: Reason = .unblock
+    var dailyGoal = 3
+
+    var fastBoost: Double { reason == .unblock ? 3 : 2 }
 }

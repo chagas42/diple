@@ -229,14 +229,23 @@ final class NotchController: ObservableObject {
         }
     }
 
+    var onClaimed: ((Reward) -> Void)?
+    lazy var presentClaim: (Reward, @escaping () -> Void) -> Void = { [weak self] r, kept in
+        guard let self else { return }
+        if self.claimWindow == nil { self.claimWindow = ClaimWindow() }
+        self.claimWindow?.show(r, under: NotchGeometry.current(), then: kept)
+    }
+    private(set) var claiming = false
+
     func claim() {
         guard !unclaimed.isEmpty else { return }
+        claiming = true
         closeNow()
         let r = unclaimed.removeFirst()
-        if claimWindow == nil { claimWindow = ClaimWindow() }
-        claimWindow?.show(r, under: NotchGeometry.current()) { [weak self] in
-            guard let self, !self.unclaimed.isEmpty else { return }
-            self.claim()
+        presentClaim(r) { [weak self] in
+            guard let self else { return }
+            self.onClaimed?(r)
+            if self.unclaimed.isEmpty { self.claiming = false } else { self.claim() }
         }
     }
 
@@ -351,6 +360,8 @@ final class NotchController: ObservableObject {
             }
             return
         }
+
+        if inside, claiming, !isOpen { return }
 
         if inside {
             outsideSince = nil

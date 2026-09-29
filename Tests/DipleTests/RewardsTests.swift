@@ -138,6 +138,58 @@ import Testing
         while n.celebration?.artifact.rarity != .legendary { await Task.yield() }
         #expect(n.unclaimed.map(\.id) == ["a", "b"])
     }
+
+    @Test func withAGoalTheTallyCountsTowardsItAndTheBarShowsTheDay() {
+        var r = Self.reward(.rare)
+        r.today = 2
+        r.goal = 3
+        #expect(MarginMark.tally(r) == "+1 · 2/3 today")
+        #expect(abs(MarginMark.fill(r, 0) - 1.0 / 3) < 0.001)
+        #expect(abs(MarginMark.fill(r, 1) - 2.0 / 3) < 0.001)
+        r.today = 3
+        #expect(MarginMark.tally(r) == "+1 · daily goal \u{2713}")
+        #expect(MarginMark.fill(r, 1) == 1)
+        r.goal = nil
+        #expect(MarginMark.tally(r) == "+1 · 3 today")
+        #expect(MarginMark.fill(r, 0.4) == 0.4)
+    }
+
+    @Test func earnedArtifactsAreKeptAndMarkedWhenClaimed() {
+        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        let e = EarnedArtifact(id: "x", artifact: "floppy", pr: "o/r#1", verdict: .approved, at: Date())
+        store.collect(.sample(.uncommon), on: "2026-09-29", record: e)
+        #expect(store.state.earned.map(\.id) == ["x"])
+        #expect(store.state.earned.first?.claimedAt == nil)
+        store.markClaimed("x")
+        #expect(store.state.earned.first?.claimedAt != nil)
+    }
+
+    @Test func wantingToUnblockTheTeamRewardsSpeedMore() {
+        let steps = (0..<1000).map { Double($0) / 1000 }
+        func rare(_ boost: Double) -> Int {
+            steps.filter { d in Artifact.roll(fast: true, boost: boost, dice: { d }).rarity >= .rare }.count
+        }
+        #expect(RewardsProfile(reason: .unblock).fastBoost == 3)
+        #expect(RewardsProfile(reason: .learn).fastBoost == 2)
+        #expect(rare(3) > rare(2))
+    }
+
+    @Test func whileClaimingHoveringTheNotchDoesNotOpenIt() {
+        let n = notch(gate: Gate())
+        n.reward(Self.reward(.rare))
+        n.pointer = {
+            let g = NotchGeometry.current()
+            let r = g.rect(g.closed)
+            return CGPoint(x: r.midX, y: r.midY)
+        }
+        var shown: [String] = []
+        n.presentClaim = { r, _ in shown.append(r.id) }
+        n.claim()
+        #expect(shown == ["r"])
+        n.checkPointer()
+        #expect(n.state != .open)
+        #expect(n.claiming)
+    }
 }
 
 final class StoreFlag {

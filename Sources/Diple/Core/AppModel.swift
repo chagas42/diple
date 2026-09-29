@@ -17,6 +17,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
     @Published private(set) var artifacts: [String: Int] = [:]
+    @Published private(set) var earned: [EarnedArtifact] = []
+    @Published var showsCollection = false
 
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var team: [Person] = []
@@ -500,6 +502,7 @@ final class AppModel: ObservableObject {
     func restoreCached() {
         unread = store.state.unread
         artifacts = store.state.artifacts
+        earned = store.state.earned
         following = store.state.following
         watching = store.state.watching ?? []
         let cache = store.state.cache
@@ -1159,11 +1162,20 @@ final class AppModel: ObservableObject {
     }
 
     func grant(pr: String?, fast: Bool, verdict: ReviewVerdict = .commented, artifact: Artifact? = nil) {
-        let a = artifact ?? Artifact.roll(fast: fast)
-        let day = Date().formatted(.iso8601.year().month().day())
-        let today = store.collect(a, on: day)
+        let profile = settings.rewardsProfile
+        let a = artifact ?? Artifact.roll(fast: fast, boost: profile?.fastBoost ?? 2)
+        let now = Date()
+        let id = "\(pr ?? "sample")/\(now.timeIntervalSince1970)"
+        let day = now.formatted(.iso8601.year().month().day())
+        let today = store.collect(a, on: day, record: EarnedArtifact(id: id, artifact: a.id, pr: pr, verdict: verdict, at: now))
         artifacts = store.state.artifacts
-        onReward?(Reward(id: "\(pr ?? "sample")/\(Date().timeIntervalSince1970)", artifact: a, pr: pr, verdict: verdict, today: today))
+        earned = store.state.earned
+        onReward?(Reward(id: id, artifact: a, pr: pr, verdict: verdict, today: today, goal: profile?.dailyGoal))
+    }
+
+    func claimed(_ reward: Reward) {
+        store.markClaimed(reward.id)
+        earned = store.state.earned
     }
 
     var rest: [PR] {

@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarItem: Hashable {
     case queue(AppModel.Tab)
     case repo(String)
+    case collection
 }
 
 struct MainWindowView: View {
@@ -14,10 +15,14 @@ struct MainWindowView: View {
             barraLateral
                 .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 280)
         } content: {
-            list
-                .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 520)
+            Group {
+                if model.showsCollection { CollectionView(model: model) } else { list }
+            }
+            .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 520)
         } detail: {
-            if let pr = model.selected {
+            if model.showsCollection {
+                JourneyView(model: model)
+            } else if let pr = model.selected {
                 DetailView(model: model, pr: pr)
             } else {
                 ContentUnavailableView(
@@ -45,11 +50,15 @@ struct MainWindowView: View {
     private var sidebarSelection: Binding<SidebarItem?> {
         Binding(
             get: {
+                if model.showsCollection { return .collection }
                 if let r = model.selectedRepo { return .repo(r) }
                 return .queue(model.tab)
             },
             set: { item in
+                if item != .collection { model.showsCollection = false }
                 switch item {
+                case .collection:
+                    model.showsCollection = true
                 case .queue(let t):
                     model.selectRepo(nil)
                     model.tab = t
@@ -74,6 +83,19 @@ struct MainWindowView: View {
                             .foregroundStyle(.secondary)
                     }
                     .tag(SidebarItem.queue(tab))
+                }
+            }
+
+            if model.settings.rewardsBeta {
+                Section("Rewards") {
+                    HStack {
+                        Label("Collection", systemImage: "sparkles.rectangle.stack")
+                        Spacer()
+                        Text("\(Artifact.catalog.filter { (model.artifacts[$0.id] ?? 0) > 0 }.count)/\(Artifact.catalog.count)")
+                            .font(.system(size: 11.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    .tag(SidebarItem.collection)
                 }
             }
 
