@@ -20,8 +20,12 @@ struct SettingsView: View {
             PrivacyPane(model: model)
                 .tabItem { Label("Privacy", systemImage: "hand.raised") }
         }
-        .frame(width: 620, height: 460)
+        .padding(.top, 12)
+        .frame(minWidth: Self.minimum.width, maxWidth: .infinity,
+               minHeight: Self.minimum.height, maxHeight: .infinity)
     }
+
+    static let minimum = CGSize(width: 620, height: 472)
 }
 
 struct NotificationsPane: View {

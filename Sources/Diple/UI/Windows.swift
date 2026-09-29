@@ -72,10 +72,11 @@ final class Windows: NSObject, NSWindowDelegate {
         }
         let j = make(
             title: "Diple Settings",
-            size: NSSize(width: 620, height: 470),
-            content: SettingsView(model: model),
-            resizable: false
+            size: NSSize(width: 620, height: 472),
+            content: SettingsView(model: model)
         )
+        j.contentMinSize = SettingsView.minimum
+        j.setFrameAutosaveName("diple.settings")
         j.delegate = self
         settings = j
         j.makeKeyAndOrderFront(nil)
