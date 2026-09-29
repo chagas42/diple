@@ -42,8 +42,9 @@ jobs:
           subjects=$(git log "$last"..HEAD --format='%s')
           bodies=$(git log "$last"..HEAD --format='%b')
           forced='${{ inputs.bump }}'
+          [ "$forced" = auto ] && forced=
 
-          if [ -z "$subjects" ]; then
+          if [ -z "$subjects" ] && [ -z "$forced" ]; then
             echo "nothing since $last"
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -56,7 +57,7 @@ jobs:
           elif echo "$subjects" | grep -qE '^(fix|perf)(\(.+\))?:'; then bump=patch
           fi
 
-          if [ "$forced" != "auto" ] && [ -n "$forced" ]; then bump=$forced; fi
+          if [ -n "$forced" ]; then bump=$forced; fi
 
           if [ "$bump" = none ]; then
             echo "only docs/ci/chore since $last — nothing to release"
@@ -134,6 +135,10 @@ jobs:
         env:
           V: ${{ needs.decide.outputs.version }}
         run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v$V" >/dev/null; then
+            echo "v$V is already tagged, from an earlier attempt of this run"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "v$V" -m "v$V"
@@ -143,6 +148,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.decide.outputs.version }}
+          overwrite_files: true
           files: |
             build/Diple-${{ needs.decide.outputs.version }}.zip
             build/Diple-${{ needs.decide.outputs.version }}.zip.sha256
@@ -177,6 +183,10 @@ jobs:
           git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/chagas42/homebrew-tap.git" /tmp/tap
           cd /tmp/tap
           sed -i '' "s|  version \".*\"|  version \"$V\"|; s|  sha256 \".*\"|  sha256 \"$sha\"|" Casks/diple.rb
+          if git diff --quiet; then
+            echo "cask already on $V"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -qam "feat: v$V"
