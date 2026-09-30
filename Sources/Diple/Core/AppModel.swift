@@ -697,11 +697,16 @@ final class AppModel: ObservableObject {
                 store.updateCache { $0.setRank(rows, for: period) }
                 if period == rankPeriod { ranking = rows }
             case .activity:
-                let days = try await client.fetchActivity(org: org, login: viewer)
+                let today = Date()
+                let from = ActivityHistory.refetchFrom(today: today, cachedFrom: cache.activityFrom)
+                let counts = try await client.fetchReviewCounts(org: org, login: viewer, from: from, to: today)
                 guard !Task.isCancelled else { return }
+                let days = ActivityHistory.merged(old: cache.activity, fresh: counts, from: from, today: today)
+                let covered = min(cache.activityFrom ?? from, from)
                 store.updateCache {
                     $0.activity = days
-                    $0.activityAt = Date()
+                    $0.activityAt = today
+                    $0.activityFrom = covered
                 }
                 activity = days
             default: break

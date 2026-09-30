@@ -5,6 +5,15 @@ carries no comments.
 
 ## GitHub API
 
+**Review history comes from search, not `contributionsCollection`.** For an
+org's private repositories `pullRequestReviewContributions` reported 0 reviews
+over six months that search counted in the thousands, so it cannot feed the
+Activity grid. The grid pages `reviewed-by:` search instead, one point per 100
+PRs, in non-overlapping 30-day `updated:` windows because a search stops at
+1000 results. A PR shows up in the window of its last update, and only its
+reviews submitted inside the grid count. The full six months is fetched once;
+after that only the last two days are, and older days come from the cache.
+
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
 separate connection. Reading one and not the other makes the app blind to the
