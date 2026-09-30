@@ -12,10 +12,7 @@ final class NotchController: ObservableObject {
     @Published private(set) var shift: CGFloat = 0
     @Published private(set) var shrinking = false
     let pulling = PullState()
-    private var pull: Pull {
-        get { pulling.pull }
-        set { pulling.pull = newValue }
-    }
+    private var pull: Pull { pulling.pull }
     private var gravity = Gravity()
     @Published private(set) var appearing = false
     @Published private(set) var hasNotch = true
@@ -405,9 +402,8 @@ final class NotchController: ObservableObject {
         let g = NotchGeometry.current()
         let shape = g.rect(size, shift: shift)
 
-        let blob = NSRect(x: shape.minX - pull.left, y: shape.minY - pull.sag - pull.bulge,
-                          width: shape.width + pull.left + pull.right, height: shape.height + pull.sag + pull.bulge)
-        let hotZone = shape.union(g.rect(g.closed)).union(blob)
+        let stretch = Blob.maxStretch * pull.strength
+        let hotZone = shape.union(g.rect(g.closed)).union(shape.insetBy(dx: -stretch, dy: -stretch))
         let m = pointer()
 
         let revealed = underFullScreen
@@ -450,13 +446,15 @@ final class NotchController: ObservableObject {
 
     func pullTowardPointer() {
         guard Gravity.isOn, !waking, state == .active else {
-            if pull != .none { gravity = Gravity(); pull = .none }
+            if !pull.isNone { gravity = Gravity(); pulling.show(.none) }
             return
         }
         let g = NotchGeometry.current()
         let next = gravity.follow(gravity.target(pointer: pointer(), shape: g.rect(size, shift: shift)))
-        if (next - pull).magnitudeSquared > 0.01 || next.isNone != pull.isNone {
-            pull = next
+        if pulling.snaps {
+            pulling.show(next)
+        } else if next.isNone != pull.isNone || (!next.isNone && (next - pull).magnitudeSquared > 0.01) {
+            pulling.show(next)
         }
     }
 

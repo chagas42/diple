@@ -49,7 +49,7 @@ struct NotchView: View {
         let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                PulledFill(pulling: pulling, flare: flare, base: radius)
+                PulledFill(pulling: pulling, flare: flare, base: radius, resting: state == .active, settle: resize)
                 content
                     .clipShape(shape)
                     .id(state.kind)
@@ -645,10 +645,12 @@ private struct PulledFill: View {
     var pulling: PullState?
     let flare: CGFloat
     let base: CGFloat
+    let resting: Bool
+    let settle: Animation
 
     var body: some View {
         if let pulling {
-            Pulled(pulling: pulling, flare: flare, base: base)
+            Pulled(pulling: pulling, flare: flare, base: base, resting: resting, settle: settle)
         } else {
             PanelShape(flare: flare, base: base).fill(.black)
         }
@@ -658,11 +660,18 @@ private struct PulledFill: View {
         @ObservedObject var pulling: PullState
         let flare: CGFloat
         let base: CGFloat
+        let resting: Bool
+        let settle: Animation
+
+        private var motion: Animation? {
+            if pulling.snaps { return nil }
+            return resting ? .interpolatingSpring(stiffness: 30, damping: 11) : settle
+        }
 
         var body: some View {
             PanelShape(flare: flare, base: base, pull: pulling.pull)
                 .fill(.black)
-                .animation(.interpolatingSpring(stiffness: 60, damping: 16), value: pulling.pull)
+                .animation(motion, value: pulling.pull)
         }
     }
 }

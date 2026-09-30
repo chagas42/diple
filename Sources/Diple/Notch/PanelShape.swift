@@ -7,16 +7,19 @@ struct PanelShape: Shape {
 
     var pull = Pull.none
 
-    var pullHalfWidth: CGFloat = 52
-
     var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, Pull> {
         get { .init(.init(flare, base), pull) }
         set { flare = newValue.first.first; base = newValue.first.second; pull = newValue.second }
     }
 
     func path(in r: CGRect) -> Path {
-        let x0 = -max(0, pull.left), x1 = r.width + max(0, pull.right)
-        let w = x1 - x0, h = r.height + max(0, pull.sag)
+        if !pull.isNone, flare < 0.5 {
+            let b = max(0, min(base, r.width / 2, r.height))
+            let outline = Blob.outline(width: r.width, height: r.height, radius: b)
+            return Blob.path(through: Blob.drawn(outline, height: r.height, toward: pull))
+        }
+        let x0: CGFloat = 0, x1 = r.width
+        let w = x1 - x0, h = r.height
         let f = max(0, min(flare, w / 2, h / 2))
         let b = max(0, min(base, (w - f * 2) / 2, h - f))
 
@@ -31,19 +34,7 @@ struct PanelShape: Shape {
         p.addQuadCurve(to: CGPoint(x: x1 - f - b, y: h),
                        control: CGPoint(x: x1 - f, y: h))
 
-        let flatFrom = x0 + f + b, flatTo = x1 - f - b
-        let half = min(pullHalfWidth, (flatTo - flatFrom) / 2)
-        let depth = max(0, pull.bulge)
-        if depth > 0.05, half > 4 {
-            let cx = min(max(r.width / 2 + pull.center, flatFrom + half), flatTo - half)
-            p.addLine(to: CGPoint(x: cx + half, y: h))
-            p.addCurve(to: CGPoint(x: cx, y: h + depth),
-                       control1: CGPoint(x: cx + half * 0.45, y: h),
-                       control2: CGPoint(x: cx + half * 0.55, y: h + depth))
-            p.addCurve(to: CGPoint(x: cx - half, y: h),
-                       control1: CGPoint(x: cx - half * 0.55, y: h + depth),
-                       control2: CGPoint(x: cx - half * 0.45, y: h))
-        }
+        let flatFrom = x0 + f + b
         p.addLine(to: CGPoint(x: flatFrom, y: h))
         p.addQuadCurve(to: CGPoint(x: x0 + f, y: h - b),
                        control: CGPoint(x: x0 + f, y: h))
