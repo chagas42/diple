@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastSync: Date?
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
+    @Published private(set) var reviewedAhead: Set<String> = []
 
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var team: [Person] = []
@@ -599,8 +600,13 @@ final class AppModel: ObservableObject {
                           let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
                     return !quiets(pr)
                 }
+            let candidates = settings.showsReviews
+                ? Array(store.unrequested.filter { !reviewedAhead.contains($0.key) }.prefix(5)) : []
+            if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
             queue = nova
             store.saveQueue(nova)
+            reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
+            confirmReviews(candidates)
             if let s = selected {
                 selected = nova.all.first { $0.key == s.key } ?? s
             }
@@ -1004,6 +1010,7 @@ final class AppModel: ObservableObject {
         telemetry.capture(.prOpened(source: source))
         store.markRead(pr.key)
         unread = store.state.unread
+        watchForReview(pr)
     }
 
     func clearAll() {
@@ -1084,7 +1091,9 @@ final class AppModel: ObservableObject {
         return out
     }
 
-    var reviewing: [PR] { settings.reviewFilter.order(queue.toReview, picked: following) }
+    var reviewing: [PR] {
+        settings.reviewFilter.order(queue.toReview.filter { !reviewedAhead.contains($0.key) }, picked: following)
+    }
 
     func quiets(_ pr: PR) -> Bool { settings.reviewFilter.quiets(pr, picked: following) }
 
@@ -1098,6 +1107,87 @@ final class AppModel: ObservableObject {
     }
 
     var yoursBroken: [PR] { queue.mine.filter { $0.checks == .failing } }
+
+    var onReviewsPending: (([String], Int) -> Void)?
+    var onNoReview: ((String) -> Void)?
+    var onTick: ((ReviewTick) -> Void)?
+
+    private func confirmReviews(_ candidates: [Store.Unrequested]) {
+        guard !candidates.isEmpty else { return }
+        Task { [weak self] in
+            for c in candidates {
+                guard let self else { return }
+                if let review = try? await self.client.myReview(onPullRequest: c.key, since: c.since) {
+                    self.counted(pr: c.key, at: review.at, verdict: ReviewVerdict(github: review.state))
+                } else {
+                    self.onNoReview?(c.key)
+                }
+            }
+        }
+    }
+
+    private var watches: [String: (id: UUID, task: Task<Void, Never>)] = [:]
+    private var watchOrder: [String] = []
+    var watchEvery: Duration = .seconds(10)
+    var watchFor: TimeInterval = 30 * 60
+    static let mostWatched = 3
+
+    func watchForReview(_ pr: PR) {
+        guard settings.showsReviews, !Demo.isOn, pr.author != queue.viewer else { return }
+        let key = pr.key
+        watches[key]?.task.cancel()
+        watchOrder.removeAll { $0 == key }
+        watchOrder.append(key)
+        while watchOrder.count > Self.mostWatched {
+            let oldest = watchOrder.removeFirst()
+            watches[oldest]?.task.cancel()
+            watches[oldest] = nil
+        }
+        let id = UUID()
+        let since = Date()
+        let task = Task { [weak self] in
+            while let self, !Task.isCancelled, Date().timeIntervalSince(since) < self.watchFor {
+                try? await Task.sleep(for: self.watchEvery)
+                guard !Task.isCancelled, self.queue.all.contains(where: { $0.key == key }) else { break }
+                if let review = try? await self.client.myReview(onPullRequest: key, since: since) {
+                    self.reviewedFromDiple(key, at: review.at, verdict: ReviewVerdict(github: review.state))
+                    break
+                }
+            }
+            guard let self, self.watches[key]?.id == id else { return }
+            self.watches[key] = nil
+            self.watchOrder.removeAll { $0 == key }
+        }
+        watches[key] = (id, task)
+    }
+
+    var watchedForReview: [String] { watchOrder }
+
+    func reviewedFromDiple(_ key: String, at: Date, verdict: ReviewVerdict) {
+        if queue.toReview.contains(where: { $0.key == key }), !reviewedAhead.contains(key) {
+            onReviewsPending?([key], count)
+            reviewedAhead.insert(key)
+            onCountChange?()
+        }
+        counted(pr: key, at: at, verdict: verdict)
+    }
+
+    func counted(pr: String, at: Date, verdict: ReviewVerdict) {
+        guard let today = store.countReview(pr, at: at) else { return onNoReview?(pr) ?? () }
+        onTick?(ReviewTick(id: "\(pr)/\(at.timeIntervalSince1970)", pr: pr, verdict: verdict, today: today))
+    }
+
+    func rehearseReviews() {
+        let prs = Array(reviewing.prefix(3))
+        guard !prs.isEmpty else { return }
+        let verdicts: [ReviewVerdict] = [.commented, .changesRequested, .approved]
+        onReviewsPending?(prs.map(\.key), count)
+        for (i, pr) in prs.enumerated() {
+            reviewedAhead.insert(pr.key)
+            counted(pr: pr.key, at: Date().addingTimeInterval(Double(i)), verdict: verdicts[i % verdicts.count])
+        }
+        onCountChange?()
+    }
 
     var count: Int { needsYou.count }
 

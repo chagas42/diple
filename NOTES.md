@@ -196,6 +196,28 @@ non-activating panel from eating the first click on every button.
 
 ## Notifications
 
+**A review you send slides a strip out of the notch.** When a PR leaves your
+review requests, Diple asks GitHub whether you reviewed it since the request
+first showed up (one small query per PR, at most five per sync). A PR opened
+from Diple is also checked every 10 s for 30 minutes, at most three at a time,
+so the strip shows seconds after you review; that PR leaves Needs you at once,
+before the next sync. The count keeps its old number until the strip plays,
+drops the moment a sheet leaves it, and the sheet falls into a small drawer
+whose number (today's reviews) goes up as it lands, so the two numbers move
+together. The drawer always sits at the strip's right end; when the count is on
+the left (a tight menu bar), the sheet first drops to the strip and glides
+under the cutout, since anything drawn at wing height there is hidden by the
+camera housing. The drawer opens a little as the sheet comes, stays open while
+it lands, then shuts and shakes, so the shake reads as the drawer closing, not
+the sheet falling. It shows more sheets inside as the day's reviews pile up
+(one, then two from 3, three from 7, four from 15). The bar beside it fills from empty to full as the sheet travels and
+glows when it lands: each review reads as one finished piece of work, whatever
+the verdict. A request that
+goes away without a review of yours (reassigned, PR closed) lets the count go
+with no strip; a hold nobody answers lets go after 20 s. Today resets at local
+midnight. Settings → Notifications → Your reviews turns it off, and
+`--demo --rehearse-review` plays three.
+
 **Quiet hours silence the test too.** The rule lets only direct replies through
 outside working hours, which is correct for real events and wrong for a test
 button — a test that does not fire because of the clock looks like a broken

@@ -28,6 +28,7 @@ struct Settings: Codable, Sendable, Equatable {
     var eyeBlinks = true
     var countSide = CountSide.right
     var fitsMenuBar = false
+    var showsReviews = true
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -108,6 +109,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.eyeBlinks = try c.decodeIfPresent(Bool.self, forKey: .eyeBlinks) ?? d.eyeBlinks
         d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
         d.fitsMenuBar = try c.decodeIfPresent(Bool.self, forKey: .fitsMenuBar) ?? d.fitsMenuBar
+        d.showsReviews = try c.decodeIfPresent(Bool.self, forKey: .showsReviews) ?? d.showsReviews
         self = d
     }
 
