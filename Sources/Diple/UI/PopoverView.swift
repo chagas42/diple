@@ -131,15 +131,19 @@ struct PopoverView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             Spacer()
-            if model.loading {
-                ProgressView().controlSize(.small)
-            } else {
-                Button { Task { await model.refresh() } } label: {
-                    Image(systemName: "arrow.clockwise")
+            Button { Task { await model.refresh() } } label: {
+                ZStack {
+                    if model.loading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
                 }
-                .buttonStyle(.borderless)
-                .help("Sincronizar now")
+                .frame(width: 18, height: 18)
             }
+            .buttonStyle(.borderless)
+            .disabled(model.loading)
+            .help("Sincronizar now")
         }
     }
 

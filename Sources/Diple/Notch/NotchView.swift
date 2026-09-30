@@ -250,17 +250,7 @@ struct NotchView: View {
                     Windows.shared.openMain(model)
                     onClose()
                 }
-                if model.loading || model.refreshingTab != nil {
-                    ProgressView().controlSize(.small).tint(.white).frame(width: 22)
-                } else {
-                    iconButton("arrow.clockwise") {
-                        let tab = model.notchTab
-                        Task {
-                            await model.refresh()
-                            model.loadTab(tab, force: true)
-                        }
-                    }
-                }
+                refreshButton
                 iconButton("bubble.left.and.exclamationmark.bubble.right") {
                     Windows.shared.openFeedback(model, feature: model.notchTab.feedbackFeature)
                     onClose()
@@ -276,6 +266,33 @@ struct NotchView: View {
             .frame(maxWidth: .infinity)
         }
         .frame(height: notchHeight)
+    }
+
+    private var syncing: Bool { model.loading || model.refreshingTab != nil }
+
+    private var refreshButton: some View {
+        Button {
+            let tab = model.notchTab
+            Task {
+                await model.refresh()
+                model.loadTab(tab, force: true)
+            }
+        } label: {
+            ZStack {
+                if syncing {
+                    ProgressView().controlSize(.mini).tint(.white)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.78))
+                }
+            }
+            .frame(width: 26, height: 26)
+            .background(Color.white.opacity(0.1), in: Circle())
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(syncing)
     }
 
     private func iconButton(_ name: String, _ acao: @escaping () -> Void) -> some View {

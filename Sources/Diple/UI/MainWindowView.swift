@@ -34,7 +34,11 @@ struct MainWindowView: View {
                 Button {
                     Task { await model.refresh() }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    if model.loading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
                 }
                 .disabled(model.loading)
                 .help("Sincronizar now")
