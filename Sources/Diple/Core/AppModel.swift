@@ -640,6 +640,7 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
+        picksChanged += 1
         var cache = store.state.cache
         cache.dropRanks()
         store.saveCache(cache)
@@ -690,12 +691,15 @@ final class AppModel: ObservableObject {
             switch tab {
             case .ranking:
                 let period = rankPeriod
+                let picks = picksChanged
                 let rows = try await client.fetchRanking(
                     org: org, people: rankingScope(people), from: period.since
                 )
                 guard !Task.isCancelled else { return }
-                store.updateCache { $0.setRank(rows, for: period) }
-                if period == rankPeriod { ranking = rows }
+                if picks == picksChanged {
+                    store.updateCache { $0.setRank(rows, for: period) }
+                    if period == rankPeriod { ranking = rows }
+                }
             case .activity:
                 let days = try await client.fetchActivity(org: org, login: viewer)
                 guard !Task.isCancelled else { return }
@@ -719,6 +723,8 @@ final class AppModel: ObservableObject {
             if let m = report(error, in: .loadTab) { errorMessage = m }
         }
     }
+
+    private var picksChanged = 0
 
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
 

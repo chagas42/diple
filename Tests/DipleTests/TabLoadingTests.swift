@@ -152,6 +152,25 @@ final class TabsGitHub: @unchecked Sendable {
         #expect(gh.transport.peakConcurrency == 1)
     }
 
+    @Test func picksChangedWhileTheRankingPreloadsWinOverThePreload() async {
+        let gh = TabsGitHub()
+        gh.delay(ranking: .milliseconds(400))
+        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        let model = Self.model(gh, store: store, preloading: true)
+        await model.refresh()
+        try? await Task.sleep(for: .milliseconds(60))
+
+        gh.delay(ranking: .zero)
+        model.toggleFollow("p1")
+        model.toggleFollow("p2")
+        await model.tabsSettled()
+        await Self.waitUntil { model.refreshingTab == nil }
+        try? await Task.sleep(for: .milliseconds(100))
+
+        #expect(Set(model.ranking.map(\.person.login)) == ["p1", "p2"])
+        #expect(Set(store.state.cache.rank(model.rankPeriod).map(\.person.login)) == ["p1", "p2"])
+    }
+
     @Test func tabsAreReadyBeforeTheyAreOpened() async {
         let gh = TabsGitHub()
         let model = Self.model(gh, preloading: true)
