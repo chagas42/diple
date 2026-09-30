@@ -13,6 +13,8 @@ struct ReviewStrip: View {
     static let length = 1.8
     static let paperLeaves = 0.2
     static let paperLands = 0.85
+    static let drawerShuts = 1.1
+    static let shutting = 0.12
     static let barInset: CGFloat = 12
 
     static func shortPR(_ key: String) -> String {
@@ -56,8 +58,8 @@ struct ReviewStrip: View {
             : width - wings.right / 2
         return Layout(
             count: CGPoint(x: countX, y: notchHeight / 2),
-            drawer: CGPoint(x: width - drawerColumn / 2 - 5, y: rowY + 1),
-            number: CGPoint(x: width - drawerColumn / 2 + 11, y: rowY),
+            drawer: CGPoint(x: width - drawerColumn / 2 - 7, y: rowY + 1),
+            number: CGPoint(x: width - drawerColumn / 2 + 13, y: rowY),
             rowY: rowY,
             cutout: wings.left...(wings.left + notchWidth)
         )
@@ -70,7 +72,7 @@ struct ReviewStrip: View {
     }
 
     static let drawerColumn: CGFloat = 44
-    static let drawerSize = CGSize(width: 18, height: 12)
+    static let drawerSize = CGSize(width: 18, height: 14)
     static let frontHeight: CGFloat = 7
     static let barGap: CGFloat = 8
 
@@ -91,12 +93,12 @@ struct ReviewStrip: View {
     static func opening(at t: Double) -> Double {
         if t < paperLeaves { return 0 }
         if t < paperLeaves + 0.25 { return ease((t - paperLeaves) / 0.25) }
-        if t < paperLands { return 1 }
-        return 1 - clamp((t - paperLands) / 0.08)
+        if t < drawerShuts { return 1 }
+        return 1 - ease(clamp((t - drawerShuts) / shutting))
     }
 
     static func shake(at t: Double) -> CGFloat {
-        let b = t - (paperLands + 0.08)
+        let b = t - (drawerShuts + shutting)
         guard b > 0, b < 0.35 else { return 0 }
         return CGFloat(1.4 * sin(b * 60) * (1 - b / 0.35))
     }
@@ -127,6 +129,7 @@ struct ReviewStrip: View {
             drawerBack(t)
                 .opacity(shown)
             number(t)
+                .frame(width: 16, alignment: .leading)
                 .position(numberAt)
                 .opacity(shown)
             if !reducedMotion, t >= Self.paperLeaves, t <= Self.paperLands + 0.08 {
@@ -150,16 +153,16 @@ struct ReviewStrip: View {
         let landed = Self.clamp((t - Self.paperLands) / 0.15)
         return ZStack(alignment: .bottom) {
             DrawerBack()
-            VStack(spacing: 1.1) {
+            VStack(spacing: 0.8) {
                 ForEach(0..<shown, id: \.self) { i in
                     let newest = i == 0 && shown > Self.sheets(for: tick.today - 1)
                     Capsule()
                         .fill(Color(white: 0.94))
-                        .frame(width: size.width - 5 - CGFloat(i % 2), height: 1.1)
+                        .frame(width: size.width - 5 - CGFloat(i % 2), height: 1)
                         .opacity(newest ? landed : 1)
                 }
             }
-            .padding(.bottom, Self.frontHeight - 1)
+            .padding(.bottom, Self.frontHeight + 0.4)
         }
         .frame(width: size.width, height: size.height)
         .offset(x: Self.shake(at: t))
@@ -168,7 +171,7 @@ struct ReviewStrip: View {
 
     private func drawerFront(_ t: Double) -> some View {
         let size = Self.drawerSize
-        let slide = CGFloat(Self.opening(at: t)) * 2.5
+        let slide = CGFloat(Self.opening(at: t)) * 3.5
         return DrawerFront()
             .frame(width: size.width, height: Self.frontHeight)
             .offset(x: Self.shake(at: t), y: slide)

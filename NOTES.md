@@ -196,9 +196,10 @@ whose number (today's reviews) goes up as it lands, so the two numbers move
 together. The drawer always sits at the strip's right end; when the count is on
 the left (a tight menu bar), the sheet first drops to the strip and glides
 under the cutout, since anything drawn at wing height there is hidden by the
-camera housing. The drawer opens a little as the sheet comes, shuts with a
-short shake when it lands, and shows more sheets inside as the day's reviews
-pile up (one, then two from 3, three from 7, four from 15). The bar beside it fills from empty to full as the sheet travels and
+camera housing. The drawer opens a little as the sheet comes, stays open while
+it lands, then shuts and shakes, so the shake reads as the drawer closing, not
+the sheet falling. It shows more sheets inside as the day's reviews pile up
+(one, then two from 3, three from 7, four from 15). The bar beside it fills from empty to full as the sheet travels and
 glows when it lands: each review reads as one finished piece of work, whatever
 the verdict. A request that
 goes away without a review of yours (reassigned, PR closed) lets the count go

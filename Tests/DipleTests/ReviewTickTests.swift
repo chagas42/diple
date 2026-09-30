@@ -113,6 +113,13 @@ import Testing
         }
     }
 
+    @Test func theDaysNumberSitsClearOfTheDrawer() {
+        let at = ReviewStrip.layout(wings: Wings(left: 42, right: 42), notchWidth: 185, notchHeight: 32)
+        let drawerRight = at.drawer.x + ReviewStrip.drawerSize.width / 2
+        #expect(at.number.x - 8 >= drawerRight + 2)
+        #expect(at.number.x + 8 <= 185 + 84)
+    }
+
     @Test func theDrawerFillsUpWithTheDaysReviews() {
         #expect(ReviewStrip.sheets(for: 0) == 0)
         #expect(ReviewStrip.sheets(for: 1) == 1)
@@ -122,13 +129,18 @@ import Testing
         #expect((0...60).map(ReviewStrip.sheets(for:)) == (0...60).map(ReviewStrip.sheets(for:)).sorted())
     }
 
-    @Test func theDrawerOpensForTheSheetThenShutsWithAShake() {
+    @Test func theDrawerShakesWhenItShutsNotWhenTheSheetFalls() {
+        let shut = ReviewStrip.drawerShuts + ReviewStrip.shutting
         #expect(ReviewStrip.opening(at: 0) == 0)
         #expect(ReviewStrip.opening(at: ReviewStrip.paperLands - 0.1) == 1)
-        #expect(ReviewStrip.opening(at: ReviewStrip.paperLands + 0.1) == 0)
-        #expect(ReviewStrip.shake(at: ReviewStrip.paperLands) == 0)
-        #expect((1...30).contains { abs(ReviewStrip.shake(at: ReviewStrip.paperLands + 0.08 + Double($0) / 100)) > 0.5 })
-        #expect(ReviewStrip.shake(at: ReviewStrip.paperLands + 0.5) == 0)
+        #expect(ReviewStrip.opening(at: ReviewStrip.paperLands + 0.1) == 1)
+        #expect(ReviewStrip.opening(at: shut) == 0)
+        for k in 0...Int((shut - ReviewStrip.paperLeaves) * 100) {
+            #expect(ReviewStrip.shake(at: ReviewStrip.paperLeaves + Double(k) / 100) == 0)
+        }
+        #expect((1...30).contains { abs(ReviewStrip.shake(at: shut + Double($0) / 100)) > 0.5 })
+        #expect(ReviewStrip.shake(at: shut + 0.4) == 0)
+        #expect(shut + 0.35 < ReviewStrip.length - 0.2)
     }
 
     @Test func theSheetLeavesTheCountAndEndsInTheDrawer() {
