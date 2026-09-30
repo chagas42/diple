@@ -8,6 +8,7 @@ struct Settings: Codable, Sendable, Equatable {
     var quietFrom = 19
     var quietUntil = 9
     var quietOnWeekends = true
+    var stackPerPR = false
 
     var mutedRepos: Set<String> = []
     var interval: TimeInterval = 60
@@ -90,6 +91,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.quietFrom = try c.decodeIfPresent(Int.self, forKey: .quietFrom) ?? d.quietFrom
         d.quietUntil = try c.decodeIfPresent(Int.self, forKey: .quietUntil) ?? d.quietUntil
         d.quietOnWeekends = try c.decodeIfPresent(Bool.self, forKey: .quietOnWeekends) ?? d.quietOnWeekends
+        d.stackPerPR = try c.decodeIfPresent(Bool.self, forKey: .stackPerPR) ?? d.stackPerPR
         d.mutedRepos = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRepos) ?? d.mutedRepos
         d.interval = try c.decodeIfPresent(TimeInterval.self, forKey: .interval) ?? d.interval
         d.aiModel = try c.decodeIfPresent(String.self, forKey: .aiModel) ?? d.aiModel

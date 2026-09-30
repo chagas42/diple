@@ -119,6 +119,17 @@ struct NotificationsPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                Toggle("One stack per pull request", isOn: $model.settings.stackPerPR)
+                Text(model.settings.stackPerPR
+                     ? "Each PR gets its own stack in Notification Center."
+                     : "Every Diple notification shares one stack, the way Slack's do.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Notification Center")
+            }
+
             Section("Quiet hours") {
                 Toggle("Mute outside these hours", isOn: $model.settings.quietHoursOn)
                 HStack {
