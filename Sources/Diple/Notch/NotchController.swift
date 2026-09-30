@@ -444,8 +444,12 @@ final class NotchController: ObservableObject {
         }
     }
 
+    private var pulls: Bool {
+        (model?.settings.liquidNotch ?? false) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     func pullTowardPointer() {
-        guard Gravity.isOn, !waking, state == .active else {
+        guard pulls, !waking, state == .active else {
             if !pull.isNone { gravity = Gravity(); pulling.show(.none) }
             return
         }

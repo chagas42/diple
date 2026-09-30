@@ -46,8 +46,6 @@ final class PullState: ObservableObject {
 }
 
 struct Gravity {
-    static var isOn: Bool { ProcessInfo.processInfo.environment["DIPLE_GRAVITY"] == "1" }
-
     var reach: CGFloat = 110
     var belowTheBar: CGFloat = 16
     var smoothing: CGFloat = 0.18

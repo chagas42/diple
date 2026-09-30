@@ -27,6 +27,7 @@ struct Settings: Codable, Sendable, Equatable {
     var showsEye = true
     var eyeBlinks = true
     var countSide = CountSide.right
+    var liquidNotch = true
     var fitsMenuBar = false
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
@@ -107,6 +108,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.showsEye = try c.decodeIfPresent(Bool.self, forKey: .showsEye) ?? d.showsEye
         d.eyeBlinks = try c.decodeIfPresent(Bool.self, forKey: .eyeBlinks) ?? d.eyeBlinks
         d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
+        d.liquidNotch = try c.decodeIfPresent(Bool.self, forKey: .liquidNotch) ?? d.liquidNotch
         d.fitsMenuBar = try c.decodeIfPresent(Bool.self, forKey: .fitsMenuBar) ?? d.fitsMenuBar
         self = d
     }
