@@ -90,10 +90,11 @@ its leftmost item about 28pt from the notch, under a 42pt wing. The wing is
 fitted to the gap instead, measured from `CGWindowListCopyWindowInfo`: status
 items are windows at `kCGStatusWindowLevel`, and their bounds need no Screen
 Recording permission. Items change width as they tick (a meeting countdown),
-so the fit is re-checked every 2 s while idle. When less than 27pt fits, the
-eye would have to shrink against the corner, so the right wing goes away, the
-eye is hidden, and the count moves to a full left wing; the shape is then
-shifted left by half a wing. The left wing is not measured: an app's menus are
+so the fit is re-checked every 2 s while idle. Both wings never go below
+27pt, so the eye always stays on the left and the count on the right: on a menu
+bar tighter than that, the right wing overlaps the first status item by a few
+points rather than moving the count or hiding the eye, which the wake-up and
+the rest of the notch are built around. The left wing is not measured: an app's menus are
 drawn inside one full-width menu bar window, and reading their extents takes
 Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
 gap, to see each layout without arranging the menu bar.
