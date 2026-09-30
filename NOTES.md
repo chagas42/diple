@@ -190,6 +190,15 @@ right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it wai
 for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
 `--nap short|medium|long` does the same 9 s after launch.
 
+**Gravity is smoothed twice and must never overshoot.** `DIPLE_GRAVITY=1`
+bulges the idle notch toward the pointer. The pointer is only sampled at
+30 Hz, so an exponential moving average takes the jitter out and an
+interpolating spring draws the bulge at display rate between samples; a
+retargeted spring keeps its velocity, so a new sample never shows as a step.
+The spring is critically damped because a negative bulge dents the notch
+upward and shows the cutout's edge. The pull lives in its own observable
+object, like the eye, so only the fill redraws.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
