@@ -190,6 +190,13 @@ right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it wai
 for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
 `--nap short|medium|long` does the same 9 s after launch.
 
+**Reduce Motion turns movement into fades.** With the system setting on,
+springs become short ease-in-outs without bounce, slides and scale-ins become
+cross-fades, the count swaps digits instead of rolling them, and the flame
+stands still. The eye stops following the pointer, blinking and looking
+around on its own. Views read `accessibilityReduceMotion`; the controller,
+which drives the eye outside SwiftUI, reads `Motion.reduced`.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.

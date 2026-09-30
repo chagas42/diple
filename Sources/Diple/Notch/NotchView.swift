@@ -44,6 +44,8 @@ struct NotchView: View {
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
@@ -51,13 +53,7 @@ struct NotchView: View {
                 shape.fill(.black)
                 content
                     .id(state.kind)
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .offset(y: -10))
-                                .animation(.easeOut(duration: 0.2).delay(0.08)),
-                            removal: .opacity.animation(.easeIn(duration: 0.08))
-                        )
-                    )
+                    .transition(stateChange)
             }
             .frame(width: size.width, height: size.height)
 
@@ -98,20 +94,29 @@ struct NotchView: View {
         .animation(resize, value: size)
         .animation(resize, value: shift)
         .animation(.easeOut(duration: 0.22), value: state.kind)
-        .animation(.bouncy(duration: 0.35), value: model.count)
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .bouncy(duration: 0.35), value: model.count)
+    }
+
+    private var stateChange: AnyTransition {
+        let removal = AnyTransition.opacity.animation(.easeIn(duration: 0.08))
+        let insertion = reduceMotion
+            ? AnyTransition.opacity.animation(.easeOut(duration: 0.15))
+            : AnyTransition.opacity.combined(with: .offset(y: -10)).animation(.easeOut(duration: 0.2).delay(0.08))
+        return .asymmetric(insertion: insertion, removal: removal)
     }
 
     private var eyeToggle: AnyTransition {
-        .scale(scale: 0.2).combined(with: .opacity)
+        reduceMotion ? .opacity : .scale(scale: 0.2).combined(with: .opacity)
     }
 
     private var eyeToggleAnimation: Animation {
-        .spring(response: 0.35, dampingFraction: 0.6)
+        reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.6)
     }
 
     private var resize: Animation {
-        appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
-                  : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
+        if reduceMotion { return .easeInOut(duration: 0.2) }
+        return appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
+                         : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
     }
 
     private var eyeCenter: CGPoint {
@@ -196,9 +201,9 @@ struct NotchView: View {
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
             .monospacedDigit()
-            .contentTransition(.numericText())
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
-            .contentTransition(.numericText(value: Double(model.count)))
+            .contentTransition(reduceMotion ? .opacity : .numericText(value: Double(model.count)))
+            .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.7),
+                       value: model.count)
             .opacity(waking ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: waking)
     }

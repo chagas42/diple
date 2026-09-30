@@ -283,6 +283,11 @@ struct RankTab: View {
             celebrating = false
             return
         }
+        if Motion.reduced {
+            progress = 1
+            celebrating = false
+            return
+        }
         progress = 0
         celebrating = true
         try? await Task.sleep(for: .milliseconds(60))

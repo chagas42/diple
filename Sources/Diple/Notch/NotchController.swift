@@ -259,6 +259,7 @@ final class NotchController: ObservableObject {
     }
 
     private func lookAround() async -> Bool {
+        if Motion.reduced { return true }
         for (gaze, ms) in [(CGPoint(x: -0.8, y: 0.1), 350), (CGPoint(x: 0.8, y: 0.1), 350), (.zero, 200)] {
             eye.look(at: gaze)
             guard await rest(ms) else { return false }
@@ -447,13 +448,12 @@ final class NotchController: ObservableObject {
         let range: CGFloat = 300
         let dx = max(-1, min(1, (m.x - f.midX) / range))
         let dy = max(-1, min(1, (f.midY - m.y) / range))
-        let next = CGPoint(x: dx, y: dy)
-        eye.look(at: next)
+        eye.look(at: Motion.reduced ? .zero : CGPoint(x: dx, y: dy))
     }
 
     private var blinks: Bool {
         guard let s = model?.settings else { return true }
-        return s.showsEye && s.eyeBlinks
+        return s.showsEye && s.eyeBlinks && !Motion.reduced
     }
 
     private func blinkOccasionally() {
