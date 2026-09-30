@@ -39,6 +39,7 @@ struct NotchView: View {
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
+    var dozesQuickly = false
     let eye: EyeState
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
@@ -86,7 +87,7 @@ struct NotchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .top) {
             if let since = sleepingSince, model.settings.showsEye {
-                SleepyZs(start: since)
+                SleepyZs(start: since, quick: dozesQuickly)
                     .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
                             y: eyeCenter.y - SleepyZs.eye.y)
                     .transition(.opacity)
