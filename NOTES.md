@@ -158,6 +158,12 @@ hovering mid-blink cannot leave the eye half shut. It is skipped over a
 fullscreen app, under Reduce Motion, in `--film` and in benches, and hovering
 or an alert ends it at once.
 
+**The wings spread from the notch.** The window is placed before the hosting
+view exists, and the shape starts at the notch's own size, black on black, so
+the first frame shows nothing new. 60 ms later both wings open outward together
+over 0.55 s on an ease-out curve with no overshoot. Before, the panel started
+at a zero frame in the corner and the content grew in from the left.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.

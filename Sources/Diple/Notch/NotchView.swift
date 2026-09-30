@@ -34,6 +34,7 @@ struct NotchView: View {
     var countOnLeft = false
     var shift: CGFloat = 0
     var shrinking = false
+    var appearing = false
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
@@ -86,7 +87,8 @@ struct NotchView: View {
     }
 
     private var resize: Animation {
-        .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
+        appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
+                  : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
     }
 
     private var eyeCenter: CGPoint {
