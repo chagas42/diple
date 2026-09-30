@@ -14,8 +14,36 @@ struct AppearanceSettings: View {
        }
     """
 
+    @State private var accessible = MenuBarItems.allowed
+
     var body: some View {
         Form {
+            if !NotchGeometry.statusItemsAreWindows {
+                Section("Notch") {
+                    Toggle("Fit the notch to the menu bar", isOn: Binding(
+                        get: { model.settings.fitsMenuBar },
+                        set: {
+                            model.settings.fitsMenuBar = $0
+                            if $0, !MenuBarItems.allowed { MenuBarItems.askForAccess() }
+                        }
+                    ))
+                    Text("This macOS only tells Diple where the menu bar icons are with Accessibility "
+                         + "permission, and only on the main display. Otherwise the count moves to the left "
+                         + "of the notch so no icon is covered.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                    if model.settings.fitsMenuBar, !accessible {
+                        HStack {
+                            Text("Waiting for Accessibility permission.")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.orange)
+                            Spacer()
+                            Button("Open Accessibility") { NSWorkspace.shared.open(MenuBarItems.accessibilityPane) }
+                        }
+                    }
+                }
+            }
+
             Section("Code") {
                 Picker("Theme", selection: Binding(
                     get: { model.settings.codeTheme },
@@ -57,5 +85,9 @@ struct AppearanceSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { accessible = MenuBarItems.allowed }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            accessible = MenuBarItems.allowed
+        }
     }
 }

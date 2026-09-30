@@ -30,3 +30,25 @@ struct NotchWingsTests {
         }
     }
 }
+
+@MainActor
+struct MenuBarItemsTests {
+    static let notchRight: CGFloat = 2984
+    static let screenMaxX: CGFloat = 3840
+
+    func free(_ lefts: [CGFloat]) -> CGFloat {
+        MenuBarItems.freeRight(notchRight: Self.notchRight, screenMaxX: Self.screenMaxX, lefts: lefts)
+    }
+
+    @Test func theNearestItemRightOfTheNotchSetsTheGap() {
+        #expect(free([3780, 3640, 3020]) == 36)
+    }
+
+    @Test func itemsBehindTheNotchAreHiddenAndIgnored() {
+        #expect(free([3780, 3020, 2940]) == 36)
+    }
+
+    @Test func noItemsLeavesTheWholeRightSideFree() {
+        #expect(free([]) == 856)
+    }
+}

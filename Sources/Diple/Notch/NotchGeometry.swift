@@ -49,20 +49,32 @@ struct NotchGeometry {
         let notchRight = screen.frame.midX + notchWidth / 2
         let barTop = primary.frame.maxY - screen.frame.maxY
         let me = ProcessInfo.processInfo.processIdentifier
+        let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
         var nearest = screen.frame.maxX
+        var sawStatusItem = false
 
         for w in list {
-            guard w[kCGWindowLayer as String] as? Int == Int(CGWindowLevelForKey(.statusWindow)),
+            guard w[kCGWindowLayer as String] as? Int == statusLevel,
                   w[kCGWindowOwnerPID as String] as? Int32 != me,
                   let d = w[kCGWindowBounds as String] as? NSDictionary,
                   let b = CGRect(dictionaryRepresentation: d),
-                  abs(b.minY - barTop) < 2, b.height <= topInset + 2,
+                  b.height <= topInset + 2
+            else { continue }
+            sawStatusItem = true
+            guard abs(b.minY - barTop) < 2,
                   b.minX >= notchRight - 1, b.minX < nearest
             else { continue }
             nearest = b.minX
         }
-        return nearest - notchRight
+        Self.statusItemsAreWindows = sawStatusItem
+        if sawStatusItem { return nearest - notchRight }
+
+        let display = CGRect(x: screen.frame.minX, y: barTop, width: screen.frame.width, height: screen.frame.height)
+        guard let lefts = MenuBarItems.lefts(onDisplay: display) else { return 0 }
+        return MenuBarItems.freeRight(notchRight: notchRight, screenMaxX: screen.frame.maxX, lefts: lefts)
     }
+
+    static var statusItemsAreWindows = true
 
     var displayName: String? {
         guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
