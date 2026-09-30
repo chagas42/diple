@@ -191,11 +191,16 @@ for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
 `--nap short|medium|long` does the same 9 s after launch.
 
 **The pointer glows where the cutout hides it.** The camera housing has no
-pixels, so the pointer vanishes inside it while the panel is open. Diple lights
-the panel at the cutout edge nearest the pointer, the bottom or a side, a
-little brighter the deeper the pointer goes, so it reads as the pointer's light
-leaking out. The glow lives in its own observable object, like the eye, so the
-30 Hz updates redraw only the glow; with Reduce Motion it moves without
+pixels, so the pointer vanishes inside it while the panel is open. The pointer
+is a light source: a thin rim around the cutout and a faint spill into the
+panel, both lit by a radial light centred on the pointer, so there is no
+bottom or side sprite to flip between. The rim fades in as the pointer comes
+within 40pt, so it never switches on at the edge. The light's reach grows by
+the pointer's distance to the nearest visible edge, so a pointer hugging the
+top of the screen still lights the rim. `CGRect.contains` excludes the max
+edge, and the cutout's top is the screen's, so the top pixel is counted as
+inside by hand. The glow lives in its own observable object, like the eye, so
+the 30 Hz updates redraw only the glow; with Reduce Motion it moves without
 animating.
 
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it

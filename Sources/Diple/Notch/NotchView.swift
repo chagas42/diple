@@ -60,7 +60,8 @@ struct NotchView: View {
                         )
                     )
                 if let glowing, state == .open {
-                    PointerGlowView(state: glowing, width: size.width)
+                    PointerGlowView(state: glowing, width: size.width, height: size.height,
+                                    cutout: CGSize(width: notchWidth, height: notchHeight))
                 }
             }
             .frame(width: size.width, height: size.height)
