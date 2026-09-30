@@ -449,11 +449,17 @@ final class NotchController: ObservableObject {
         eye.look(at: next)
     }
 
+    private var blinks: Bool {
+        guard let s = model?.settings else { return true }
+        return s.showsEye && s.eyeBlinks
+    }
+
     private func blinkOccasionally() {
         blinkTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Double.random(in: 4...9)))
                 guard let self, !Task.isCancelled else { return }
+                guard self.blinks else { continue }
                 self.eye.blinking = true
                 try? await Task.sleep(for: .milliseconds(110))
                 self.eye.blinking = false

@@ -24,6 +24,7 @@ struct Settings: Codable, Sendable, Equatable {
     var shareUsage = true
     var reviewFilter = ReviewFilter.everyone
     var showsEye = true
+    var eyeBlinks = true
     var countSide = CountSide.right
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
@@ -101,6 +102,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.shareUsage = try c.decodeIfPresent(Bool.self, forKey: .shareUsage) ?? d.shareUsage
         d.reviewFilter = (try? c.decodeIfPresent(ReviewFilter.self, forKey: .reviewFilter)) ?? d.reviewFilter
         d.showsEye = try c.decodeIfPresent(Bool.self, forKey: .showsEye) ?? d.showsEye
+        d.eyeBlinks = try c.decodeIfPresent(Bool.self, forKey: .eyeBlinks) ?? d.eyeBlinks
         d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
         self = d
     }

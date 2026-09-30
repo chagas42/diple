@@ -20,6 +20,8 @@ struct AppearanceSettings: View {
         Form {
             Section {
                 Toggle("Show the eye", isOn: $model.settings.showsEye)
+                Toggle("Blink", isOn: $model.settings.eyeBlinks)
+                    .disabled(!model.settings.showsEye)
                 Picker("Count", selection: $model.settings.countSide) {
                     ForEach(CountSide.allCases) { Text($0.title).tag($0) }
                 }
