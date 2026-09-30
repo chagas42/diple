@@ -5,6 +5,15 @@ carries no comments.
 
 ## GitHub API
 
+**Review history comes from search, not `contributionsCollection`.** For an
+org's private repositories `pullRequestReviewContributions` reported 0 reviews
+over six months that search counted in the thousands, so it cannot feed the
+Activity grid. The grid pages `reviewed-by:` search instead, one point per 100
+PRs, in non-overlapping 30-day `updated:` windows because a search stops at
+1000 results. A PR shows up in the window of its last update, and only its
+reviews submitted inside the grid count. The full six months is fetched once;
+after that only the last two days are, and older days come from the cache.
+
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
 separate connection. Reading one and not the other makes the app blind to the
@@ -190,6 +199,16 @@ right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it wai
 for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
 `--nap short|medium|long` does the same 9 s after launch.
 
+**Gravity is smoothed twice and must never overshoot.** *Lean toward the
+pointer* (on by default, off under Reduce Motion) bulges the idle notch toward
+the pointer. The pointer is only sampled at 30 Hz, so an exponential
+moving average takes the jitter out and an
+interpolating spring draws the bulge at display rate between samples; a
+retargeted spring keeps its velocity, so a new sample never shows as a step.
+The spring is critically damped because a negative bulge dents the notch
+upward and shows the cutout's edge. The pull lives in its own observable
+object, like the eye, so only the fill redraws.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
@@ -360,6 +379,23 @@ bundle that called it, at the path it ran from, so turning it on from a build
 in `build/` starts that build at login. Its status, not a stored setting, is
 the source of truth: removing Diple in System Settings → Login Items turns the
 switch off the next time Settings is shown.
+
+## Filming
+
+**The film is the panel, not the screen.** `cacheDisplay` renders the panel's
+content view, so no Screen Recording permission is needed, and nothing outside
+the panel exists: no cursor, no menu bar, no camera cutout. The cursor, the
+cutout and the desktop are composited on afterwards (`FilmStage`). The cutout
+is drawn last, in pure black with rounded bottom corners, so a cursor entering
+it disappears the way it does on the hardware.
+
+**Time is the frame's, not the clock's.** Capturing is slower than real time
+at high frame rates, so a pointer driven by the wall clock would jump. The
+scripted pointer is placed from `frame / fps`, and each frame waits for its
+own deadline; SwiftUI animations still run on the wall clock, so if capture
+falls behind (the recorder says so) they look faster than the pointer. The
+pointer timer does not run while filming: each frame calls `followPointer()`,
+which is what the timer calls.
 
 ## Measuring
 

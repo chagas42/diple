@@ -651,6 +651,7 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
+        picksChanged += 1
         var cache = store.state.cache
         cache.dropRanks()
         store.saveCache(cache)
@@ -701,18 +702,26 @@ final class AppModel: ObservableObject {
             switch tab {
             case .ranking:
                 let period = rankPeriod
+                let picks = picksChanged
                 let rows = try await client.fetchRanking(
                     org: org, people: rankingScope(people), from: period.since
                 )
                 guard !Task.isCancelled else { return }
-                store.updateCache { $0.setRank(rows, for: period) }
-                if period == rankPeriod { ranking = rows }
+                if picks == picksChanged {
+                    store.updateCache { $0.setRank(rows, for: period) }
+                    if period == rankPeriod { ranking = rows }
+                }
             case .activity:
-                let days = try await client.fetchActivity(org: org, login: viewer)
+                let today = Date()
+                let from = ActivityHistory.refetchFrom(today: today, cachedFrom: cache.activityFrom)
+                let counts = try await client.fetchReviewCounts(org: org, login: viewer, from: from, to: today)
                 guard !Task.isCancelled else { return }
+                let days = ActivityHistory.merged(old: cache.activity, fresh: counts, from: from, today: today)
+                let covered = min(cache.activityFrom ?? from, from)
                 store.updateCache {
                     $0.activity = days
-                    $0.activityAt = Date()
+                    $0.activityAt = today
+                    $0.activityFrom = covered
                 }
                 activity = days
             default: break
@@ -731,7 +740,18 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private var picksChanged = 0
+
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
+
+    var teammates: [Person] { Self.others(team, viewer: queue.viewer) }
+
+    var pickedTeammates: Int { teammates.filter { following.contains($0.login) }.count }
+
+    nonisolated static func others(_ people: [Person], viewer: String) -> [Person] {
+        guard !viewer.isEmpty else { return people }
+        return people.filter { $0.login.caseInsensitiveCompare(viewer) != .orderedSame }
+    }
 
     private func rankingScope(_ all: [Person]) -> [Person] {
         let picked = all.filter { following.contains($0.login) || $0.login == queue.viewer }

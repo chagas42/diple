@@ -94,10 +94,16 @@ gifmaker:
 	@swiftc -O tools/gifmaker.swift -o build/gifmaker
 	@echo "  build/gifmaker in.mp4 out.gif <fps> <width> [cropX cropY cropW cropH]"
 
-film:
+SCENE ?= tour
+VIDEO ?=
+FPS   ?=
+CROP  ?=
+FILM_FLAGS = --scene $(SCENE) $(if $(FPS),--fps $(FPS)) $(if $(CROP),--crop $(CROP))
+
+film: app
 	@rm -rf build/film && mkdir -p build/film
-	@$(BENCH_BIN) --demo --film build/film | tail -1
-	@echo "  python3 tools/seq2gif.py build/film out.gif <from> <to> [width] [step]"
+	@$(BENCH_BIN) --demo $(FILM_FLAGS) $(if $(VIDEO),--video "$(VIDEO)" --backdrop tools/backdrop.jpg,--film build/film) | tail -1
+	@$(if $(VIDEO),true,echo "  python3 tools/seq2gif.py build/film out.gif <from> <to> [width] [step]")
 
 demo-reset:
 	@pkill -x Diple 2>/dev/null || true

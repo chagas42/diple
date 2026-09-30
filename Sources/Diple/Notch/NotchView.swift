@@ -35,6 +35,7 @@ struct NotchView: View {
     let wings: Wings
     var shift: CGFloat = 0
     var shrinking = false
+    var pulling: PullState?
     var appearing = false
     var hidesByFading = false
     var waking = false
@@ -55,8 +56,9 @@ struct NotchView: View {
         let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                shape.fill(.black)
+                PulledFill(pulling: pulling, flare: flare, base: radius, resting: state == .active, settle: resize)
                 content
+                    .clipShape(shape)
                     .id(state.kind)
                     .transition(
                         .asymmetric(
@@ -67,8 +69,8 @@ struct NotchView: View {
                     )
             }
             .frame(width: size.width, height: size.height)
+            .contentShape(shape)
 
-            .clipShape(shape)
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
@@ -659,6 +661,41 @@ struct NotchView: View {
         case .checkFailed:     .red
         case .approved:       .green
         case .newPullRequest: .teal
+        }
+    }
+}
+
+private struct PulledFill: View {
+    var pulling: PullState?
+    let flare: CGFloat
+    let base: CGFloat
+    let resting: Bool
+    let settle: Animation
+
+    var body: some View {
+        if let pulling {
+            Pulled(pulling: pulling, flare: flare, base: base, resting: resting, settle: settle)
+        } else {
+            PanelShape(flare: flare, base: base).fill(.black)
+        }
+    }
+
+    private struct Pulled: View {
+        @ObservedObject var pulling: PullState
+        let flare: CGFloat
+        let base: CGFloat
+        let resting: Bool
+        let settle: Animation
+
+        private var motion: Animation? {
+            if pulling.snaps { return nil }
+            return resting ? .interpolatingSpring(stiffness: 30, damping: 11) : settle
+        }
+
+        var body: some View {
+            PanelShape(flare: flare, base: base, pull: pulling.pull)
+                .fill(.black)
+                .animation(motion, value: pulling.pull)
         }
     }
 }

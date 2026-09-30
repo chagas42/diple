@@ -37,7 +37,7 @@ struct MainWindowView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(model.loading)
-                .help("Sincronizar now")
+                .help("Sync now")
             }
         }
     }

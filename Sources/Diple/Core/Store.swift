@@ -102,6 +102,7 @@ struct Cache: Codable, Sendable, Equatable {
     var teamAt: Date?
     var rankingAt: Date?
     var activityAt: Date?
+    var activityFrom: Date?
     var scoreShownOn: Date?
     var repos: [RepoRef]? = nil
     var reposAt: Date? = nil
@@ -147,6 +148,7 @@ struct Cache: Codable, Sendable, Equatable {
         d.teamAt = try c.decodeIfPresent(Date.self, forKey: .teamAt)
         d.rankingAt = try c.decodeIfPresent(Date.self, forKey: .rankingAt)
         d.activityAt = try c.decodeIfPresent(Date.self, forKey: .activityAt)
+        d.activityFrom = try c.decodeIfPresent(Date.self, forKey: .activityFrom)
         d.scoreShownOn = try c.decodeIfPresent(Date.self, forKey: .scoreShownOn)
         d.repos = try c.decodeIfPresent([RepoRef].self, forKey: .repos)
         d.reposAt = try c.decodeIfPresent(Date.self, forKey: .reposAt)

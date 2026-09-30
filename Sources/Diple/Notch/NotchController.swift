@@ -11,6 +11,9 @@ final class NotchController: ObservableObject {
     @Published private(set) var wings = Wings(left: 42, right: 42)
     @Published private(set) var shift: CGFloat = 0
     @Published private(set) var shrinking = false
+    let pulling = PullState()
+    private var pull: Pull { pulling.pull }
+    private var gravity = Gravity()
     @Published private(set) var appearing = false
     @Published private(set) var hasNotch = true
     @Published private(set) var waking = false
@@ -127,6 +130,7 @@ final class NotchController: ObservableObject {
         case .alert:    g.alert
         }
         shrinking = next.width < size.width || next.height < size.height
+        if next != size { resizedAt = Date() }
         size = next
 
         switch state {
@@ -441,11 +445,7 @@ final class NotchController: ObservableObject {
     private func trackPointer() {
         if Film.isOn { return }
         pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                self.checkPointer()
-                self.aim()
-            }
+            Task { @MainActor in self?.followPointer() }
         }
     }
 
@@ -460,12 +460,18 @@ final class NotchController: ObservableObject {
         }
     }
 
+    func followPointer() {
+        checkPointer()
+        aim()
+        pullTowardPointer()
+    }
+
     func checkPointer() {
-        if Film.isOn { return }
         let g = NotchGeometry.current()
         let shape = g.rect(size, shift: shift)
 
-        let hotZone = shape.union(g.rect(g.closed))
+        let stretch = Blob.maxStretch * pull.strength
+        let hotZone = shape.union(g.rect(g.closed)).union(shape.insetBy(dx: -stretch, dy: -stretch))
         let m = pointer()
 
         let revealed = underFullScreen
@@ -507,6 +513,30 @@ final class NotchController: ObservableObject {
     }
 
     static let openEyeX: CGFloat = 14 + 16 + 11
+
+    lazy var leans: @MainActor () -> Bool = { [weak self] in
+        (self?.model?.settings.liquidNotch ?? false) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+    private var resizedAt = Date.distantPast
+    static let settleAfterResize: TimeInterval = 0.45
+
+    private var pulls: Bool {
+        leans() && Date().timeIntervalSince(resizedAt) > Self.settleAfterResize
+    }
+
+    func pullTowardPointer() {
+        guard pulls, !waking, state == .active else {
+            if !pull.isNone { gravity = Gravity(); pulling.show(.none) }
+            return
+        }
+        let g = NotchGeometry.current()
+        let next = gravity.follow(gravity.target(pointer: pointer(), shape: g.rect(size, shift: shift)))
+        if pulling.snaps {
+            pulling.show(next)
+        } else if next.isNone != pull.isNone || (!next.isNone && (next - pull).magnitudeSquared > 0.01) {
+            pulling.show(next)
+        }
+    }
 
     private func aim() {
         guard showsEye, !waking, !eye.sore else { return }
@@ -601,6 +631,7 @@ final class NotchController: ObservableObject {
                 wings: notch.wings,
                 shift: notch.shift,
                 shrinking: notch.shrinking,
+                pulling: notch.pulling,
                 appearing: notch.appearing,
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
