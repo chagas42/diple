@@ -30,6 +30,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             }
         }
 
+        if let i = CommandLine.arguments.firstIndex(of: "--nap"), i + 1 < CommandLine.arguments.count {
+            let nap: Nap = switch CommandLine.arguments[i + 1] {
+            case "short": .short
+            case "medium": .medium
+            default: .long
+            }
+            notch.rehearse(nap, after: .seconds(9))
+        }
+
         if CommandLine.arguments.contains("--windowFrame") {
             Windows.shared.openMain(model)
         }

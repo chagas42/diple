@@ -34,6 +34,7 @@ struct NotchView: View {
     var countOnLeft = false
     var shift: CGFloat = 0
     var shrinking = false
+    var appearing = false
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
@@ -42,6 +43,7 @@ struct NotchView: View {
     var tickTotal = 0
     var heldCount: Int?
     let eye: EyeState
+    var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
 
     var body: some View {
@@ -67,6 +69,13 @@ struct NotchView: View {
             .contextMenu {
                 Button("Settings…") { Windows.shared.openSettings(model) }
                 Button("Main Window") { Windows.shared.openMain(model) }
+                if let onNap {
+                    Menu("Rehearse Nap") {
+                        Button("Short") { onNap(.short) }
+                        Button("Medium") { onNap(.medium) }
+                        Button("Long") { onNap(.long) }
+                    }
+                }
                 Divider()
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
@@ -92,7 +101,8 @@ struct NotchView: View {
     private var shownCount: Int { heldCount ?? model.count }
 
     private var resize: Animation {
-        .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
+        appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
+                  : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
     }
 
     private var eyeCenter: CGPoint {

@@ -158,6 +158,25 @@ hovering mid-blink cannot leave the eye half shut. It is skipped over a
 fullscreen app, under Reduce Motion, in `--film` and in benches, and hovering
 or an alert ends it at once.
 
+**The wings spread from the notch.** The window is placed before the hosting
+view exists, and the shape starts at the notch's own size, black on black, so
+the first frame shows nothing new. 60 ms later both wings open outward together
+over 0.55 s on an ease-out curve with no overshoot. Before, the panel started
+at a zero frame in the corner and the content grew in from the left.
+
+**It also wakes after the Mac rests.** Going to sleep or the screens sleeping
+shuts the eye; coming back plays a wake-up sized by how long the Mac was
+away: under 2 minutes (the lid closed and opened) the eye just opens and blinks,
+about 1.5 s with no z's; up to an hour it dozes for 1.6 s, blinks once and looks
+around; an hour or more is the full launch wake-up. The rest is measured from
+sleep to wake, not to unlock, and when the screen is locked the wake-up waits
+for the unlock, since behind the lock screen nobody would see it. Sleep and the
+screens sleeping arrive as separate notifications for one rest, so the first
+one starts it and the rest are ignored. To rehearse one, the dev build's
+right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it waits
+for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
+`--nap short|medium|long` does the same 9 s after launch.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
