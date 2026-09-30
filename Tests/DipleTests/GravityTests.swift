@@ -96,3 +96,23 @@ struct BlobTests {
         }
     }
 }
+
+@MainActor
+@Suite struct GravityAfterClosingTests {
+    @Test func closingIsNotTakenOverByAPullUntilTheNotchHasSettled() async throws {
+        let g = NotchGeometry.current()
+        let rest = g.rect(g.active(g.wings()), shift: g.wings().shift)
+        let near = CGPoint(x: rest.minX + 20, y: rest.minY - 20)
+        let n = NotchController()
+        n.leans = { true }
+        n.pointer = { near }
+        n.open()
+        n.closeNow()
+        for _ in 0..<5 { n.pullTowardPointer() }
+        #expect(n.pulling.pull.isNone)
+
+        try await Task.sleep(for: .seconds(NotchController.settleAfterResize + 0.1))
+        for _ in 0..<5 { n.pullTowardPointer() }
+        #expect(!n.pulling.pull.isNone)
+    }
+}

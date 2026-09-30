@@ -115,6 +115,7 @@ final class NotchController: ObservableObject {
         case .alert:    g.alert
         }
         shrinking = next.width < size.width || next.height < size.height
+        if next != size { resizedAt = Date() }
         size = next
 
         switch state {
@@ -444,8 +445,14 @@ final class NotchController: ObservableObject {
         }
     }
 
+    lazy var leans: @MainActor () -> Bool = { [weak self] in
+        (self?.model?.settings.liquidNotch ?? false) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+    private var resizedAt = Date.distantPast
+    static let settleAfterResize: TimeInterval = 0.45
+
     private var pulls: Bool {
-        (model?.settings.liquidNotch ?? false) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        leans() && Date().timeIntervalSince(resizedAt) > Self.settleAfterResize
     }
 
     func pullTowardPointer() {
