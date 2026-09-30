@@ -37,6 +37,9 @@ struct NotchView: View {
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
+    var tick: ReviewTick?
+    var tickStart = Date()
+    var heldCount: Int?
     let eye: EyeState
     let onClose: () -> Void
 
@@ -82,8 +85,10 @@ struct NotchView: View {
         .animation(resize, value: size)
         .animation(resize, value: shift)
         .animation(.easeOut(duration: 0.22), value: state.kind)
-        .animation(.bouncy(duration: 0.35), value: model.count)
+        .animation(.bouncy(duration: 0.35), value: shownCount)
     }
+
+    private var shownCount: Int { heldCount ?? model.count }
 
     private var resize: Animation {
         .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
@@ -117,7 +122,15 @@ struct NotchView: View {
         case .hidden:
             Color.clear
         case .active:
-            wings
+            ZStack(alignment: .top) {
+                wings
+                if let t = tick {
+                    ReviewStrip(tick: t, start: tickStart, width: size.width, notchWidth: notchWidth,
+                                notchHeight: notchHeight, countOnLeft: countOnLeft)
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: size.width, height: size.height, alignment: .top)
         case .open:
             open
         case .alert(let e):
@@ -133,8 +146,8 @@ struct NotchView: View {
                     .frame(width: notchWidth)
             } else {
                 EyeView(eye: eye, width: 15)
-                    .opacity(model.count > 0 ? 1 : 0.42)
-                    .animation(.easeOut(duration: 0.25), value: model.count > 0)
+                    .opacity(shownCount > 0 ? 1 : 0.42)
+                    .animation(.easeOut(duration: 0.25), value: shownCount > 0)
                     .frame(maxWidth: .infinity)
                 Spacer(minLength: notchWidth)
                     .frame(width: notchWidth)
@@ -145,13 +158,13 @@ struct NotchView: View {
     }
 
     private var count: some View {
-        Text("\(model.count)")
+        Text("\(shownCount)")
             .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
+            .foregroundStyle(.white.opacity(shownCount > 0 ? 0.92 : 0.34))
             .monospacedDigit()
             .contentTransition(.numericText())
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
-            .contentTransition(.numericText(value: Double(model.count)))
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: shownCount)
+            .contentTransition(.numericText(value: Double(shownCount)))
             .opacity(waking ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: waking)
     }

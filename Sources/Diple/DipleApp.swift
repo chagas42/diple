@@ -11,6 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let model = AppModel.shared
         model.onEvent = { [weak self] event in self?.notch.alert(event) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
+        model.onReviewsPending = { [weak self] keys, count in self?.notch.expectReviews(keys, showing: count) }
+        model.onNoReview = { [weak self] key in self?.notch.noReview(key) }
+        model.onTick = { [weak self] t in self?.notch.tick(t) }
         notch.mount(model: model)
         model.start()
         checkScreen()
@@ -18,6 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         if Bench.scenario == "notch-idle" {
             Task { @MainActor in await BenchScenarios.notchIdle(notch: notch) }
+        }
+
+        if CommandLine.arguments.contains("--rehearse-review"), Demo.isOn {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                model.rehearseReviews()
+            }
         }
 
         if CommandLine.arguments.contains("--windowFrame") {

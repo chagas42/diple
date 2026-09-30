@@ -14,6 +14,13 @@ final class NotchController: ObservableObject {
     @Published private(set) var waking = false
     @Published private(set) var asleep = false
     private(set) var fellAsleep = Date()
+    @Published private(set) var tick: ReviewTick?
+    private(set) var tickStart = Date()
+    private(set) var pendingTicks: [ReviewTick] = []
+    @Published private(set) var heldCount: Int?
+    private(set) var expecting: Set<String> = []
+    private var holdRelease: Task<Void, Never>?
+    var holdsAtMost: Duration = .seconds(20)
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -95,7 +102,8 @@ final class NotchController: ObservableObject {
         shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
-        case .active: g.active
+        case .active: tick == nil ? g.active
+            : CGSize(width: g.active.width, height: g.active.height + ReviewStrip.drawer)
         case .open:    g.open
         case .alert:    g.alert
         }
@@ -190,6 +198,56 @@ final class NotchController: ObservableObject {
         state = idle()
         apply()
         model?.setNotchOpen(false)
+        showPendingTick()
+    }
+
+    func expectReviews(_ keys: [String], showing count: Int) {
+        if heldCount == nil { heldCount = count }
+        expecting.formUnion(keys)
+        holdRelease?.cancel()
+        let most = holdsAtMost
+        holdRelease = Task { [weak self] in
+            try? await Task.sleep(for: most)
+            guard !Task.isCancelled, let self else { return }
+            self.expecting = []
+            self.releaseCount()
+        }
+    }
+
+    func noReview(_ key: String) {
+        expecting.remove(key)
+        releaseCount()
+    }
+
+    func tick(_ t: ReviewTick) {
+        expecting.remove(t.pr)
+        pendingTicks.append(t)
+        showPendingTick()
+    }
+
+    private func releaseCount() {
+        guard expecting.isEmpty, tick == nil, pendingTicks.isEmpty else { return }
+        holdRelease?.cancel()
+        holdRelease = nil
+        heldCount = nil
+    }
+
+    private func showPendingTick() {
+        guard state == .active, !waking, tick == nil, !pendingTicks.isEmpty else { return }
+        let t = pendingTicks.removeFirst()
+        tick = t
+        tickStart = Date()
+        apply()
+        Task { [weak self] in
+            await self?.nap(.milliseconds(Int(ReviewStrip.paperLeaves * 1000)))
+            guard let self else { return }
+            if let h = self.heldCount { self.heldCount = max(self.model?.count ?? 0, h - 1) }
+            await self.nap(.milliseconds(Int((ReviewStrip.length - ReviewStrip.paperLeaves) * 1000)))
+            self.tick = nil
+            self.apply()
+            self.releaseCount()
+            self.showPendingTick()
+        }
     }
 
     func alert(_ e: Event) {
@@ -245,9 +303,11 @@ final class NotchController: ObservableObject {
     private func settleIdle() {
         guard state == .hidden || state == .active else { return }
         let next = idle()
-        guard next != state || NotchGeometry.current().wings != wings else { return }
-        state = next
-        apply()
+        if next != state || NotchGeometry.current().wings != wings {
+            state = next
+            apply()
+        }
+        showPendingTick()
     }
 
     private func trackPointer() {
@@ -359,6 +419,9 @@ final class NotchController: ObservableObject {
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
+                tick: notch.tick,
+                tickStart: notch.tickStart,
+                heldCount: notch.heldCount,
                 eye: notch.eye,
                 onClose: { notch.closeNow() }
             )
