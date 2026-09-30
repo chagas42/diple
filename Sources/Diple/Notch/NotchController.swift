@@ -405,8 +405,9 @@ final class NotchController: ObservableObject {
         let g = NotchGeometry.current()
         let shape = g.rect(size, shift: shift)
 
-        let bulge = NSRect(x: shape.minX, y: shape.minY - pull.depth, width: shape.width, height: pull.depth)
-        let hotZone = shape.union(g.rect(g.closed)).union(bulge)
+        let blob = NSRect(x: shape.minX - pull.left, y: shape.minY - pull.sag - pull.bulge,
+                          width: shape.width + pull.left + pull.right, height: shape.height + pull.sag + pull.bulge)
+        let hotZone = shape.union(g.rect(g.closed)).union(blob)
         let m = pointer()
 
         let revealed = underFullScreen
@@ -454,7 +455,7 @@ final class NotchController: ObservableObject {
         }
         let g = NotchGeometry.current()
         let next = gravity.follow(gravity.target(pointer: pointer(), shape: g.rect(size, shift: shift)))
-        if abs(next.depth - pull.depth) > 0.05 || abs(next.center - pull.center) > 0.2 || (next == .none) != (pull == .none) {
+        if (next - pull).magnitudeSquared > 0.01 || next.isNone != pull.isNone {
             pull = next
         }
     }

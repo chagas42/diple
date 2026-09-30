@@ -660,7 +660,7 @@ private struct PulledFill: View {
         let base: CGFloat
 
         var body: some View {
-            PanelShape(flare: flare, base: base, pull: pulling.pull.depth, pullCenter: pulling.pull.center)
+            PanelShape(flare: flare, base: base, pull: pulling.pull)
                 .fill(.black)
                 .animation(.interpolatingSpring(stiffness: 60, damping: 16), value: pulling.pull)
         }
