@@ -7,7 +7,6 @@ struct NotchWingsTests {
     @Test func roomyMenuBarKeepsFullWingsEachSide() {
         let w = NotchGeometry.wings(freeRight: 60, full: 42)
         #expect(w == Wings(left: 42, right: 42))
-        #expect(!w.countOnLeft)
         #expect(w.shift == 0)
     }
 
@@ -17,16 +16,18 @@ struct NotchWingsTests {
         #expect(w.shift == 0)
     }
 
-    @Test func tightGapMovesTheCountLeftAndHidesTheEye() {
-        let w = NotchGeometry.wings(freeRight: 26.5, full: 42)
-        #expect(w == Wings(left: 42, right: 0))
-        #expect(w.countOnLeft)
-        #expect(w.shift == -21)
+    @Test func aTightGapKeepsBothWingsAtTheirSmallest() {
+        let w = NotchGeometry.wings(freeRight: 23.5, full: 42)
+        #expect(w == Wings(left: NotchGeometry.minWing, right: NotchGeometry.minWing))
+        #expect(w.shift == 0)
     }
 
-    @Test func rightWingNeverReachesTheFirstStatusItem() {
+    @Test func bothWingsAlwaysExistAndStayCentered() {
         for free in stride(from: CGFloat(0), through: 80, by: 0.5) {
-            #expect(NotchGeometry.wings(freeRight: free, full: 42).right <= max(0, free - 6))
+            let w = NotchGeometry.wings(freeRight: free, full: 42)
+            #expect(w.left == w.right)
+            #expect(w.right >= NotchGeometry.minWing)
+            #expect(w.right <= 42)
         }
     }
 }

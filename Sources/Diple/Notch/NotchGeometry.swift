@@ -33,8 +33,8 @@ struct NotchGeometry {
     var wings: Wings { Self.wings(freeRight: freeRight, full: asa) }
 
     static func wings(freeRight: CGFloat, full: CGFloat) -> Wings {
-        let fits = min(full, freeRight - 6)
-        return fits >= minWing ? Wings(left: fits, right: fits) : Wings(left: full, right: 0)
+        let wing = max(minWing, min(full, freeRight - 6))
+        return Wings(left: wing, right: wing)
     }
 
     var freeRight: CGFloat {
@@ -162,6 +162,5 @@ struct Wings: Equatable {
     let left: CGFloat
     let right: CGFloat
 
-    var countOnLeft: Bool { right == 0 }
     var shift: CGFloat { (right - left) / 2 }
 }

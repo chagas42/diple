@@ -458,7 +458,6 @@ final class NotchController: ObservableObject {
                 size: notch.size,
                 notchWidth: notch.notchWidth,
                 notchHeight: notch.notchHeight,
-                countOnLeft: notch.wings.countOnLeft,
                 shift: notch.shift,
                 shrinking: notch.shrinking,
                 appearing: notch.appearing,
