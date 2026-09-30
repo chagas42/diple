@@ -75,7 +75,8 @@ final class Source: @unchecked Sendable {
         async let b = client.fetch(q)
         try await Self.until { source.count > 0 }
         source.release()
-        #expect(try await [a, b] == [1, 1])
+        let values: [Int] = try await [a, b]
+        #expect(values == [1, 1])
         #expect(source.count == 1)
     }
 
