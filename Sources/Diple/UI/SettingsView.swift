@@ -3,29 +3,88 @@ import AppKit
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @State private var pane: SettingsPane? = .notifications
 
     var body: some View {
-        TabView {
-            NotificationsPane(model: model)
-                .tabItem { Label("Notifications", systemImage: "bell") }
-            ReposPane(model: model)
-                .tabItem { Label("Repositories", systemImage: "book.closed") }
-
-            AppearanceSettings(model: model)
-                .tabItem { Label("Appearance", systemImage: "paintpalette") }
-            ClaudePane(model: model)
-                .tabItem { Label("Claude", systemImage: "sparkles") }
-            AccountPane(model: model)
-                .tabItem { Label("Account", systemImage: "person.crop.circle") }
-            PrivacyPane(model: model)
-                .tabItem { Label("Privacy", systemImage: "hand.raised") }
+        NavigationSplitView {
+            List(SettingsPane.allCases, selection: $pane) { p in
+                Label { Text(p.title) } icon: { SettingsIcon(pane: p) }
+                    .tag(p)
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            detail
+                .navigationTitle((pane ?? .notifications).title)
         }
-        .padding(.top, 12)
         .frame(minWidth: Self.minimum.width, maxWidth: .infinity,
                minHeight: Self.minimum.height, maxHeight: .infinity)
     }
 
-    static let minimum = CGSize(width: 620, height: 472)
+    @ViewBuilder private var detail: some View {
+        switch pane ?? .notifications {
+        case .notifications: NotificationsPane(model: model)
+        case .repositories:  ReposPane(model: model)
+        case .appearance:    AppearanceSettings(model: model)
+        case .claude:        ClaudePane(model: model)
+        case .account:       AccountPane(model: model)
+        case .privacy:       PrivacyPane(model: model)
+        }
+    }
+
+    static let minimum = CGSize(width: 820, height: 520)
+}
+
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case notifications, repositories, appearance, claude, account, privacy
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .notifications: "Notifications"
+        case .repositories:  "Repositories"
+        case .appearance:    "Appearance"
+        case .claude:        "Claude"
+        case .account:       "Account"
+        case .privacy:       "Privacy"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .notifications: "bell.badge.fill"
+        case .repositories:  "book.closed.fill"
+        case .appearance:    "paintpalette.fill"
+        case .claude:        "sparkles"
+        case .account:       "person.crop.circle.fill"
+        case .privacy:       "hand.raised.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .notifications: .red
+        case .repositories:  .indigo
+        case .appearance:    .blue
+        case .claude:        .orange
+        case .account:       .gray
+        case .privacy:       .blue
+        }
+    }
+}
+
+struct SettingsIcon: View {
+    let pane: SettingsPane
+
+    var body: some View {
+        Image(systemName: pane.symbol)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 20, height: 20)
+            .background(pane.tint.gradient, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+    }
 }
 
 struct NotificationsPane: View {
