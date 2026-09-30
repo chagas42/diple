@@ -32,7 +32,7 @@ enum Film {
         let beats: (NotchController, AppModel) -> [Beat]
     }
 
-    static let scenes: [Scene] = [tour, approach]
+    static let scenes: [Scene] = [tour, approach, focus, focusCovers]
 
     static func roll(notch: NotchController, model: AppModel) async {
         let video = option("--video").map { URL(fileURLWithPath: $0) }
@@ -180,5 +180,45 @@ extension Film {
             notch.closeNow()
         },
         Beat(name: "02-approach", seconds: approachPath.duration, pointer: approachPath),
+    ] }
+
+    static let openEye = CGPoint(x: -299, y: 19)
+
+    static func still(at p: CGPoint, for seconds: Double) -> HumanPath {
+        HumanPath(start: p, legs: [.init(to: CGPoint(x: p.x + 2, y: p.y + 1), seconds: seconds)], bow: 0)
+    }
+
+    static let toTheEye = HumanPath(start: CGPoint(x: -140, y: 230), legs: [
+        .init(to: CGPoint(x: -60, y: 60), seconds: 0.8, pause: 0.1),
+        .init(to: CGPoint(x: -40, y: 24), seconds: 0.35, pause: 0.5),
+        .init(to: CGPoint(x: -150, y: 150), seconds: 0.7, pause: 0.35),
+        .init(to: openEye, seconds: 0.8, pause: 0.5),
+    ])
+
+    static let focus = Scene(name: "focus", crop: .panel) { notch, model in [
+        Beat(name: "01-resting", seconds: 0.6) {
+            model.notchTab = .queue
+            model.tab = .needsYou
+            model.settings.focusLook = .terminal
+            notch.closeNow()
+        },
+        Beat(name: "02-to-the-eye", seconds: toTheEye.duration, pointer: toTheEye),
+        Beat(name: "03-poke-in", seconds: 4.2, pointer: still(at: openEye, for: 4.2)) { notch.poke() },
+        Beat(name: "04-poke-out", seconds: 3.4, pointer: still(at: openEye, for: 3.4)) { notch.poke() },
+    ] }
+
+    static let focusCovers = Scene(name: "focus-covers", crop: .panel) { notch, model in [
+        Beat(name: "01-open", seconds: 0.8, pointer: still(at: openEye, for: 0.8)) {
+            model.notchTab = .queue
+            model.settings.focusLook = .breathing
+            notch.open()
+        },
+        Beat(name: "02-breathing-in", seconds: 4.5, pointer: still(at: openEye, for: 4.5)) { notch.poke() },
+        Beat(name: "03-breathing-out", seconds: 2.6, pointer: still(at: openEye, for: 2.6)) { notch.poke() },
+        Beat(name: "04-pomodoro-in", seconds: 4, pointer: still(at: openEye, for: 4)) {
+            model.settings.focusLook = .pomodoro
+            notch.poke()
+        },
+        Beat(name: "05-pomodoro-out", seconds: 2.6, pointer: still(at: openEye, for: 2.6)) { notch.poke() },
     ] }
 }

@@ -31,8 +31,10 @@ final class Focus: ObservableObject {
         }
     }
 
+    static var asksMacOS: Bool { !Film.isOn && !Bench.isOn }
+
     func start() {
-        guard follows, watch == nil else { return }
+        guard follows, Self.asksMacOS, watch == nil else { return }
         if INFocusStatusCenter.default.authorizationStatus == .notDetermined {
             INFocusStatusCenter.default.requestAuthorization { _ in
                 Task { @MainActor [weak self] in self?.check() }
