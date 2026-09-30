@@ -109,6 +109,7 @@ struct Cache: Codable, Sendable, Equatable {
     var rankByPeriod: [String: [RankRow]]? = nil
     var rankAtByPeriod: [String: Date]? = nil
     var lastQueue: Lenient<Queue>? = nil
+    var queries: [String: StoredQuery]? = nil
 
     var queue: Queue? {
         get { lastQueue?.value }
@@ -155,6 +156,7 @@ struct Cache: Codable, Sendable, Equatable {
         d.rankByPeriod = try c.decodeIfPresent([String: [RankRow]].self, forKey: .rankByPeriod)
         d.rankAtByPeriod = try c.decodeIfPresent([String: Date].self, forKey: .rankAtByPeriod)
         d.lastQueue = try? c.decodeIfPresent(Lenient<Queue>.self, forKey: .lastQueue)
+        d.queries = try? c.decodeIfPresent([String: StoredQuery].self, forKey: .queries)
         self = d
     }
 
@@ -270,6 +272,7 @@ final class Store {
     func saveCache(_ c: Cache) {
         var c = c
         c.queue = state.cache.queue
+        c.queries = state.cache.queries
         state.cache = c
         save()
     }
