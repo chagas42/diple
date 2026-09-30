@@ -15,6 +15,17 @@ enum Queries {
         ) { try await $0.fetchRanking(org: org, people: people, from: period.since) }
     }
 
+    static let repos = CacheQuery<[RepoRef]>(
+        key: .repos, staleAfter: .seconds(24 * 3600), forgetAfter: .seconds(30 * 24 * 3600), persists: true
+    ) { try await $0.fetchRepos() }
+
+    static func repoPRs(_ repo: String) -> CacheQuery<[PR]> {
+        CacheQuery(
+            key: .repoPRs(repo: repo), tags: [.repo(repo)],
+            staleAfter: .seconds(60), forgetAfter: .seconds(1800)
+        ) { try await $0.fetchRepoPRs(repo) }
+    }
+
     static func activity(org: String, login: String) -> CacheQuery<ActivityLog> {
         CacheQuery(
             key: .activity(org: org, login: login), tags: [.team],

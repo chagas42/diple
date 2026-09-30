@@ -99,6 +99,29 @@ final class TabsGitHub: @unchecked Sendable {
         #expect(!model.loadingRepo)
     }
 
+    @Test func goingBackToARepositoryShowsItsListWithoutARequest() async {
+        let gh = TabsGitHub()
+        let model = Self.model(gh)
+        model.selectRepo("acme/repo0")
+        await Self.waitUntil { !model.loadingRepo }
+        model.selectRepo("acme/repo1")
+        await Self.waitUntil { !model.loadingRepo }
+        let before = gh.transport.queries.count
+        model.selectRepo("acme/repo0")
+        #expect(!model.loadingRepo)
+        #expect(model.repoPRs.allSatisfy { $0.repo == "acme/repo0" } && !model.repoPRs.isEmpty)
+        #expect(gh.transport.queries.count == before)
+    }
+
+    @Test func twoCallsForTheRepositoriesSendOneRequest() async {
+        let gh = TabsGitHub()
+        let model = Self.model(gh)
+        model.loadRepos()
+        model.loadRepos()
+        await model.tabsSettled()
+        #expect(gh.transport.queries.filter { $0.contains("RepoList") || $0.contains("repositories") }.count == 1)
+    }
+
     @Test func changingThePeriodMidFetchLoadsTheNewPeriod() async {
         let gh = TabsGitHub()
         let model = Self.model(gh)

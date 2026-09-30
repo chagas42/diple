@@ -97,8 +97,6 @@ enum RankPeriod: String, CaseIterable, Codable, Sendable, Identifiable {
 
 struct Cache: Codable, Sendable, Equatable {
     var scoreShownOn: Date?
-    var repos: [RepoRef]? = nil
-    var reposAt: Date? = nil
     var lastQueue: Lenient<Queue>? = nil
     var queries: [String: StoredQuery]? = nil
 
@@ -107,19 +105,12 @@ struct Cache: Codable, Sendable, Equatable {
         set { lastQueue = newValue.map(Lenient.init) }
     }
 
-    func isStale(_ at: Date?, after seconds: TimeInterval) -> Bool {
-        guard let at else { return true }
-        return Date().timeIntervalSince(at) > seconds
-    }
-
     init() {}
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         var d = Cache()
         d.scoreShownOn = try c.decodeIfPresent(Date.self, forKey: .scoreShownOn)
-        d.repos = try c.decodeIfPresent([RepoRef].self, forKey: .repos)
-        d.reposAt = try c.decodeIfPresent(Date.self, forKey: .reposAt)
         d.lastQueue = try? c.decodeIfPresent(Lenient<Queue>.self, forKey: .lastQueue)
         d.queries = try? c.decodeIfPresent([String: StoredQuery].self, forKey: .queries)
         self = d
@@ -231,14 +222,6 @@ final class Store {
     func markRead(_ key: String) {
         state.unread.remove(key)
         state.unreadReasons[key] = nil
-        save()
-    }
-
-    func saveCache(_ c: Cache) {
-        var c = c
-        c.queue = state.cache.queue
-        c.queries = state.cache.queries
-        state.cache = c
         save()
     }
 

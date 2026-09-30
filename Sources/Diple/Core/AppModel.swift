@@ -145,10 +145,18 @@ final class AppModel: ObservableObject {
         }
     }
 
-    @Published var repos: [RepoRef] = []
-    @Published var selectedRepo: String?
-    @Published var repoPRs: [PR] = []
-    @Published var loadingRepo = false
+    @Published private(set) var selectedRepo: String?
+    private var reposObserver: QueryObserver<[RepoRef]>?
+    private var repoObserver: QueryObserver<[PR]>?
+
+    var repos: [RepoRef] { Demo.isOn ? Demo.repos : reposObserver?.data ?? [] }
+
+    var repoPRs: [PR] {
+        guard Demo.isOn else { return repoObserver?.data ?? [] }
+        return Demo.queue.all.filter { $0.repo == selectedRepo }
+    }
+
+    var loadingRepo: Bool { repoObserver?.isFetching ?? false }
     @Published var repoShowsDraft = false
     @Published var watching: Set<String> = []
 
@@ -190,66 +198,36 @@ final class AppModel: ObservableObject {
 
     func loadRepos(force: Bool = false) {
         if Demo.isOn {
-            repos = Demo.team.isEmpty ? [] : [
-                RepoRef(nameWithOwner: "acme/orders-api", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/console", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/notifier", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/mobile", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/warehouse", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "chagas42/diple", owner: "you", isOrg: false, isPrivate: true),
-                RepoRef(nameWithOwner: "chagas42/jsonl-inspect", owner: "you", isOrg: false, isPrivate: false),
-            ]
             watching = ["acme/orders-api"]
             return
         }
-        let cache = store.state.cache
-        if !force, let cached = cache.repos, !cached.isEmpty,
-           !cache.isStale(cache.reposAt, after: 24 * 3600) {
-            repos = cached
-            return
-        }
-        if let cached = cache.repos { repos = cached }
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let fetched = try await client.fetchRepos()
-                var c = self.store.state.cache
-                c.repos = fetched
-                c.reposAt = Date()
-                self.store.saveCache(c)
-                self.repos = fetched
-            } catch {
-                if let m = self.report(error, in: .loadRepos) { self.errorMessage = m }
+        bindRepos(fetching: true)
+        if force, let observer = reposObserver { Task { await observer.refetch() } }
+    }
+
+    private func bindRepos(fetching: Bool) {
+        let q = Queries.repos.onError { [weak self] error in
+            await MainActor.run {
+                guard let self, let m = self.report(error, in: .loadRepos) else { return }
+                self.errorMessage = m
             }
         }
+        reposObserver = rebind(reposObserver, to: q, fetching: fetching)
     }
 
     func selectRepo(_ full: String?) {
-        repoTask?.cancel()
         selectedRepo = full
-        repoPRs = []
-        guard let full else {
-            loadingRepo = false
+        guard let full, !Demo.isOn else {
+            repoObserver = nil
             return
         }
-        loadingRepo = true
-        if Demo.isOn {
-            repoPRs = Demo.queue.all.filter { $0.repo == full }
-            loadingRepo = false
-            return
-        }
-        repoTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let prs = try await self.client.fetchRepoPRs(full)
-                guard !Task.isCancelled, self.selectedRepo == full else { return }
-                self.repoPRs = prs
-            } catch {
-                guard !Task.isCancelled, self.selectedRepo == full else { return }
-                if let m = self.report(error, in: .repoPRs) { self.errorMessage = m }
+        let q = Queries.repoPRs(full).onError { [weak self] error in
+            await MainActor.run {
+                guard let self, self.selectedRepo == full, let m = self.report(error, in: .repoPRs) else { return }
+                self.errorMessage = m
             }
-            self.loadingRepo = false
         }
+        repoObserver = rebind(repoObserver, to: q, fetching: true)
     }
 
     @Published private(set) var posting: Set<UUID> = []
@@ -287,7 +265,7 @@ final class AppModel: ObservableObject {
         queue.toReview = swap(queue.toReview)
         queue.following = swap(queue.following)
         if selected?.key == fresh.key { selected = fresh }
-        if repoPRs.contains(where: { $0.key == fresh.key }) { repoPRs = swap(repoPRs) }
+        queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
@@ -390,7 +368,6 @@ final class AppModel: ObservableObject {
     private(set) var partialFailures = 0
     private var pendingFull = false
     private var notchOpen = false
-    private var repoTask: Task<Void, Never>?
 
     private var started = false
 
@@ -498,7 +475,7 @@ final class AppModel: ObservableObject {
         following = store.state.following
         watching = store.state.watching ?? []
         let cache = store.state.cache
-        repos = cache.repos ?? []
+        bindRepos(fetching: false)
         if !Demo.isOn, let cached = cache.queue, queue.all.isEmpty {
             queue = cached
             pendingSeed = cached
