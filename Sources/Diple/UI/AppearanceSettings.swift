@@ -39,6 +39,18 @@ struct AppearanceSettings: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                Picker("Cover", selection: $model.settings.focusLook) {
+                    ForEach(FocusLook.allCases) { Text($0.title).tag($0) }
+                }
+            } header: {
+                Text("Focus")
+            } footer: {
+                Text("What covers the open notch while you are focused.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
             if !NotchGeometry.statusItemsAreWindows {
                 Section("Menu bar") {
                     Toggle("Fit the notch to the menu bar", isOn: Binding(

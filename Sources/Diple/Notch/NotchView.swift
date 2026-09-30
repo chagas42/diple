@@ -47,7 +47,6 @@ struct NotchView: View {
     var focusedSince: Date?
     var focusEnded: Date?
     var focusLook = FocusLook.terminal
-    var onFocusLook: ((FocusLook) -> Void)?
     let eye: EyeState
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
@@ -84,16 +83,6 @@ struct NotchView: View {
                         Button("Short") { onNap(.short) }
                         Button("Medium") { onNap(.medium) }
                         Button("Long") { onNap(.long) }
-                    }
-                }
-                if let onFocusLook {
-                    Menu("Focus Look") {
-                        ForEach(FocusLook.allCases) { look in
-                            Toggle(look.title, isOn: Binding(
-                                get: { focusLook == look },
-                                set: { _ in onFocusLook(look) }
-                            ))
-                        }
                     }
                 }
                 Divider()

@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum FocusLook: String, CaseIterable, Identifiable {
+enum FocusLook: String, Codable, Sendable, CaseIterable, Identifiable {
     case terminal, breathing, pomodoro
 
     var id: String { rawValue }
@@ -11,12 +11,6 @@ enum FocusLook: String, CaseIterable, Identifiable {
         case .breathing: "Breathing"
         case .pomodoro: "Pomodoro"
         }
-    }
-
-    static let key = "focusLook"
-
-    static var saved: FocusLook {
-        UserDefaults.standard.string(forKey: key).flatMap(FocusLook.init) ?? .terminal
     }
 }
 

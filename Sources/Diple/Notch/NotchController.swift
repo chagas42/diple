@@ -53,7 +53,6 @@ final class NotchController: ObservableObject {
     private var focusWatch: AnyCancellable?
     @Published private(set) var focusedSince: Date?
     @Published private(set) var focusEnded: Date?
-    @Published private(set) var focusLook = FocusLook.saved
     var clock: @MainActor () -> Date = Date.init
     static let longestSwitch: TimeInterval = 1.5
     private var arrivingSince: Date?
@@ -68,8 +67,8 @@ final class NotchController: ObservableObject {
         wingSettings = model.$settings
             .removeDuplicates { $0.showsEye == $1.showsEye && $0.countSide == $1.countSide }
             .sink { [weak self] s in self?.arrange(showsEye: s.showsEye, countOnLeft: s.countSide == .left) }
-        focusWatch = model.focus.$byHand.combineLatest(model.focus.$system)
-            .map { $0 || $1 }
+        focusWatch = model.focus.$byHand.combineLatest(model.focus.$system, model.focus.$setAside)
+            .map { $0 || ($1 && !$2) }
             .removeDuplicates()
             .sink { [weak self] on in self?.focus(on) }
         settleBeforeFirstFrame()
@@ -555,11 +554,6 @@ final class NotchController: ObservableObject {
         }
     }
 
-    func pick(_ look: FocusLook) {
-        focusLook = look
-        UserDefaults.standard.set(look.rawValue, forKey: FocusLook.key)
-    }
-
     func poke() {
         Task { [weak self] in await self?.ouch() }
     }
@@ -618,8 +612,7 @@ final class NotchController: ObservableObject {
                 onEyeTap: { notch.poke() },
                 focusedSince: notch.focusedSince,
                 focusEnded: notch.focusEnded,
-                focusLook: notch.focusLook,
-                onFocusLook: DevBuild.isOn ? { notch.pick($0) } : nil,
+                focusLook: model.settings.focusLook,
                 eye: notch.eye,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }

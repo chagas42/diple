@@ -76,4 +76,23 @@ import Testing
         #expect(n.focusEnded == nil)
         #expect(n.eye.focused)
     }
+
+    @Test func clickingTheEyeInAMacOSFocusSetsItAsideUntilTheFocusEnds() {
+        var focused: Bool? = true
+        let f = Focus()
+        f.read = { focused }
+        f.check()
+        #expect(f.isOn)
+
+        f.toggle()
+        #expect(!f.isOn)
+        f.check()
+        #expect(!f.isOn)
+
+        focused = false
+        f.check()
+        focused = true
+        f.check()
+        #expect(f.isOn)
+    }
 }

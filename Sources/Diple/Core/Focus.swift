@@ -5,8 +5,9 @@ import Intents
 final class Focus: ObservableObject {
     @Published var byHand = false
     @Published private(set) var system = false
+    @Published private(set) var setAside = false
 
-    var isOn: Bool { byHand || system }
+    var isOn: Bool { byHand || (system && !setAside) }
 
     var follows = true {
         didSet { if follows != oldValue { follows ? start() : stop() } }
@@ -22,7 +23,12 @@ final class Focus: ObservableObject {
     private var watch: Task<Void, Never>?
 
     func toggle() {
-        byHand.toggle()
+        if isOn {
+            byHand = false
+            if system { setAside = true }
+        } else {
+            byHand = true
+        }
     }
 
     func start() {
@@ -49,6 +55,7 @@ final class Focus: ObservableObject {
 
     func check() {
         let now = follows && read() == true
+        if !now { setAside = false }
         if now != system { system = now }
     }
 }

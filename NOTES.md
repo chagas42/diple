@@ -209,8 +209,10 @@ with a line of its own: the terminal one, a small zsh window of fixed size (so l
 notifications are paused and waits at a blinking prompt; leaving types `exit`
 and prints how long the focus lasted. The cover lingers 1.8 s for that goodbye
 before fading. The time counts seconds for the first minute, so it never sits
-at 0. It lives in memory only. The dev build's right-click menu picks the
-cover (Terminal, Breathing, Pomodoro). The eye in the open panel
+at 0. It lives in memory only. Settings → Appearance → Focus picks the cover
+(Terminal by default, Breathing, Pomodoro). Clicking the eye during a macOS
+Focus sets that Focus aside, since Diple cannot end it: Diple stays out of focus
+until the macOS Focus ends, and the next one is followed again. The eye in the open panel
 follows the pointer from where it sits (top left, 41pt in, halfway down the
 menu bar), over a shorter range than the idle eye. The click hurts: the eye
 squints shut, turns pink and shakes for about half a second, then opens into

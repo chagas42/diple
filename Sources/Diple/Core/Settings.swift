@@ -30,6 +30,7 @@ struct Settings: Codable, Sendable, Equatable {
     var fitsMenuBar = false
     var showsReviews = true
     var followsFocus = true
+    var focusLook = FocusLook.terminal
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -112,6 +113,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.fitsMenuBar = try c.decodeIfPresent(Bool.self, forKey: .fitsMenuBar) ?? d.fitsMenuBar
         d.showsReviews = try c.decodeIfPresent(Bool.self, forKey: .showsReviews) ?? d.showsReviews
         d.followsFocus = try c.decodeIfPresent(Bool.self, forKey: .followsFocus) ?? d.followsFocus
+        d.focusLook = (try? c.decodeIfPresent(FocusLook.self, forKey: .focusLook)) ?? d.focusLook
         self = d
     }
 
