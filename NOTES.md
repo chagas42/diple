@@ -63,6 +63,37 @@ sync does one full fetch anyway, so anything GitHub changes without moving
 one after another; three requests in parallel return in ~1.4 s instead of
 ~2.4 s, for 3 points a cycle instead of 1 — about 180 of the 5000 an hour.
 
+## The query cache
+
+Everything read from GitHub goes through `QueryClient`, modelled on React Query:
+a key holds every input the data depends on, identical requests share one
+fetch, and a reply that lands after its entry was cleared is dropped.
+
+**Changing an input means asking for a different key.** The ranking key carries
+the period and the picked logins, per-PR data carries the PR's last update, and
+AI reviews and maps carry its head commit. Nothing is cleared by hand; old keys
+are forgotten once nobody has looked at them for their `forgetAfter`.
+
+**Observers are the screens on screen.** The notch tab, the main window's
+repositories and an open review or map hold their queries; everything else
+reads the cache directly. Opening the notch, reconnecting, focusing the window
+or a refresh button refetch only what is observed, which keeps the request
+budget where it was.
+
+**The queue query only syncs.** `SyncEngine` runs one sync at a time, owns the
+pending full re-read and takes the watch list from the key. The diff,
+notifications and saving run in `onSuccess`, once per result and only for the
+current watch list, so a sync that finishes after the list changed is ignored.
+
+**AI reviews and maps follow the head commit, not the update time.** A comment
+bumps `updatedAt`; keyed by it, a finished review vanished the moment a
+teammate replied. A push is what makes a review or a map out of date.
+
+**Saved queries write only when something changed.** An unchanged refetch
+writes nothing unless the saved copy is already stale, so a relaunch can trust
+its time; rows past their `forgetAt` are pruned at launch, since forget timers
+live only in memory.
+
 ## The notch panel
 
 **The window never resizes.** It is always the open size, pinned to the top.
