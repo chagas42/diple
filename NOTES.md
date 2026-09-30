@@ -170,8 +170,11 @@ first showed up (one small query per PR, at most five per sync). A PR opened
 from Diple is also checked every 10 s for 30 minutes, at most three at a time,
 so the strip shows seconds after you review; that PR leaves Needs you at once,
 before the next sync. The count keeps its old number until the strip plays,
-drops the moment a sheet leaves it, and the sheet falls onto today's total,
-which goes up as it lands, so the two numbers move together. A request that
+drops the moment a sheet leaves it, and the sheet falls into a small drawer
+whose number (today's reviews) goes up as it lands, so the two numbers move
+together. The bar beside it is today's reviews over today's reviews plus what
+still needs you, so it steps once per review and never judges how you
+reviewed. A request that
 goes away without a review of yours (reassigned, PR closed) lets the count go
 with no strip; a hold nobody answers lets go after 20 s. Today resets at local
 midnight. Settings → Notifications → Your reviews turns it off, and

@@ -4,15 +4,17 @@ import AppKit
 struct ReviewStrip: View {
     let tick: ReviewTick
     let start: Date
+    let total: Int
     let width: CGFloat
     let notchWidth: CGFloat
     let notchHeight: CGFloat
     let countOnLeft: Bool
 
-    static let drawer: CGFloat = 18
-    static let length = 1.7
+    static let drawer: CGFloat = 20
+    static let length = 1.8
     static let paperLeaves = 0.2
-    static let paperLands = 0.8
+    static let paperLands = 0.85
+    static let barWidth: CGFloat = 34
 
     static func shortPR(_ key: String) -> String {
         let parts = key.split(separator: "/")
@@ -23,54 +25,92 @@ struct ReviewStrip: View {
         reducedMotion || elapsed >= paperLands ? t.today : t.today - 1
     }
 
+    static func fill(_ t: ReviewTick, total: Int, at elapsed: Double, reducedMotion: Bool = false) -> Double {
+        guard total > 0 else { return 1 }
+        let before = Double(max(0, t.today - 1)) / Double(total)
+        let after = min(1, Double(t.today) / Double(total))
+        if reducedMotion { return after }
+        let p = ease(clamp((elapsed - paperLands) / 0.3))
+        return before + (after - before) * p
+    }
+
+    static func clamp(_ x: Double) -> Double { min(1, max(0, x)) }
+    static func ease(_ x: Double) -> Double { x * x * (3 - 2 * x) }
+
+    private let reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+
     private var column: CGFloat {
         countOnLeft ? max(0, width - notchWidth) : max(0, (width - notchWidth) / 2)
     }
 
-    private var countX: CGFloat {
-        countOnLeft ? column / 2 : width - column / 2
-    }
-
-    private let reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    private var columnX: CGFloat { countOnLeft ? column / 2 : width - column / 2 }
+    private var rowY: CGFloat { notchHeight + Self.drawer / 2 - 1 }
+    private var drawerAt: CGPoint { CGPoint(x: columnX - 6, y: rowY + 1) }
+    private var numberAt: CGPoint { CGPoint(x: columnX + 9, y: rowY) }
 
     var body: some View {
         TimelineView(.animation) { context in
             let t = context.date.timeIntervalSince(start)
-            let inOut = min(1, t / 0.15) * (1 - min(1, max(0, (t - (Self.length - 0.2)) / 0.2)))
-            ZStack(alignment: .topLeading) {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: notchHeight)
-                    row(t)
-                        .frame(height: Self.drawer)
-                        .opacity(inOut)
-                }
-                if !reducedMotion, t >= Self.paperLeaves, t <= Self.paperLands + 0.05 {
-                    paper(min(1, (t - Self.paperLeaves) / (Self.paperLands - Self.paperLeaves)))
-                }
-            }
-            .frame(width: width, alignment: .topLeading)
+            frame(t)
         }
         .allowsHitTesting(false)
     }
 
-    private func row(_ t: Double) -> some View {
-        HStack(spacing: 0) {
-            if countOnLeft {
-                today(t).frame(width: column)
-                label(t).frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                label(t).frame(maxWidth: .infinity, alignment: .leading)
-                today(t).frame(width: column)
+    private func frame(_ t: Double) -> some View {
+        let shown = Self.inOut(t)
+        return ZStack(alignment: .topLeading) {
+            row(t)
+                .frame(width: width, height: Self.drawer)
+                .offset(y: notchHeight)
+                .opacity(shown)
+            DrawerBack()
+                .frame(width: 15, height: 10)
+                .position(drawerAt)
+                .opacity(shown)
+            number(t)
+                .position(numberAt)
+                .opacity(shown)
+            if !reducedMotion, t >= Self.paperLeaves, t <= Self.paperLands + 0.08 {
+                paper(Self.clamp((t - Self.paperLeaves) / (Self.paperLands - Self.paperLeaves)))
             }
+            DrawerFront()
+                .frame(width: 15, height: 6)
+                .offset(y: Self.jolt(t))
+                .position(x: drawerAt.x, y: drawerAt.y + 2.5)
+                .opacity(shown)
         }
-        .padding(.leading, countOnLeft ? 0 : 12)
-        .padding(.trailing, countOnLeft ? 12 : 0)
-        .padding(.bottom, 3)
+        .frame(width: width, alignment: .topLeading)
     }
 
-    private func label(_ t: Double) -> some View {
+    private static func inOut(_ t: Double) -> Double {
+        let enter = min(1, t / 0.15)
+        let leave = 1 - clamp((t - (length - 0.2)) / 0.2)
+        return enter * leave
+    }
+
+    private static func jolt(_ t: Double) -> CGFloat {
+        let b = (t - paperLands) / 0.22
+        guard b > 0, b < 1 else { return 0 }
+        return CGFloat(1.4 * sin(b * .pi))
+    }
+
+    private func row(_ t: Double) -> some View {
+        HStack(spacing: 0) {
+            if countOnLeft { Color.clear.frame(width: column) }
+            HStack(spacing: 5) {
+                label
+                Spacer(minLength: 4)
+                bar(Self.fill(tick, total: total, at: t, reducedMotion: reducedMotion))
+            }
+            .padding(.leading, countOnLeft ? 4 : 12)
+            .padding(.trailing, countOnLeft ? 12 : 4)
+            if !countOnLeft { Color.clear.frame(width: column) }
+        }
+        .padding(.bottom, 2)
+    }
+
+    private var label: some View {
         HStack(spacing: 5) {
-            if countOnLeft { todayWord }
             Text("\u{203A}")
                 .font(.system(size: 12, weight: .heavy, design: .rounded))
                 .foregroundStyle(tick.verdict.color)
@@ -82,25 +122,24 @@ struct ReviewStrip: View {
                 .foregroundStyle(.white.opacity(0.5))
                 .lineLimit(1)
                 .truncationMode(.middle)
-            if !countOnLeft {
-                Spacer(minLength: 4)
-                todayWord
-            }
         }
     }
 
-    private var todayWord: some View {
-        Text("today")
-            .font(.system(size: 9.5, weight: .medium, design: .rounded))
-            .foregroundStyle(.white.opacity(0.42))
+    private func bar(_ p: Double) -> some View {
+        let filled: CGFloat = max(2, Self.barWidth * CGFloat(p))
+        return ZStack(alignment: .leading) {
+            Capsule().fill(.white.opacity(0.12))
+            Capsule().fill(tick.verdict.color).frame(width: filled)
+        }
+        .frame(width: Self.barWidth, height: 3)
     }
 
-    private func today(_ t: Double) -> some View {
+    private func number(_ t: Double) -> some View {
         let n = Self.today(tick, at: t, reducedMotion: reducedMotion)
         let b = (t - Self.paperLands) / 0.3
-        let bump = b > 0 && b < 1 ? sin(b * .pi) : 0
+        let bump: CGFloat = b > 0 && b < 1 ? CGFloat(sin(b * .pi)) : 0
         return Text("\(n)")
-            .font(.system(size: 11.5, weight: .bold, design: .rounded))
+            .font(.system(size: 11, weight: .bold, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(.white.opacity(0.92))
             .contentTransition(.numericText(value: Double(n)))
@@ -108,19 +147,54 @@ struct ReviewStrip: View {
             .scaleEffect(1 + 0.3 * bump)
     }
 
+    struct Flight {
+        let point: CGPoint
+        let angle: Double
+        let scale: CGFloat
+        let opacity: Double
+    }
+
+    static func flight(_ p: Double, from: CGPoint, to: CGPoint) -> Flight {
+        let e = ease(p)
+        let dx = Double(to.x - from.x)
+        let dy = Double(to.y - from.y)
+        let hop = 7 * sin(p * .pi)
+        let x = Double(from.x) + dx * e
+        let y = Double(from.y) + dy * e - hop
+        let grow = 0.75 + 0.35 * sin(p * .pi)
+        let fade = p < 0.15 ? p / 0.15 : (p > 0.9 ? max(0, (1 - p) / 0.1) : 1)
+        return Flight(point: CGPoint(x: x, y: y), angle: -18 + 26 * e, scale: CGFloat(grow), opacity: fade)
+    }
+
     private func paper(_ p: Double) -> some View {
-        let e = p * p * (3 - 2 * p)
-        let from = notchHeight / 2
-        let to = notchHeight + Self.drawer / 2 - 1
-        let y = from + (to - from) * e - 7 * sin(p * .pi)
-        let x = countX + (countOnLeft ? 3 : -3) * sin(p * .pi)
-        let fade = p < 0.15 ? p / 0.15 : (p > 0.85 ? max(0, (1 - p) / 0.15) : 1)
+        let from = CGPoint(x: columnX, y: notchHeight / 2)
+        let to = CGPoint(x: drawerAt.x, y: drawerAt.y + 1)
+        let f = Self.flight(p, from: from, to: to)
         return Paper(tint: tick.verdict.color)
             .frame(width: 10, height: 13)
-            .scaleEffect(0.75 + 0.35 * sin(p * .pi) - 0.25 * max(0, p - 0.8) / 0.2)
-            .rotationEffect(.degrees(-18 + 26 * e))
-            .opacity(fade)
-            .position(x: x, y: y)
+            .scaleEffect(f.scale)
+            .rotationEffect(.degrees(f.angle))
+            .opacity(f.opacity)
+            .position(f.point)
+    }
+
+    private struct DrawerBack: View {
+        var body: some View {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Color(white: 0.16))
+                .overlay(RoundedRectangle(cornerRadius: 1.5).strokeBorder(.white.opacity(0.35), lineWidth: 0.8))
+        }
+    }
+
+    private struct DrawerFront: View {
+        var body: some View {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Color(white: 0.34))
+                .overlay(
+                    Capsule().fill(.white.opacity(0.75)).frame(width: 5, height: 1.2)
+                )
+                .shadow(color: .black.opacity(0.4), radius: 0.8, y: -0.5)
+        }
     }
 
     private struct Paper: View {

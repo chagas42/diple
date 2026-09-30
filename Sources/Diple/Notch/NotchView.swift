@@ -39,6 +39,7 @@ struct NotchView: View {
     var sleepingSince: Date?
     var tick: ReviewTick?
     var tickStart = Date()
+    var tickTotal = 0
     var heldCount: Int?
     let eye: EyeState
     let onClose: () -> Void
@@ -125,7 +126,7 @@ struct NotchView: View {
             ZStack(alignment: .top) {
                 wings
                 if let t = tick {
-                    ReviewStrip(tick: t, start: tickStart, width: size.width, notchWidth: notchWidth,
+                    ReviewStrip(tick: t, start: tickStart, total: tickTotal, width: size.width, notchWidth: notchWidth,
                                 notchHeight: notchHeight, countOnLeft: countOnLeft)
                         .transition(.opacity)
                 }
