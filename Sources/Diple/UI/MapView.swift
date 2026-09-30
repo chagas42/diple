@@ -8,6 +8,10 @@ struct MapaView: View {
     private var running: Bool { model.isMapping(pr.key) }
 
     var body: some View {
+        content.task(id: model.resultIDs(pr)) { await model.holdResults(for: pr) }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let m = map {
                 MapHeader(model: model, pr: pr, map: m, running: running)
@@ -241,6 +245,10 @@ struct MapWindowView: View {
     let pr: PR
 
     var body: some View {
+        content.task(id: model.resultIDs(pr)) { await model.holdResults(for: pr) }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let m = model.map(pr) {
                 MapHeader(model: model, pr: pr, map: m, running: model.isMapping(pr.key))

@@ -20,37 +20,62 @@ final class AppModel: ObservableObject {
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var following: Set<String> = []
 
-    var team: [Person] { Demo.isOn ? Demo.team : teamObserver?.data ?? [] }
-    var ranking: [RankRow] { Demo.isOn ? Demo.ranking(rankPeriod) : rankingObserver?.data ?? rankingWhileLoading }
-    var activity: [ActivityDay] { Demo.isOn ? Demo.activity : activityObserver?.data?.days ?? [] }
-
-    var refreshingTab: NotchTab? {
-        if rankingObserver?.isFetching == true { return .ranking }
-        if activityObserver?.isFetching == true { return .activity }
-        if teamObserver?.isFetching == true { return .team }
-        return nil
+    var team: [Person] {
+        if Demo.isOn { return Demo.team }
+        return teamObserver?.data ?? teamQuery.flatMap { queries.peek($0) } ?? []
     }
 
+    var ranking: [RankRow] {
+        if Demo.isOn { return Demo.ranking(rankPeriod) }
+        let rows = rankingObserver?.data ?? rankingQuery.flatMap { queries.peek($0) } ?? []
+        let people = Dictionary(team.map { ($0.login, $0) }, uniquingKeysWith: { first, _ in first })
+        return rows.map { RankRow(person: people[$0.person.login] ?? $0.person, reviews: $0.reviews) }
+    }
+
+    var activity: [ActivityDay] {
+        if Demo.isOn { return Demo.activity }
+        return (activityObserver?.data ?? activityQuery.flatMap { queries.peek($0) })?.days ?? []
+    }
+
+    var refreshingTab: NotchTab? {
+        guard let tab = shownTab else { return nil }
+        let fetching = switch tab {
+        case .queue:    false
+        case .team:     teamObserver?.isFetching == true
+        case .ranking:  rankingObserver?.isFetching ?? (teamObserver?.isFetching == true)
+        case .activity: activityObserver?.isFetching == true
+        }
+        return fetching ? tab : nil
+    }
+
+    private var shownTab: NotchTab?
+    private var reposShown = 0
+    private var syncingScreens = false
     private var teamObserver: QueryObserver<[Person]>?
     private var rankingObserver: QueryObserver<[RankRow]>?
     private var activityObserver: QueryObserver<ActivityLog>?
-    private var rankingWhileLoading: [RankRow] = []
-    private var rankingPending = false
 
     struct AIReview: Sendable {
         var result: ReviewResult
         var context: ReviewContext
     }
 
-    func aiReview(_ pr: PR) -> AIReview? { queries.cached(.aiReview(pr: pr.key, at: pr.updatedAt)) }
+    func aiReview(_ pr: PR) -> AIReview? { queries.cached(reviewKey(pr)) }
 
     func map(_ pr: PR) -> PRMap? { queries.cached(mapKey(stackOf(pr))) }
 
+    func resultIDs(_ pr: PR) -> [String] { [reviewKey(pr).id, mapKey(stackOf(pr)).id] }
+
+    func holdResults(for pr: PR) async {
+        let holds = [reviewKey(pr), mapKey(stackOf(pr))].map(queries.hold)
+        try? await Task.sleep(for: .seconds(365 * 24 * 3600))
+        withExtendedLifetime(holds) {}
+    }
+
+    private func reviewKey(_ pr: PR) -> QueryKey { .aiReview(pr: pr.key, revision: pr.revision) }
+
     private func mapKey(_ stack: [PR]) -> QueryKey {
-        .map(
-            stack: stack.map(\.key).joined(separator: "+"),
-            at: stack.map(\.updatedAt).max() ?? .distantPast
-        )
+        .map(stack: stack.map(\.key).joined(separator: "+"), revisions: stack.map(\.revision).joined(separator: "+"))
     }
 
     struct ReviewRun: Sendable {
@@ -153,8 +178,7 @@ final class AppModel: ObservableObject {
         didSet {
             guard rankPeriod != oldValue else { return }
             objectWillChange.send()
-            rankingWhileLoading = []
-            loadTab(.ranking)
+            syncScreens()
         }
     }
 
@@ -162,7 +186,7 @@ final class AppModel: ObservableObject {
     private var reposObserver: QueryObserver<[RepoRef]>?
     private var repoObserver: QueryObserver<[PR]>?
 
-    var repos: [RepoRef] { Demo.isOn ? Demo.repos : reposObserver?.data ?? [] }
+    var repos: [RepoRef] { Demo.isOn ? Demo.repos : reposObserver?.data ?? queries.peek(reposQuery) ?? [] }
 
     var repoPRs: [PR] {
         guard Demo.isOn else { return repoObserver?.data ?? [] }
@@ -209,38 +233,35 @@ final class AppModel: ObservableObject {
         repoPRs.filter { $0.draft == repoShowsDraft }
     }
 
-    func loadRepos(force: Bool = false) {
+    func loadRepos() {
         if Demo.isOn {
             watching = ["acme/orders-api"]
             return
         }
-        bindRepos(fetching: true)
-        if force, let observer = reposObserver { Task { await observer.refetch() } }
+        queries.prefetch(reposQuery)
     }
 
-    private func bindRepos(fetching: Bool) {
-        let q = Queries.repos.onError { [weak self] error in
-            await MainActor.run {
-                guard let self, let m = self.report(error, in: .loadRepos) else { return }
-                self.errorMessage = m
-            }
+    func showRepos() async {
+        loadRepos()
+        reposShown += 1
+        syncScreens()
+        try? await Task.sleep(for: .seconds(365 * 24 * 3600))
+        reposShown -= 1
+        syncScreens()
+    }
+
+    private var reposQuery: CacheQuery<[RepoRef]> { reporting(Queries.repos, in: .loadRepos) }
+
+    private func repoQuery(_ repo: String) -> CacheQuery<[PR]> {
+        Queries.repoPRs(repo).onError { [weak self] error in
+            guard let self, self.selectedRepo == repo, let m = self.report(error, in: .repoPRs) else { return }
+            self.errorMessage = m
         }
-        reposObserver = rebind(reposObserver, to: q, fetching: fetching)
     }
 
     func selectRepo(_ full: String?) {
         selectedRepo = full
-        guard let full, !Demo.isOn else {
-            repoObserver = nil
-            return
-        }
-        let q = Queries.repoPRs(full).onError { [weak self] error in
-            await MainActor.run {
-                guard let self, self.selectedRepo == full, let m = self.report(error, in: .repoPRs) else { return }
-                self.errorMessage = m
-            }
-        }
-        repoObserver = rebind(repoObserver, to: q, fetching: true)
+        syncScreens()
     }
 
     @Published private(set) var posting: Set<UUID> = []
@@ -273,8 +294,6 @@ final class AppModel: ObservableObject {
             await refresh()
             return
         }
-        let old = queue.all.first { $0.key == fresh.key } ?? pr
-        let oldStack = stackOf(old)
         func swap(_ list: [PR]) -> [PR] { list.map { $0.key == fresh.key ? fresh : $0 } }
         func swap(_ q: inout Queue) {
             q.mine = swap(q.mine)
@@ -282,16 +301,10 @@ final class AppModel: ObservableObject {
             q.following = swap(q.following)
         }
         swap(&queue)
-        queries.setData(.queue(watching: watching)) { (q: inout Queue) in swap(&q) }
+        queries.setData(.queue(watching: watching)) { (o: inout SyncOutcome) in swap(&o.queue) }
         if selected?.key == fresh.key { selected = fresh }
         queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
-        carryForward(from: old, oldStack, to: fresh)
         queries.invalidate(.pr(fresh.key))
-    }
-
-    private func carryForward(from old: PR, _ oldStack: [PR], to fresh: PR) {
-        queries.move(.aiReview(pr: old.key, at: old.updatedAt), to: .aiReview(pr: fresh.key, at: fresh.updatedAt))
-        queries.move(mapKey(oldStack), to: mapKey(stackOf(fresh)))
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
@@ -352,6 +365,10 @@ final class AppModel: ObservableObject {
         self.queries = queries
         self.sync = SyncEngine(client: client)
         self.prefetcher = fetchRefs.map { Prefetcher(queries: queries, fetchRefs: $0) } ?? Prefetcher(queries: queries)
+        queries.onChange = { [weak self] in
+            self?.objectWillChange.send()
+            self?.syncScreens()
+        }
     }
 
     func reviewContext(for pr: PR) async throws -> ReviewContext {
@@ -374,8 +391,9 @@ final class AppModel: ObservableObject {
 
     private func schedulePreload() {
         guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline else { return }
-        guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
-        load([.ranking, .activity])
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled, let teamQuery else { return }
+        queries.prefetch(teamQuery) { [weak self] team in self?.rankingQuery(for: team) }
+        if let activityQuery { queries.prefetch(activityQuery) }
     }
 
     private func schedulePrefetch() {
@@ -394,10 +412,7 @@ final class AppModel: ObservableObject {
     @Published var isOnline = true
     private(set) var failures = 0
     private(set) var partialFailures = 0
-    private var fullRequested = 0
-    private var fullServed = 0
-    private var syncedWatching: Set<String>?
-    private var queueObserver: QueryObserver<Queue>?
+    private var queueObserver: QueryObserver<SyncOutcome>?
     private var notchOpen = false
 
     private var started = false
@@ -433,7 +448,10 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in await self?.refresh(full: true) }
+            Task { @MainActor in
+                self?.refetchShown()
+                await self?.refresh(full: true)
+            }
         }
     }
 
@@ -505,16 +523,11 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
         following = store.state.following
         watching = store.state.watching ?? []
-        let cache = store.state.cache
-        bindRepos(fetching: false)
-        if !Demo.isOn, let cached = cache.queue, queue.all.isEmpty {
+        if !Demo.isOn, let cached = store.state.cache.queue, queue.all.isEmpty {
             queue = cached
             pendingSeed = cached
             onCountChange?()
         }
-        bindTeam(fetching: false)
-        bindRanking()
-        bindActivity(fetching: false)
     }
 
     var policy: SyncPolicy {
@@ -546,20 +559,31 @@ final class AppModel: ObservableObject {
     func setNotchOpen(_ open: Bool) {
         guard open != notchOpen else { return }
         notchOpen = open
+        shownTab = open && notchTab != .queue ? notchTab : nil
+        syncScreens()
+        if open { refetchShown() }
         if open, let last = lastSync, Date().timeIntervalSince(last) > settings.interval {
             Task { await refresh() }
         }
         restartTimer()
     }
 
+    func windowFocused() { refetchShown() }
+
     func setOnline(_ online: Bool) {
         let cameBack = online && !isOnline
         isOnline = online
         guard cameBack else { return }
+        refetchShown()
         Task {
             await refresh()
             restartTimer()
         }
+    }
+
+    private func refetchShown(force: Bool = false) {
+        guard isOnline, !Demo.isOn else { return }
+        queries.refetchObserved(force: force, except: .queue)
     }
 
     func refresh(full: Bool = false) async {
@@ -571,97 +595,85 @@ final class AppModel: ObservableObject {
             onCountChange?()
             return
         }
-        if full { fullRequested += 1 }
+        if full { await sync.requestFull() }
         guard isOnline else { return }
+        if let seed = pendingSeed {
+            pendingSeed = nil
+            await sync.seed(seed, watching: watching)
+        }
         bindQueue()
-        let q = queueQuery
-        _ = try? await queries.fetch(q)
-        if fullRequested > fullServed { _ = try? await queries.fetch(q) }
+        guard (try? await queries.fetch(queueQuery)) != nil else { return }
+        if await sync.fullPending { _ = try? await queries.fetch(queueQuery) }
     }
 
     func refreshVisible() async {
-        if isOnline, !Demo.isOn { queries.invalidateAll(except: .queue) }
+        refetchShown(force: true)
         await refresh()
     }
 
-    private var queueQuery: CacheQuery<Queue> {
-        CacheQuery(key: .queue(watching: watching), tags: [.queue], staleAfter: .zero, forgetAfter: .seconds(3600)) {
-            [weak self] _ in
-            guard let self else { throw CancellationError() }
-            return try await self.syncQueue()
-        }
+    private var queueQuery: CacheQuery<SyncOutcome> {
+        let watching = watching
+        return CacheQuery(
+            key: .queue(watching: watching), tags: [.queue], staleAfter: .zero, forgetAfter: .seconds(3600),
+            onSuccess: { [weak self] outcome in await self?.apply(outcome, watching: watching) },
+            onError: { [weak self] error in self?.syncFailed(error) }
+        ) { [sync] _ in try await sync.sync(watching: watching) }
     }
 
     private func bindQueue() {
-        queueObserver = rebind(queueObserver, to: queueQuery, fetching: false) { [weak self] in
-            guard let self, let fresh = self.queueObserver?.data, fresh != self.queue else { return }
-            self.queue = fresh
+        queueObserver = observing(queueObserver, queueQuery)
+    }
+
+    private func apply(_ outcome: SyncOutcome, watching synced: Set<String>) async {
+        guard synced == watching else { return }
+        let nova = outcome.queue
+        let events = store.diff(nova, meuLogin: nova.viewer)
+            .filter { e in
+                let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
+                return !settings.mutedRepos.contains(repo)
+            }
+            .filter { e in
+                guard e.kind == .reviewRequested,
+                      let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
+                return !quiets(pr)
+            }
+        let candidates = settings.showsReviews
+            ? Array(store.unrequested.filter { !reviewedAhead.contains($0.key) }.prefix(5)) : []
+        if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
+        queue = nova
+        store.saveQueue(nova)
+        reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
+        confirmReviews(candidates)
+        if let s = selected {
+            selected = nova.all.first { $0.key == s.key } ?? s
+        }
+        unread = store.state.unread
+        lastSync = Date()
+        if let stale = outcome.staleMessage {
+            if let e = outcome.error { report(e, in: .refresh) }
+            failures = 0
+            partialFailures += 1
+            errorMessage = stale
+        } else {
+            failures = 0
+            partialFailures = 0
+            errorMessage = nil
+        }
+        syncScreens()
+        await notificador.post(events)
+        onCountChange?()
+        recordActiveDay()
+        schedulePrefetch()
+        schedulePreload()
+        if let first = events.first(where: { $0.kind.interrupts }) {
+            onEvent?(first)
         }
     }
 
-    private func syncQueue() async throws -> Queue {
-        let full = fullRequested
-        let lastWatched = syncedWatching
-        let watchChanged = lastWatched.map { $0 != watching } ?? false
-        do {
-            await sync.setWatching(watching)
-            syncedWatching = watching
-            if let seed = pendingSeed {
-                pendingSeed = nil
-                await sync.seed(seed)
-            }
-            let outcome = try await sync.sync(full: full > fullServed || watchChanged)
-            let nova = outcome.queue
-            fullServed = max(fullServed, full)
-            let events = store.diff(nova, meuLogin: nova.viewer)
-                .filter { e in
-                    let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
-                    return !settings.mutedRepos.contains(repo)
-                }
-                .filter { e in
-                    guard e.kind == .reviewRequested,
-                          let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
-                    return !quiets(pr)
-                }
-            let candidates = settings.showsReviews
-                ? Array(store.unrequested.filter { !reviewedAhead.contains($0.key) }.prefix(5)) : []
-            if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
-            queue = nova
-            store.saveQueue(nova)
-            reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
-            confirmReviews(candidates)
-            if let s = selected {
-                selected = nova.all.first { $0.key == s.key } ?? s
-            }
-            unread = store.state.unread
-            lastSync = Date()
-            if let stale = outcome.staleMessage {
-                if let e = outcome.error { report(e, in: .refresh) }
-                failures = 0
-                partialFailures += 1
-                errorMessage = stale
-            } else {
-                failures = 0
-                partialFailures = 0
-                errorMessage = nil
-            }
-            await notificador.post(events)
-            onCountChange?()
-            recordActiveDay()
-            schedulePrefetch()
-            schedulePreload()
-            if let first = events.first(where: { $0.kind.interrupts }) {
-                onEvent?(first)
-            }
-            return nova
-        } catch {
-            syncedWatching = lastWatched
-            if let m = report(error, in: .refresh) {
-                failures += 1
-                errorMessage = m
-            }
-            throw error
-        }
+    private func syncFailed(_ error: Error) {
+        guard let m = report(error, in: .refresh) else { return }
+        failures += 1
+        errorMessage = m
     }
 
     var org: String {
@@ -673,75 +685,59 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
-        rankingWhileLoading = ranking.filter { rankingScope(team).contains($0.person) }
-        loadTab(.ranking)
+        syncScreens()
+        if isOnline, !Demo.isOn, let rankingQuery { queries.prefetch(rankingQuery) }
     }
 
-    func loadTab(_ tab: NotchTab, force: Bool = false) {
-        guard tab != .queue else { return }
-        load([tab], force: force)
+    func loadTab(_ tab: NotchTab) {
+        shownTab = tab == .queue ? nil : tab
+        syncScreens()
+        refetchShown()
     }
 
-    private func load(_ tabs: Set<NotchTab>, force: Bool = false) {
-        guard !Demo.isOn, !org.isEmpty else { return }
-        if tabs.contains(.ranking) { rankingPending = true }
-        bindTeam(fetching: true)
-        bindRanking()
-        if tabs.contains(.activity) { bindActivity(fetching: true) }
-        guard force else { return }
-        let forced: [(() async -> Void)?] = [
-            tabs.contains(.team) ? teamObserver?.refetch : nil,
-            tabs.contains(.ranking) && rankingObserver?.isFetching != true ? rankingObserver?.refetch : nil,
-            tabs.contains(.activity) ? activityObserver?.refetch : nil,
-        ]
-        for refetch in forced.compactMap({ $0 }) { Task { await refetch() } }
+    private var teamQuery: CacheQuery<[Person]>? {
+        org.isEmpty ? nil : reporting(Queries.team(org: org), in: .loadTab)
     }
 
-    private func bindTeam(fetching: Bool) {
-        guard !org.isEmpty else { return }
-        teamObserver = rebind(teamObserver, to: tabQuery(Queries.team(org: org)), fetching: fetching) { [weak self] in
-            self?.bindRanking()
-        }
+    private var rankingQuery: CacheQuery<[RankRow]>? { rankingQuery(for: team) }
+
+    private func rankingQuery(for team: [Person]) -> CacheQuery<[RankRow]>? {
+        guard !org.isEmpty, !team.isEmpty else { return nil }
+        let logins = rankingScope(team).map(\.login)
+        return reporting(Queries.ranking(org: org, period: rankPeriod, logins: logins), in: .loadTab)
     }
 
-    private func bindRanking() {
-        guard !org.isEmpty, !team.isEmpty else { return }
-        let q = Queries.ranking(org: org, period: rankPeriod, people: rankingScope(team))
-        let fetching = rankingPending
-        rankingPending = false
-        rankingObserver = rebind(rankingObserver, to: tabQuery(q), fetching: fetching)
+    private var activityQuery: CacheQuery<ActivityLog>? {
+        guard !org.isEmpty, !queue.viewer.isEmpty else { return nil }
+        return reporting(Queries.activity(org: org, login: queue.viewer), in: .loadTab)
     }
 
-    private func bindActivity(fetching: Bool) {
-        guard !org.isEmpty, !queue.viewer.isEmpty else { return }
-        let q = Queries.activity(org: org, login: queue.viewer)
-        activityObserver = rebind(activityObserver, to: tabQuery(q), fetching: fetching)
-    }
-
-    private func tabQuery<T>(_ q: CacheQuery<T>) -> CacheQuery<T> {
+    private func reporting<T>(_ q: CacheQuery<T>, in operation: ErrorReport.Operation) -> CacheQuery<T> {
         q.onError { [weak self] error in
-            await MainActor.run {
-                guard let self, let m = self.report(error, in: .loadTab) else { return }
-                self.errorMessage = m
-            }
+            guard let self, let m = self.report(error, in: operation) else { return }
+            self.errorMessage = m
         }
     }
 
-    private func rebind<T: Sendable>(
-        _ current: QueryObserver<T>?, to q: CacheQuery<T>, fetching: Bool,
-        then changed: (() -> Void)? = nil
-    ) -> QueryObserver<T> {
-        if let current, current.key == q.key {
-            if fetching { queries.prefetch(q) }
-            return current
-        }
-        let observer = queries.observe(q, fetching: fetching || current != nil)
-        observer.onChange = { [weak self] in
-            self?.objectWillChange.send()
-            changed?()
-        }
+    private func syncScreens() {
+        guard !Demo.isOn, !syncingScreens else { return }
+        syncingScreens = true
+        defer { syncingScreens = false }
+        let tab = shownTab
+        teamObserver = observing(teamObserver, tab == .team || tab == .ranking ? teamQuery : nil)
+        rankingObserver = observing(rankingObserver, tab == .ranking ? rankingQuery : nil, keepingPrevious: true)
+        activityObserver = observing(activityObserver, tab == .activity ? activityQuery : nil)
+        reposObserver = observing(reposObserver, reposShown > 0 ? reposQuery : nil)
+        repoObserver = observing(repoObserver, selectedRepo.map(repoQuery))
+    }
+
+    private func observing<T: Sendable>(
+        _ current: QueryObserver<T>?, _ q: CacheQuery<T>?, keepingPrevious: Bool = false
+    ) -> QueryObserver<T>? {
+        guard let q else { return nil }
+        if let current, current.key == q.key { return current }
         objectWillChange.send()
-        return observer
+        return queries.observe(q, placeholder: keepingPrevious ? current?.data : nil)
     }
 
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
@@ -811,9 +807,8 @@ final class AppModel: ObservableObject {
                 case .preparing(let t), .tool(let t): note(pr.key, t)
                 case .thinking: note(pr.key, "thinking")
                 case .done(let r):
-                    objectWillChange.send()
                     queries.put(
-                        .aiReview(pr: pr.key, at: pr.updatedAt), AIReview(result: r, context: context),
+                        reviewKey(pr), AIReview(result: r, context: context),
                         tags: [.pr(pr.key)], forgetAfter: Self.aiResultsForgetAfter
                     )
                     outcome = .done
@@ -850,7 +845,6 @@ final class AppModel: ObservableObject {
     static let aiResultsForgetAfter: Duration = .seconds(24 * 3600)
 
     private func putMap(_ map: PRMap, for stack: [PR]) {
-        objectWillChange.send()
         queries.put(mapKey(stack), map, tags: stack.map { .pr($0.key) }, forgetAfter: Self.aiResultsForgetAfter)
     }
 
@@ -1034,8 +1028,7 @@ final class AppModel: ObservableObject {
     }
 
     func discardFinding(_ pr: PR, _ a: Finding) {
-        objectWillChange.send()
-        queries.setData(.aiReview(pr: pr.key, at: pr.updatedAt)) { (review: inout AIReview) in
+        queries.setData(reviewKey(pr)) { (review: inout AIReview) in
             review.result.findings.removeAll { $0.id == a.id }
         }
     }

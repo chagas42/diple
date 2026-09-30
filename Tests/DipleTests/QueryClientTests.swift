@@ -213,11 +213,111 @@ final class Source: @unchecked Sendable {
         await store.settle()
         #expect(metrics.snapshot().count(.storeWrites) == 1)
         for _ in 0..<5 {
-            clock += 61
-            _ = try await client.fetch(q)
+            clock += 10
+            _ = try await client.fetch(q, force: true)
             await store.settle()
         }
         #expect(metrics.snapshot().count(.storeWrites) == 1)
+    }
+
+    @Test func aStaleRefetchOfTheSameDataRecordsWhenItWasConfirmed() async throws {
+        var clock = Date(timeIntervalSince1970: 0)
+        let dir = StoreDiffTests.tempDirectory()
+        let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
+        let client = QueryClient(github: Self.github, store: store, now: { clock })
+        let source = Source([7])
+        let q = Self.query(source, staleAfter: .seconds(60), persists: true)
+        _ = try await client.fetch(q)
+        clock += 61
+        _ = try await client.fetch(q)
+        await store.settle()
+
+        let relaunched = QueryClient(github: Self.github, store: Store(directory: dir, metrics: Metrics()), now: { clock })
+        #expect(try await relaunched.fetch(q) == 7)
+        #expect(source.count == 2)
+    }
+
+    @Test func savedRowsPastTheirForgetTimeArePrunedAtLaunch() async throws {
+        let dir = StoreDiffTests.tempDirectory()
+        let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
+        let client = QueryClient(github: Self.github, store: store)
+        _ = try await client.fetch(Self.query(Source([7]), key: .team(org: "old"), forgetAfter: .seconds(1), persists: true))
+        await store.settle()
+        #expect(store.state.cache.queries?[QueryKey.team(org: "old").id] != nil)
+
+        let later = Store(directory: dir, metrics: Metrics())
+        _ = QueryClient(github: Self.github, store: later, now: { Date().addingTimeInterval(10) })
+        #expect(later.state.cache.queries?[QueryKey.team(org: "old").id] == nil)
+    }
+
+    @Test func anUnobservedEntryClearedMidFetchIsStillForgotten() async throws {
+        let client = QueryClient(github: Self.github)
+        let source = Source([1, 2])
+        let q = Self.query(source, tags: [.team], staleAfter: .zero, forgetAfter: .milliseconds(10))
+        _ = try await client.fetch(q)
+        source.hold()
+        client.prefetch(q)
+        try await Self.until { source.count == 2 }
+        client.invalidate(.team)
+        source.release()
+        try await Self.until { client.cached(.repos, as: Int.self) == nil }
+        #expect(client.cached(.repos, as: Int.self) == nil)
+    }
+
+    final class Box: Sendable, Equatable {
+        let value: Int
+        init(_ value: Int) { self.value = value }
+        static func == (a: Box, b: Box) -> Bool { a.value == b.value }
+    }
+
+    @Test func refetchingEqualDataKeepsWhatIsOnScreen() async throws {
+        let client = QueryClient(github: Self.github)
+        let q = CacheQuery<Box>(key: .repos, staleAfter: .zero) { _ in Box(1) }
+        let observer = client.observe(q)
+        try await Self.until { observer.data != nil && !observer.isFetching }
+        let shown = try #require(observer.data)
+        await observer.refetch()
+        #expect(observer.data === shown)
+    }
+
+    @Test func successRunsOnceForJoinedRequestsAndNeverForADroppedReply() async throws {
+        let client = QueryClient(github: Self.github)
+        let source = Source([1, 2])
+        source.hold()
+        let successes = Locked<[Int]>([])
+        var q = Self.query(source, tags: [.team])
+        q.onSuccess = { successes.value.append($0) }
+        let a = Task { try await client.fetch(q) }
+        let b = Task { try await client.fetch(q) }
+        try await Self.until { source.count == 1 }
+        client.invalidate(.team)
+        let c = Task { try await client.fetch(q) }
+        try await Self.until { source.count == 2 }
+        source.release()
+        _ = try await (a.value, b.value, c.value)
+        #expect(successes.value == [2])
+    }
+
+    @Test func aHeldResultOutlivesItsForgetTime() async throws {
+        let client = QueryClient(github: Self.github)
+        let key = QueryKey.aiReview(pr: "acme/app#1", revision: "abc")
+        let hold = client.hold(key)
+        client.put(key, 42, forgetAfter: .milliseconds(10))
+        try await Task.sleep(for: .milliseconds(60))
+        #expect(client.cached(key, as: Int.self) == 42)
+        withExtendedLifetime(hold) {}
+    }
+
+    @Test func aNewKeyCanShowThePreviousDataWhileItLoads() async throws {
+        let client = QueryClient(github: Self.github)
+        let source = Source([2])
+        source.hold()
+        let observer = client.observe(Self.query(source, key: .team(org: "b")), placeholder: 1)
+        #expect(observer.data == 1)
+        #expect(observer.isFetching && observer.isLoading)
+        source.release()
+        try await Self.until { !observer.isFetching }
+        #expect(observer.data == 2)
     }
 
     @Test func keysCarryEverythingTheDataDependsOn() {

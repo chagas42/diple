@@ -8,11 +8,12 @@ enum Queries {
         ) { try await $0.fetchTeam(org: org) }
     }
 
-    static func ranking(org: String, period: RankPeriod, people: [Person]) -> CacheQuery<[RankRow]> {
-        CacheQuery(
-            key: .ranking(org: org, period: period, people: people.map(\.login)), tags: [.team],
+    static func ranking(org: String, period: RankPeriod, logins: [String]) -> CacheQuery<[RankRow]> {
+        let logins = logins.sorted()
+        return CacheQuery(
+            key: .ranking(org: org, period: period, people: logins), tags: [.team],
             staleAfter: .seconds(period.freshFor), forgetAfter: .seconds(24 * 3600), persists: true
-        ) { try await $0.fetchRanking(org: org, people: people, from: period.since) }
+        ) { try await $0.fetchRanking(org: org, people: logins.map(Person.placeholder), from: period.since) }
     }
 
     static let repos = CacheQuery<[RepoRef]>(
@@ -62,15 +63,15 @@ struct ActivityLog: Codable, Sendable, Equatable {
 }
 
 extension CacheQuery {
-    func onError(_ handle: @escaping @Sendable (Error) async -> Void) -> CacheQuery<T> {
-        let fetch = self.fetch
-        return CacheQuery(
-            key: key, tags: tags, staleAfter: staleAfter, forgetAfter: forgetAfter, persists: persists
-        ) { github, old in
-            do { return try await fetch(github, old) } catch {
-                await handle(error)
-                throw error
-            }
-        }
+    func onError(_ handle: @escaping @MainActor @Sendable (Error) -> Void) -> CacheQuery<T> {
+        var q = self
+        q.onError = handle
+        return q
+    }
+}
+
+extension Person {
+    static func placeholder(_ login: String) -> Person {
+        Person(login: login, name: login, avatar: URL(string: "https://github.com/\(login).png")!)
     }
 }

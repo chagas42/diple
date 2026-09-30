@@ -32,6 +32,10 @@ struct AIReviewView: View {
     }
 
     var body: some View {
+        content.task(id: model.resultIDs(pr)) { await model.holdResults(for: pr) }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
 

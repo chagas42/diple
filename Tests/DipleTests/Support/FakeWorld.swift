@@ -23,6 +23,7 @@ struct FakePR {
     var title: String
     var author: String
     var updatedAt: Date
+    var head: String? = nil
     var draft = false
     var checks: String? = "SUCCESS"
     var decision: String? = nil
@@ -150,6 +151,7 @@ struct FakeWorld {
             "updatedAt": iso(p.updatedAt),
             "isDraft": p.draft,
             "headRefName": "feature/\(p.number)",
+            "headRefOid": p.head ?? "sha-\(p.number)",
             "baseRefName": "main",
             "repository": ["nameWithOwner": p.repo],
             "author": actor(p.author, bot: false),

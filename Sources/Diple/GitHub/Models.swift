@@ -55,6 +55,7 @@ struct RawPR: Decodable, Sendable {
     let createdAt: Date?
     let isDraft: Bool
     let headRefName: String
+    let headRefOid: String?
     let baseRefName: String
     let repository: RawRepo
     let author: GHActor?
@@ -121,6 +122,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     let isMine: Bool
 
     let headRef: String
+    let head: String?
     let baseRef: String
     let checks: CheckState
     let approved: Bool
@@ -177,7 +179,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         id: String, repo: String, number: Int, title: String, url: URL,
         updatedAt: Date, createdAt: Date, draft: Bool, author: String, authorAvatar: URL?, isMine: Bool,
         headRef: String, baseRef: String, checks: CheckState, approved: Bool,
-        threads: [ReviewThread], lastComment: HumanComment?, askedYou: Bool = false
+        threads: [ReviewThread], lastComment: HumanComment?, askedYou: Bool = false, head: String? = nil
     ) {
         self.id = id
         self.repo = repo
@@ -191,6 +193,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         self.authorAvatar = authorAvatar
         self.isMine = isMine
         self.headRef = headRef
+        self.head = head
         self.baseRef = baseRef
         self.checks = checks
         self.approved = approved
@@ -200,6 +203,8 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     }
 
     var key: String { "\(repo)#\(number)" }
+
+    var revision: String { head ?? "\(updatedAt.timeIntervalSince1970)" }
 
     init?(_ c: RawPR?, meuLogin: String) {
         guard let c else { return nil }
@@ -215,6 +220,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         authorAvatar = c.author?.avatarUrl
         isMine = c.author?.login == meuLogin
         headRef = c.headRefName
+        head = c.headRefOid
         baseRef = c.baseRefName
         checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         approved = c.reviewDecision == "APPROVED"

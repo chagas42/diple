@@ -106,7 +106,10 @@ struct MainWindowView: View {
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom) { UsageNotice(model: model).padding(8) }
         .searchable(text: $repoSearch, placement: .sidebar, prompt: "Find a repository")
-        .task { model.loadRepos() }
+        .task { await model.showRepos() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            model.windowFocused()
+        }
     }
 
     private var filteredGroups: [AppModel.RepoGroup] {
