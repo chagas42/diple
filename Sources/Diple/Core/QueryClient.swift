@@ -93,8 +93,9 @@ final class QueryObserver<T: Sendable>: ObservableObject {
         if error != nil || entry.error != nil { error = entry.error }
     }
 
-    isolated deinit {
-        client.stopObserving(query.key, self)
+    deinit {
+        let (client, key, id) = (client, query.key, ObjectIdentifier(self))
+        Task { @MainActor in client.stopObserving(key, id) }
     }
 }
 
@@ -108,8 +109,9 @@ final class QueryHold {
         self.key = key
     }
 
-    isolated deinit {
-        client.stopObserving(key, self)
+    deinit {
+        let (client, key, id) = (client, key, ObjectIdentifier(self))
+        Task { @MainActor in client.stopObserving(key, id) }
     }
 }
 
@@ -257,9 +259,9 @@ final class QueryClient {
         }
     }
 
-    fileprivate func stopObserving(_ key: QueryKey, _ observer: AnyObject) {
+    fileprivate func stopObserving(_ key: QueryKey, _ observer: ObjectIdentifier) {
         guard let entry = entries[key] else { return }
-        entry.observers[ObjectIdentifier(observer)] = nil
+        entry.observers[observer] = nil
         forgetIfUnobserved(key, entry)
     }
 
