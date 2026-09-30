@@ -119,9 +119,11 @@ final class TabsGitHub: @unchecked Sendable {
     @Test func aCachedTeamIsRefreshedAlongsideTheRanking() async {
         let gh = TabsGitHub()
         let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        let team = TabsGitHub.people.map { Person(login: $0, name: $0, avatar: URL(string: "https://example.invalid")!) }
         store.updateCache {
-            $0.team = TabsGitHub.people.map { Person(login: $0, name: $0, avatar: URL(string: "https://example.invalid")!) }
-            $0.teamAt = Date().addingTimeInterval(-2 * 24 * 3600)
+            $0.queries = [QueryKey.team(org: "acme").id: StoredQuery(
+                data: try! JSONEncoder().encode(team), at: Date().addingTimeInterval(-2 * 24 * 3600)
+            )]
         }
         let model = Self.model(gh, store: store)
         await model.refresh()
@@ -168,7 +170,19 @@ final class TabsGitHub: @unchecked Sendable {
         try? await Task.sleep(for: .milliseconds(100))
 
         #expect(Set(model.ranking.map(\.person.login)) == ["p1", "p2"])
-        #expect(Set(store.state.cache.rank(model.rankPeriod).map(\.person.login)) == ["p1", "p2"])
+        let saved = QueryKey.ranking(org: "acme", period: model.rankPeriod, people: ["p1", "p2"]).id
+        #expect(store.state.cache.queries?[saved] != nil)
+    }
+
+    @Test func openingATabDuringThePreloadSharesItsRequest() async {
+        let gh = TabsGitHub()
+        gh.delay(ranking: .milliseconds(200))
+        let model = Self.model(gh, preloading: true)
+        await model.refresh()
+        model.loadTab(.ranking)
+        await model.tabsSettled()
+        #expect(gh.transport.queries.filter { $0.contains("issueCount") }.count == 1)
+        #expect(model.ranking.count == TabsGitHub.people.count)
     }
 
     @Test func tabsAreReadyBeforeTheyAreOpened() async {

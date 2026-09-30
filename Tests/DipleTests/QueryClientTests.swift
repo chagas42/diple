@@ -181,7 +181,7 @@ final class Source: @unchecked Sendable {
         var observer: QueryObserver<Int>? = client.observe(q)
         try await Self.until { observer?.data == 1 }
         observer = nil
-        try await Task.sleep(for: .milliseconds(100))
+        try await Self.until { client.cached(.repos, as: Int.self) == nil }
         #expect(try await client.fetch(q) == 2)
     }
 

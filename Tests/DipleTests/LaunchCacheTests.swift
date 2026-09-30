@@ -39,7 +39,7 @@ import Testing
         store.saveQueue(q)
         var stale = store.state.cache
         stale.queue = nil
-        stale.teamAt = Date()
+        stale.reposAt = Date()
         store.saveCache(stale)
         #expect(store.state.cache.queue?.all == q.all)
     }

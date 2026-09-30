@@ -9,6 +9,7 @@ enum QueryKey: Hashable, Sendable {
     case repoPRs(repo: String)
     case reviewContext(pr: String, at: Date)
     case changedFiles(pr: String, at: Date)
+    case aiReview(pr: String, at: Date)
     case map(stack: String, at: Date)
 
     var id: String {
@@ -21,6 +22,7 @@ enum QueryKey: Hashable, Sendable {
         case .repoPRs(let repo):            "repoPRs/\(repo)"
         case .reviewContext(let pr, let at): "reviewContext/\(pr)/\(at.timeIntervalSince1970)"
         case .changedFiles(let pr, let at): "changedFiles/\(pr)/\(at.timeIntervalSince1970)"
+        case .aiReview(let pr, let at):     "aiReview/\(pr)/\(at.timeIntervalSince1970)"
         case .map(let stack, let at):       "map/\(stack)/\(at.timeIntervalSince1970)"
         }
     }
@@ -34,7 +36,18 @@ struct CacheQuery<T: Sendable> {
     var staleAfter: Duration
     var forgetAfter: Duration = .seconds(300)
     var persists = false
-    let fetch: @Sendable (GitHubClient) async throws -> T
+    let fetch: @Sendable (GitHubClient, T?) async throws -> T
+}
+
+extension CacheQuery {
+    init(
+        key: QueryKey, tags: [QueryTag] = [], staleAfter: Duration, forgetAfter: Duration = .seconds(300),
+        persists: Bool = false, fetch: @escaping @Sendable (GitHubClient) async throws -> T
+    ) {
+        self.init(key: key, tags: tags, staleAfter: staleAfter, forgetAfter: forgetAfter, persists: persists) { github, _ in
+            try await fetch(github)
+        }
+    }
 }
 
 struct StoredQuery: Codable, Sendable, Equatable {
@@ -47,6 +60,9 @@ final class QueryObserver<T: Sendable>: ObservableObject {
     @Published private(set) var data: T?
     @Published private(set) var isFetching = false
     @Published private(set) var error: Error?
+
+    var onChange: (() -> Void)?
+    var key: QueryKey { query.key }
 
     private let client: QueryClient
     private let query: CacheQuery<T>
@@ -64,6 +80,7 @@ final class QueryObserver<T: Sendable>: ObservableObject {
         data = entry.data as? T
         isFetching = entry.task != nil
         error = entry.error
+        onChange?()
     }
 
     isolated deinit {
@@ -106,14 +123,14 @@ final class QueryClient {
         self.now = now
     }
 
-    func observe<T: Sendable>(_ q: CacheQuery<T>) -> QueryObserver<T> {
+    func observe<T: Sendable>(_ q: CacheQuery<T>, fetching: Bool = true) -> QueryObserver<T> {
         let entry = entry(for: q)
         let observer = QueryObserver(client: self, query: q)
         entry.forget?.cancel()
         entry.forget = nil
         entry.observers[ObjectIdentifier(observer)] = { [weak observer] in observer?.show($0) }
+        if fetching { prefetch(q) }
         observer.show(entry)
-        if needsFetch(entry, q) { prefetch(q) }
         return observer
     }
 
@@ -134,7 +151,33 @@ final class QueryClient {
     }
 
     func prefetch<T: Sendable>(_ q: CacheQuery<T>) {
-        Task { _ = try? await fetch(q) }
+        let entry = entry(for: q)
+        guard entry.task == nil, needsFetch(entry, q) else { return }
+        _ = start(q, entry)
+    }
+
+    func cached<T: Sendable>(_ key: QueryKey, as _: T.Type = T.self) -> T? {
+        entries[key]?.data as? T
+    }
+
+    func isFetching(_ key: QueryKey) -> Bool { entries[key]?.task != nil }
+
+    func put<T: Sendable>(_ key: QueryKey, _ value: T, tags: [QueryTag] = [], forgetAfter: Duration) {
+        let entry = entries[key] ?? AnyEntry()
+        entry.tags = tags
+        entry.forgetAfter = forgetAfter
+        entry.data = value
+        entry.fetchedAt = now()
+        entries[key] = entry
+        entry.notify()
+        forgetIfUnobserved(key, entry)
+    }
+
+    func move(_ from: QueryKey, to: QueryKey) {
+        guard from != to, entries[to] == nil, let entry = entries.removeValue(forKey: from),
+              entry.observers.isEmpty, entry.task == nil else { return }
+        entries[to] = entry
+        forgetIfUnobserved(to, entry)
     }
 
     func invalidate(_ tag: QueryTag) {
@@ -151,6 +194,12 @@ final class QueryClient {
         entry.data = data
         entry.notify()
         persist(key, entry, data)
+    }
+
+    func settle() async {
+        while let task = entries.values.first(where: { $0.task != nil })?.task {
+            _ = try? await task.value
+        }
     }
 
     fileprivate func stopObserving(_ key: QueryKey, _ observer: AnyObject) {
@@ -183,9 +232,10 @@ final class QueryClient {
     private func start<T: Sendable>(_ q: CacheQuery<T>, _ entry: AnyEntry) -> Task<any Sendable, Error> {
         let version = entry.version
         let github = github
+        let previous = entry.data as? T
         let task = Task<any Sendable, Error> { @MainActor [weak self] in
             do {
-                let value = try await q.fetch(github)
+                let value = try await q.fetch(github, previous)
                 guard entry.version == version else { throw Superseded() }
                 entry.task = nil
                 entry.data = value

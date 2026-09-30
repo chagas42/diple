@@ -18,11 +18,24 @@ final class AppModel: ObservableObject {
     @Published private(set) var reviewedAhead: Set<String> = []
 
     @Published var notchTab: NotchTab = .queue
-    @Published private(set) var team: [Person] = []
-    @Published private(set) var ranking: [RankRow] = []
-    @Published private(set) var activity: [ActivityDay] = []
     @Published private(set) var following: Set<String> = []
-    @Published private(set) var refreshingTab: NotchTab?
+
+    var team: [Person] { Demo.isOn ? Demo.team : teamObserver?.data ?? [] }
+    var ranking: [RankRow] { Demo.isOn ? Demo.ranking(rankPeriod) : rankingObserver?.data ?? rankingWhileLoading }
+    var activity: [ActivityDay] { Demo.isOn ? Demo.activity : activityObserver?.data?.days ?? [] }
+
+    var refreshingTab: NotchTab? {
+        if rankingObserver?.isFetching == true { return .ranking }
+        if activityObserver?.isFetching == true { return .activity }
+        if teamObserver?.isFetching == true { return .team }
+        return nil
+    }
+
+    private var teamObserver: QueryObserver<[Person]>?
+    private var rankingObserver: QueryObserver<[RankRow]>?
+    private var activityObserver: QueryObserver<ActivityLog>?
+    private var rankingWhileLoading: [RankRow] = []
+    private var rankingPending = false
 
     @Published private(set) var reviewResults: [String: ReviewResult] = [:]
     @Published private(set) var reviewContexts: [String: ReviewContext] = [:]
@@ -126,7 +139,8 @@ final class AppModel: ObservableObject {
     var rankPeriod: RankPeriod = .month {
         didSet {
             guard rankPeriod != oldValue else { return }
-            ranking = Demo.isOn ? Demo.ranking(rankPeriod) : store.state.cache.rank(rankPeriod)
+            objectWillChange.send()
+            rankingWhileLoading = []
             loadTab(.ranking)
         }
     }
@@ -314,8 +328,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var usageNoticeVisible = false
     private var pendingSeed: Queue?
     let prefetcher: Prefetcher
+    let queries: QueryClient
     private var prefetchTask: Task<Void, Never>?
-    private var preloadTask: Task<Void, Never>?
     var preloadsTabs = true
 
     init(
@@ -328,6 +342,7 @@ final class AppModel: ObservableObject {
         self.notificador.telemetry = telemetry
         self.client = client
         self.store = store
+        self.queries = QueryClient(github: client, store: store)
         self.sync = SyncEngine(client: client)
         self.prefetcher = prefetcher ?? Prefetcher(client: client)
     }
@@ -348,31 +363,13 @@ final class AppModel: ObservableObject {
     }
 
     func tabsSettled() async {
-        await preloadTask?.value
+        await queries.settle()
     }
 
     private func schedulePreload() {
-        guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline, preloadTask == nil else { return }
-        guard !ProcessInfo.processInfo.isLowPowerModeEnabled, !org.isEmpty else { return }
-        let stale = [NotchTab.ranking, .activity].filter { isStale($0) }
-        guard !stale.isEmpty else { return }
-        preloadTask = Task(priority: .utility) { [weak self] in
-            for tab in stale {
-                guard let self, !Task.isCancelled, self.refreshingTab == nil else { break }
-                await self.fetchTab(tab)
-            }
-            self?.preloadTask = nil
-        }
-    }
-
-    private func isStale(_ tab: NotchTab) -> Bool {
-        let cache = store.state.cache
-        return switch tab {
-        case .queue:    false
-        case .team:     cache.isStale(cache.teamAt, after: 24 * 3600)
-        case .ranking:  cache.isStale(cache.rankAt(rankPeriod), after: rankPeriod.freshFor)
-        case .activity: cache.isStale(cache.activityAt, after: 3600)
-        }
+        guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline else { return }
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        load([.ranking, .activity])
     }
 
     private func schedulePrefetch() {
@@ -393,9 +390,6 @@ final class AppModel: ObservableObject {
     private(set) var partialFailures = 0
     private var pendingFull = false
     private var notchOpen = false
-    private var refreshTask: Task<Void, Never>?
-    private var refreshKey: String?
-    private var refreshGeneration = 0
     private var repoTask: Task<Void, Never>?
 
     private var started = false
@@ -504,15 +498,15 @@ final class AppModel: ObservableObject {
         following = store.state.following
         watching = store.state.watching ?? []
         let cache = store.state.cache
-        team = cache.team
         repos = cache.repos ?? []
-        ranking = cache.rank(rankPeriod)
-        activity = cache.activity
         if !Demo.isOn, let cached = cache.queue, queue.all.isEmpty {
             queue = cached
             pendingSeed = cached
             onCountChange?()
         }
+        bindTeam(fetching: false)
+        bindRanking()
+        bindActivity(fetching: false)
     }
 
     var policy: SyncPolicy {
@@ -564,9 +558,6 @@ final class AppModel: ObservableObject {
         if Demo.isOn {
             queue = Demo.queue
             unread = Demo.unread
-            team = Demo.team
-            ranking = Demo.ranking(rankPeriod)
-            activity = Demo.activity
             lastSync = Date()
             errorMessage = nil
             onCountChange?()
@@ -646,96 +637,76 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
-        picksChanged += 1
-        var cache = store.state.cache
-        cache.dropRanks()
-        store.saveCache(cache)
-        team = cache.team
-        activity = cache.activity
-        ranking = ranking.filter { rankingScope(cache.team).contains($0.person) }
-        loadTab(.ranking, force: true)
+        rankingWhileLoading = ranking.filter { rankingScope(team).contains($0.person) }
+        loadTab(.ranking)
     }
 
     func loadTab(_ tab: NotchTab, force: Bool = false) {
-        guard !org.isEmpty else { return }
         guard tab != .queue else { return }
-        let key = tab == .ranking ? "\(tab.rawValue)/\(rankPeriod.rawValue)" : tab.rawValue
-        guard force || refreshKey != key else { return }
+        load([tab], force: force)
+    }
 
-        guard force || isStale(tab) else { return }
+    private func load(_ tabs: Set<NotchTab>, force: Bool = false) {
+        guard !Demo.isOn, !org.isEmpty else { return }
+        if tabs.contains(.ranking) { rankingPending = true }
+        bindTeam(fetching: true)
+        bindRanking()
+        if tabs.contains(.activity) { bindActivity(fetching: true) }
+        guard force else { return }
+        let forced: [(() async -> Void)?] = [
+            tabs.contains(.team) ? teamObserver?.refetch : nil,
+            tabs.contains(.ranking) && rankingObserver?.isFetching != true ? rankingObserver?.refetch : nil,
+            tabs.contains(.activity) ? activityObserver?.refetch : nil,
+        ]
+        for refetch in forced.compactMap({ $0 }) { Task { await refetch() } }
+    }
 
-        refreshTask?.cancel()
-        refreshGeneration += 1
-        let generation = refreshGeneration
-        refreshKey = key
-        refreshingTab = tab
-        refreshTask = Task { [weak self] in
-            guard let self else { return }
-            await self.fetchTab(tab)
-            guard self.refreshGeneration == generation else { return }
-            self.refreshingTab = nil
-            self.refreshKey = nil
+    private func bindTeam(fetching: Bool) {
+        guard !org.isEmpty else { return }
+        teamObserver = rebind(teamObserver, to: tabQuery(Queries.team(org: org)), fetching: fetching) { [weak self] in
+            self?.bindRanking()
         }
     }
 
-    private func fetchTab(_ tab: NotchTab) async {
-        if Demo.isOn {
-            team = Demo.team
-            ranking = Demo.ranking(rankPeriod)
-            activity = Demo.activity
-            return
-        }
-        let org = self.org
-        let viewer = queue.viewer
-        let cache = store.state.cache
-        let teamIsStale = cache.team.isEmpty || cache.isStale(cache.teamAt, after: 24 * 3600)
-        let client = self.client
-        do {
-            async let freshTeam: [Person]? = teamIsStale ? client.fetchTeam(org: org) : nil
-            let people = cache.team.isEmpty ? (try await freshTeam ?? []) : cache.team
+    private func bindRanking() {
+        guard !org.isEmpty, !team.isEmpty else { return }
+        let q = Queries.ranking(org: org, period: rankPeriod, people: rankingScope(team))
+        let fetching = rankingPending
+        rankingPending = false
+        rankingObserver = rebind(rankingObserver, to: tabQuery(q), fetching: fetching)
+    }
 
-            switch tab {
-            case .ranking:
-                let period = rankPeriod
-                let picks = picksChanged
-                let rows = try await client.fetchRanking(
-                    org: org, people: rankingScope(people), from: period.since
-                )
-                guard !Task.isCancelled else { return }
-                if picks == picksChanged {
-                    store.updateCache { $0.setRank(rows, for: period) }
-                    if period == rankPeriod { ranking = rows }
-                }
-            case .activity:
-                let today = Date()
-                let from = ActivityHistory.refetchFrom(today: today, cachedFrom: cache.activityFrom)
-                let counts = try await client.fetchReviewCounts(org: org, login: viewer, from: from, to: today)
-                guard !Task.isCancelled else { return }
-                let days = ActivityHistory.merged(old: cache.activity, fresh: counts, from: from, today: today)
-                let covered = min(cache.activityFrom ?? from, from)
-                store.updateCache {
-                    $0.activity = days
-                    $0.activityAt = today
-                    $0.activityFrom = covered
-                }
-                activity = days
-            default: break
-            }
+    private func bindActivity(fetching: Bool) {
+        guard !org.isEmpty, !queue.viewer.isEmpty else { return }
+        let q = Queries.activity(org: org, login: queue.viewer)
+        activityObserver = rebind(activityObserver, to: tabQuery(q), fetching: fetching)
+    }
 
-            if let fetched = try await freshTeam, !Task.isCancelled {
-                store.updateCache {
-                    $0.team = fetched
-                    $0.teamAt = Date()
-                }
-                team = fetched
+    private func tabQuery<T>(_ q: CacheQuery<T>) -> CacheQuery<T> {
+        q.onError { [weak self] error in
+            await MainActor.run {
+                guard let self, let m = self.report(error, in: .loadTab) else { return }
+                self.errorMessage = m
             }
-        } catch {
-            guard !Task.isCancelled else { return }
-            if let m = report(error, in: .loadTab) { errorMessage = m }
         }
     }
 
-    private var picksChanged = 0
+    private func rebind<T: Sendable>(
+        _ current: QueryObserver<T>?, to q: CacheQuery<T>, fetching: Bool,
+        then changed: (() -> Void)? = nil
+    ) -> QueryObserver<T> {
+        if let current, current.key == q.key {
+            if fetching { queries.prefetch(q) }
+            return current
+        }
+        let observer = queries.observe(q, fetching: fetching || current != nil)
+        observer.onChange = { [weak self] in
+            self?.objectWillChange.send()
+            changed?()
+        }
+        objectWillChange.send()
+        return observer
+    }
 
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
 
