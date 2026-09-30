@@ -26,6 +26,22 @@ enum Queries {
         ) { try await $0.fetchRepoPRs(repo) }
     }
 
+    static let perPRForgetAfter: Duration = .seconds(3600)
+
+    static func reviewContext(_ pr: PR) -> CacheQuery<ReviewContext> {
+        CacheQuery(
+            key: .reviewContext(pr: pr.key, at: pr.updatedAt), tags: [.pr(pr.key)],
+            staleAfter: .seconds(24 * 3600), forgetAfter: perPRForgetAfter
+        ) { try await $0.reviewContext(repo: pr.repo, pr: pr.number) }
+    }
+
+    static func changedFiles(_ pr: PR) -> CacheQuery<PRFiles> {
+        CacheQuery(
+            key: .changedFiles(pr: pr.key, at: pr.updatedAt), tags: [.pr(pr.key)],
+            staleAfter: .seconds(24 * 3600), forgetAfter: perPRForgetAfter
+        ) { try await $0.changedFiles(repo: pr.repo, pr: pr.number) }
+    }
+
     static func activity(org: String, login: String) -> CacheQuery<ActivityLog> {
         CacheQuery(
             key: .activity(org: org, login: login), tags: [.team],

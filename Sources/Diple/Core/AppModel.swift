@@ -37,8 +37,22 @@ final class AppModel: ObservableObject {
     private var rankingWhileLoading: [RankRow] = []
     private var rankingPending = false
 
-    @Published private(set) var reviewResults: [String: ReviewResult] = [:]
-    @Published private(set) var reviewContexts: [String: ReviewContext] = [:]
+    struct AIReview: Sendable {
+        var result: ReviewResult
+        var context: ReviewContext
+    }
+
+    func aiReview(_ pr: PR) -> AIReview? { queries.cached(.aiReview(pr: pr.key, at: pr.updatedAt)) }
+
+    func map(_ pr: PR) -> PRMap? { queries.cached(mapKey(stackOf(pr))) }
+
+    private func mapKey(_ stack: [PR]) -> QueryKey {
+        .map(
+            stack: stack.map(\.key).joined(separator: "+"),
+            at: stack.map(\.updatedAt).max() ?? .distantPast
+        )
+    }
+
     struct ReviewRun: Sendable {
         var step: ReviewStep?
         var progress: [ProgressLine] = []
@@ -56,7 +70,6 @@ final class AppModel: ObservableObject {
         default:                    false
         }
     }
-    @Published private(set) var maps: [String: PRMap] = [:]
     @Published private(set) var mapRuns: [String: MapRun] = [:]
     @Published private(set) var mapNotices: [String: String] = [:]
     @Published private(set) var mapLayouts: [String: [String: CGPoint]] = [:]
@@ -260,12 +273,21 @@ final class AppModel: ObservableObject {
             await refresh()
             return
         }
+        let old = queue.all.first { $0.key == fresh.key } ?? pr
+        let oldStack = stackOf(old)
         func swap(_ list: [PR]) -> [PR] { list.map { $0.key == fresh.key ? fresh : $0 } }
         queue.mine = swap(queue.mine)
         queue.toReview = swap(queue.toReview)
         queue.following = swap(queue.following)
         if selected?.key == fresh.key { selected = fresh }
         queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
+        carryForward(from: old, oldStack, to: fresh)
+        queries.invalidate(.pr(fresh.key))
+    }
+
+    private func carryForward(from old: PR, _ oldStack: [PR], to fresh: PR) {
+        queries.move(.aiReview(pr: old.key, at: old.updatedAt), to: .aiReview(pr: fresh.key, at: fresh.updatedAt))
+        queries.move(mapKey(oldStack), to: mapKey(stackOf(fresh)))
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
@@ -313,21 +335,21 @@ final class AppModel: ObservableObject {
     init(
         client: GitHubClient = GitHubClient(),
         store: Store = Store(),
-        prefetcher: Prefetcher? = nil,
+        fetchRefs: Prefetcher.FetchRefs? = nil,
         telemetry: Telemetry = .shared
     ) {
         self.telemetry = telemetry
         self.notificador.telemetry = telemetry
         self.client = client
         self.store = store
-        self.queries = QueryClient(github: client, store: store)
+        let queries = QueryClient(github: client, store: store)
+        self.queries = queries
         self.sync = SyncEngine(client: client)
-        self.prefetcher = prefetcher ?? Prefetcher(client: client)
+        self.prefetcher = fetchRefs.map { Prefetcher(queries: queries, fetchRefs: $0) } ?? Prefetcher(queries: queries)
     }
 
     func reviewContext(for pr: PR) async throws -> ReviewContext {
-        if let cached = await prefetcher.context(for: pr) { return cached }
-        return try await client.reviewContext(repo: pr.repo, pr: pr.number)
+        try await queries.fetch(Queries.reviewContext(pr))
     }
 
     func prefetchTargets() -> [Prefetcher.Target] {
@@ -752,8 +774,11 @@ final class AppModel: ObservableObject {
                 case .preparing(let t), .tool(let t): note(pr.key, t)
                 case .thinking: note(pr.key, "thinking")
                 case .done(let r):
-                    reviewContexts[pr.key] = context
-                    reviewResults[pr.key] = r
+                    objectWillChange.send()
+                    queries.put(
+                        .aiReview(pr: pr.key, at: pr.updatedAt), AIReview(result: r, context: context),
+                        tags: [.pr(pr.key)], forgetAfter: Self.aiResultsForgetAfter
+                    )
                     outcome = .done
                     findings = r.novel.count
                     judged = r.threads.count
@@ -783,6 +808,13 @@ final class AppModel: ObservableObject {
         r.progress.append(ProgressLine(text: text, done: fechando))
         if r.progress.count > 14 { r.progress.removeFirst() }
         runs[key] = r
+    }
+
+    static let aiResultsForgetAfter: Duration = .seconds(24 * 3600)
+
+    private func putMap(_ map: PRMap, for stack: [PR]) {
+        objectWillChange.send()
+        queries.put(mapKey(stack), map, tags: stack.map { .pr($0.key) }, forgetAfter: Self.aiResultsForgetAfter)
     }
 
     func stackOf(_ pr: PR) -> [PR] {
@@ -832,10 +864,7 @@ final class AppModel: ObservableObject {
         do {
             let scans = try await withThrowingTaskGroup(of: PRFiles.self) { group in
                 for p in prs {
-                    group.addTask { [client, prefetcher] in
-                        if let cached = await prefetcher.changedFiles(for: p) { return cached }
-                        return try await client.changedFiles(repo: p.repo, pr: p.number)
-                    }
+                    group.addTask { [queries] in try await queries.fetch(Queries.changedFiles(p)) }
                 }
                 var all: [PRFiles] = []
                 for try await s in group { all.append(s) }
@@ -849,7 +878,7 @@ final class AppModel: ObservableObject {
             notice("could not read the diff: \(error.localizedDescription)")
             return
         }
-        for k in keys { maps[k] = map }
+        putMap(map, for: prs)
 
         guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
             notice("only the diff layer: \(pr.repo) is not on this machine. Point at the folder in Settings.")
@@ -902,7 +931,7 @@ final class AppModel: ObservableObject {
                         answered = true
                         let fm = FileManager.default
                         map = map.merged(a) { fm.fileExists(atPath: w.appendingPathComponent($0).path) }
-                        for k in keys { maps[k] = map }
+                        putMap(map, for: prs)
                     } else {
                         notice("only the diff layer: the session did not answer in the map's JSON")
                     }
@@ -968,7 +997,10 @@ final class AppModel: ObservableObject {
     }
 
     func discardFinding(_ pr: PR, _ a: Finding) {
-        reviewResults[pr.key]?.findings.removeAll { $0.id == a.id }
+        objectWillChange.send()
+        queries.setData(.aiReview(pr: pr.key, at: pr.updatedAt)) { (review: inout AIReview) in
+            review.result.findings.removeAll { $0.id == a.id }
+        }
     }
 
     var openURL: (URL) -> Void = { NSWorkspace.shared.open($0) }

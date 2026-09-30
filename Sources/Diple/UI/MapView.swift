@@ -4,7 +4,7 @@ struct MapaView: View {
     @ObservedObject var model: AppModel
     let pr: PR
 
-    private var map: PRMap? { model.maps[pr.key] }
+    private var map: PRMap? { model.map(pr) }
     private var running: Bool { model.isMapping(pr.key) }
 
     var body: some View {
@@ -242,7 +242,7 @@ struct MapWindowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let m = model.maps[pr.key] {
+            if let m = model.map(pr) {
                 MapHeader(model: model, pr: pr, map: m, running: model.isMapping(pr.key))
                 if let run = model.mapRun(pr.key) { MapProgressView(run: run) }
                 MapCanvasView(model: model, map: m, focus: pr.number, fill: true, onExpand: nil)
