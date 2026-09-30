@@ -3,7 +3,7 @@ import AppKit
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var pane: SettingsPane? = .notifications
+    @State private var pane: SettingsPane? = .general
 
     var body: some View {
         NavigationSplitView {
@@ -16,14 +16,15 @@ struct SettingsView: View {
             .toolbar(removing: .sidebarToggle)
         } detail: {
             detail
-                .navigationTitle((pane ?? .notifications).title)
+                .navigationTitle((pane ?? .general).title)
         }
         .frame(minWidth: Self.minimum.width, maxWidth: .infinity,
                minHeight: Self.minimum.height, maxHeight: .infinity)
     }
 
     @ViewBuilder private var detail: some View {
-        switch pane ?? .notifications {
+        switch pane ?? .general {
+        case .general:       GeneralPane(model: model)
         case .notifications: NotificationsPane(model: model)
         case .repositories:  ReposPane(model: model)
         case .appearance:    AppearanceSettings(model: model)
@@ -37,12 +38,13 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case notifications, repositories, appearance, claude, account, privacy
+    case general, notifications, repositories, appearance, claude, account, privacy
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .general:       "General"
         case .notifications: "Notifications"
         case .repositories:  "Repositories"
         case .appearance:    "Appearance"
@@ -54,6 +56,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .general:       "gearshape.fill"
         case .notifications: "bell.badge.fill"
         case .repositories:  "book.closed.fill"
         case .appearance:    "paintpalette.fill"
@@ -65,11 +68,12 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
+        case .general:       .gray
         case .notifications: .red
         case .repositories:  .indigo
         case .appearance:    .blue
         case .claude:        .orange
-        case .account:       .gray
+        case .account:       .teal
         case .privacy:       .blue
         }
     }
@@ -289,29 +293,13 @@ struct ReposPane: View {
     }
 }
 
-struct AccountPane: View {
+struct GeneralPane: View {
     @ObservedObject var model: AppModel
     @StateObject private var login = LoginItem()
     @ObservedObject private var updates = Updates.shared
 
     var body: some View {
         Form {
-            Section("GitHub") {
-                LabeledContent("Account", value: model.queue.viewer.isEmpty ? "—" : model.queue.viewer)
-                LabeledContent("Token") {
-                    Text("borrowed from gh")
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Rate limit left") {
-                    Text("\(model.queue.rateLimitLeft) of 5000")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-                Text("Diple stores no token. It calls `gh auth token` on every request.")
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Sync") {
                 Picker("Every", selection: $model.settings.interval) {
                     Text("30 seconds").tag(TimeInterval(30))
@@ -390,7 +378,7 @@ struct AccountPane: View {
     }
 }
 
-extension AccountPane {
+extension GeneralPane {
     @ViewBuilder private var updateStatus: some View {
         switch updates.state {
         case .idle, .checking:
@@ -402,6 +390,31 @@ extension AccountPane {
         case .failed:
             Text("Could not reach GitHub").foregroundStyle(.secondary)
         }
+    }
+}
+
+struct AccountPane: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Form {
+            Section("GitHub") {
+                LabeledContent("Account", value: model.queue.viewer.isEmpty ? "—" : model.queue.viewer)
+                LabeledContent("Token") {
+                    Text("borrowed from gh")
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Rate limit left") {
+                    Text("\(model.queue.rateLimitLeft) of 5000")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Text("Diple stores no token. It calls `gh auth token` on every request.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
