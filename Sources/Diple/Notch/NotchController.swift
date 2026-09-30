@@ -10,6 +10,7 @@ final class NotchController: ObservableObject {
     @Published private(set) var wings = Wings(left: 42, right: 42)
     @Published private(set) var shift: CGFloat = 0
     @Published private(set) var shrinking = false
+    @Published private(set) var appearing = false
     @Published private(set) var hasNotch = true
     @Published private(set) var waking = false
     @Published private(set) var asleep = false
@@ -49,11 +50,12 @@ final class NotchController: ObservableObject {
         self.model = model
         settleBeforeFirstFrame()
         fallAsleep()
-        panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
         measure()
-        panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
+        startFromTheNotch()
+        panel.setFrame(NotchGeometry.current().windowFrame(), display: false)
+        panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
         panel.orderFrontRegardless()
-        refreshIdle()
+        spreadWings()
         startWaking()
         trackPointer()
         watchMenuBar()
@@ -105,6 +107,26 @@ final class NotchController: ObservableObject {
         switch state {
         case .hidden, .active: panel.ignoresMouseEvents = true
         case .open, .alert:    panel.ignoresMouseEvents = false
+        }
+    }
+
+    static let spread: Duration = .milliseconds(550)
+
+    private func startFromTheNotch() {
+        guard state == .active else { return }
+        size = NotchGeometry.current().closed
+        shift = 0
+    }
+
+    private func spreadWings() {
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(60))
+            guard let self else { return }
+            self.appearing = true
+            self.refreshIdle()
+            self.apply()
+            try? await Task.sleep(for: Self.spread)
+            self.appearing = false
         }
     }
 
@@ -356,6 +378,7 @@ final class NotchController: ObservableObject {
                 countOnLeft: notch.wings.countOnLeft,
                 shift: notch.shift,
                 shrinking: notch.shrinking,
+                appearing: notch.appearing,
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
