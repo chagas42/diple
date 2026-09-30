@@ -228,8 +228,8 @@ import Testing
     @Test func aReviewOpensAThinStripUnderTheNotchAndClosesIt() async {
         let gate = Gate()
         let n = notch(gate: gate)
-        let resting = NotchGeometry.current().active(n.wings)
         n.tick(Self.tick("a"))
+        let resting = NotchGeometry.current().active(n.wings)
         #expect(n.tick?.pr == "a")
         #expect(n.size == CGSize(width: resting.width, height: resting.height + ReviewStrip.drawer))
         await drain(gate, n)
