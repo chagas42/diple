@@ -131,13 +131,13 @@ import Testing
     }
 
     @Test func comingBackOverAFullScreenAppSkipsTheWake() {
-        var full = false
+        let full = NotchFullScreenTests.Flag(false)
         let log = Log()
         let n = notch(log: log)
-        n.fullScreen = { full }
+        n.fullScreen = { full.on }
         n.settleBeforeFirstFrame()
         n.restStarted()
-        full = true
+        full.on = true
         n.back(after: 600)
         #expect(n.state == .hidden)
         #expect(!n.waking)

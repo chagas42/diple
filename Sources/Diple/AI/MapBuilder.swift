@@ -208,7 +208,7 @@ struct MapBuilder: Sendable {
             "diff": "git diff \(map.base.isEmpty ? "origin/HEAD" : map.base)...HEAD",
             "prs": map.stack.map { ["number": $0, "title": titles[$0] ?? ""] as [String: Any] },
             "candidates": candidates.map {
-                ["path": $0.path, "mentions": $0.mentions, "from": $0.from] as [String: Any]
+                ["path": $0.path, "mentions": $0.mentions, "from": $0.from as Any] as [String: Any]
             },
             "language": language,
             "size": ["files": map.size.files, "lines": map.size.lines,
