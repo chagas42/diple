@@ -104,6 +104,33 @@ import Testing
         #expect(ReviewStrip.glow(at: ReviewStrip.paperLands + 0.175) > 0.99)
     }
 
+    @Test func theBarStopsShortOfTheDrawer() {
+        for width in [227.0, 269.0, 284.0] {
+            let at = ReviewStrip.layout(wings: Wings(left: (width - 185) / 2, right: (width - 185) / 2),
+                                        notchWidth: 185, notchHeight: 32)
+            let drawerLeft = at.drawer.x - ReviewStrip.drawerSize.width / 2
+            #expect(ReviewStrip.barSpan(width: CGFloat(width)).upperBound <= drawerLeft - 4)
+        }
+    }
+
+    @Test func theDrawerFillsUpWithTheDaysReviews() {
+        #expect(ReviewStrip.sheets(for: 0) == 0)
+        #expect(ReviewStrip.sheets(for: 1) == 1)
+        #expect(ReviewStrip.sheets(for: 3) == 2)
+        #expect(ReviewStrip.sheets(for: 7) == 3)
+        #expect(ReviewStrip.sheets(for: 40) == 4)
+        #expect((0...60).map(ReviewStrip.sheets(for:)) == (0...60).map(ReviewStrip.sheets(for:)).sorted())
+    }
+
+    @Test func theDrawerOpensForTheSheetThenShutsWithAShake() {
+        #expect(ReviewStrip.opening(at: 0) == 0)
+        #expect(ReviewStrip.opening(at: ReviewStrip.paperLands - 0.1) == 1)
+        #expect(ReviewStrip.opening(at: ReviewStrip.paperLands + 0.1) == 0)
+        #expect(ReviewStrip.shake(at: ReviewStrip.paperLands) == 0)
+        #expect((1...30).contains { abs(ReviewStrip.shake(at: ReviewStrip.paperLands + 0.08 + Double($0) / 100)) > 0.5 })
+        #expect(ReviewStrip.shake(at: ReviewStrip.paperLands + 0.5) == 0)
+    }
+
     @Test func theSheetLeavesTheCountAndEndsInTheDrawer() {
         let from = CGPoint(x: 248, y: 16), to = CGPoint(x: 243, y: 42)
         #expect(ReviewStrip.flight(0, from: from, to: to, glide: 39).point == from)

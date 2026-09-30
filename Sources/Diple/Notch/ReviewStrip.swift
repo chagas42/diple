@@ -9,7 +9,7 @@ struct ReviewStrip: View {
     let notchHeight: CGFloat
     var eyeBesideCount = true
 
-    static let drawer: CGFloat = 20
+    static let drawer: CGFloat = 22
     static let length = 1.8
     static let paperLeaves = 0.2
     static let paperLands = 0.85
@@ -56,8 +56,8 @@ struct ReviewStrip: View {
             : width - wings.right / 2
         return Layout(
             count: CGPoint(x: countX, y: notchHeight / 2),
-            drawer: CGPoint(x: width - drawerColumn / 2 - 6, y: rowY + 1),
-            number: CGPoint(x: width - drawerColumn / 2 + 9, y: rowY),
+            drawer: CGPoint(x: width - drawerColumn / 2 - 5, y: rowY + 1),
+            number: CGPoint(x: width - drawerColumn / 2 + 11, y: rowY),
             rowY: rowY,
             cutout: wings.left...(wings.left + notchWidth)
         )
@@ -69,7 +69,37 @@ struct ReviewStrip: View {
         Self.layout(wings: wings, notchWidth: notchWidth, notchHeight: notchHeight, eyeBesideCount: eyeBesideCount)
     }
 
-    static let drawerColumn: CGFloat = 40
+    static let drawerColumn: CGFloat = 44
+    static let drawerSize = CGSize(width: 18, height: 12)
+    static let frontHeight: CGFloat = 7
+    static let barGap: CGFloat = 8
+
+    static func barSpan(width: CGFloat) -> ClosedRange<CGFloat> {
+        barInset...max(barInset, width - drawerColumn - barGap)
+    }
+
+    static func sheets(for today: Int) -> Int {
+        switch today {
+        case ..<1: 0
+        case 1...2: 1
+        case 3...6: 2
+        case 7...14: 3
+        default: 4
+        }
+    }
+
+    static func opening(at t: Double) -> Double {
+        if t < paperLeaves { return 0 }
+        if t < paperLeaves + 0.25 { return ease((t - paperLeaves) / 0.25) }
+        if t < paperLands { return 1 }
+        return 1 - clamp((t - paperLands) / 0.08)
+    }
+
+    static func shake(at t: Double) -> CGFloat {
+        let b = t - (paperLands + 0.08)
+        guard b > 0, b < 0.35 else { return 0 }
+        return CGFloat(1.4 * sin(b * 60) * (1 - b / 0.35))
+    }
 
     private var countAt: CGPoint { laid.count }
     private var rowY: CGFloat { laid.rowY }
@@ -92,11 +122,9 @@ struct ReviewStrip: View {
                 .offset(y: notchHeight)
                 .opacity(shown)
             bar(Self.fill(at: t, reducedMotion: reducedMotion), glow: Self.glow(at: t))
-                .offset(x: Self.barInset, y: notchHeight + Self.drawer - 5)
+                .offset(x: Self.barInset, y: notchHeight + Self.drawer - 6)
                 .opacity(shown)
-            DrawerBack()
-                .frame(width: 15, height: 10)
-                .position(drawerAt)
+            drawerBack(t)
                 .opacity(shown)
             number(t)
                 .position(numberAt)
@@ -104,10 +132,7 @@ struct ReviewStrip: View {
             if !reducedMotion, t >= Self.paperLeaves, t <= Self.paperLands + 0.08 {
                 paper(Self.clamp((t - Self.paperLeaves) / (Self.paperLands - Self.paperLeaves)))
             }
-            DrawerFront()
-                .frame(width: 15, height: 6)
-                .offset(y: Self.jolt(t))
-                .position(x: drawerAt.x, y: drawerAt.y + 2.5)
+            drawerFront(t)
                 .opacity(shown)
         }
         .frame(width: width, alignment: .topLeading)
@@ -119,10 +144,35 @@ struct ReviewStrip: View {
         return enter * leave
     }
 
-    private static func jolt(_ t: Double) -> CGFloat {
-        let b = (t - paperLands) / 0.22
-        guard b > 0, b < 1 else { return 0 }
-        return CGFloat(1.4 * sin(b * .pi))
+    private func drawerBack(_ t: Double) -> some View {
+        let size = Self.drawerSize
+        let shown = Self.sheets(for: Self.today(tick, at: t, reducedMotion: reducedMotion))
+        let landed = Self.clamp((t - Self.paperLands) / 0.15)
+        return ZStack(alignment: .bottom) {
+            DrawerBack()
+            VStack(spacing: 1.1) {
+                ForEach(0..<shown, id: \.self) { i in
+                    let newest = i == 0 && shown > Self.sheets(for: tick.today - 1)
+                    Capsule()
+                        .fill(Color(white: 0.94))
+                        .frame(width: size.width - 5 - CGFloat(i % 2), height: 1.1)
+                        .opacity(newest ? landed : 1)
+                }
+            }
+            .padding(.bottom, Self.frontHeight - 1)
+        }
+        .frame(width: size.width, height: size.height)
+        .offset(x: Self.shake(at: t))
+        .position(drawerAt)
+    }
+
+    private func drawerFront(_ t: Double) -> some View {
+        let size = Self.drawerSize
+        let slide = CGFloat(Self.opening(at: t)) * 2.5
+        return DrawerFront()
+            .frame(width: size.width, height: Self.frontHeight)
+            .offset(x: Self.shake(at: t), y: slide)
+            .position(x: drawerAt.x, y: drawerAt.y + (size.height - Self.frontHeight) / 2)
     }
 
     private func row(_ t: Double) -> some View {
@@ -153,7 +203,8 @@ struct ReviewStrip: View {
     }
 
     private func bar(_ p: Double, glow: Double) -> some View {
-        let length = max(0, width - 2 * Self.barInset)
+        let span = Self.barSpan(width: width)
+        let length = span.upperBound - span.lowerBound
         let filled: CGFloat = max(2, length * CGFloat(p))
         let tint = tick.verdict.color
         return ZStack(alignment: .leading) {
@@ -242,7 +293,7 @@ struct ReviewStrip: View {
             RoundedRectangle(cornerRadius: 1.5)
                 .fill(Color(white: 0.34))
                 .overlay(
-                    Capsule().fill(.white.opacity(0.75)).frame(width: 5, height: 1.2)
+                    Capsule().fill(.white.opacity(0.75)).frame(width: 6, height: 1.3)
                 )
                 .shadow(color: .black.opacity(0.4), radius: 0.8, y: -0.5)
         }
