@@ -11,23 +11,21 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Use the newest Xcode on the runner
+      - name: Use Xcode 26.6
         run: |
-          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
-          echo "using $latest"
-          sudo xcode-select -s "$latest"
+          sudo xcode-select -s /Applications/Xcode_26.6.app
           swift --version
 
       - name: Cache SwiftPM
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-
+          key: spm-xcode26.6-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-xcode26.6-
 
       - name: Build
         run: swift build -c release
@@ -67,3 +65,26 @@ jobs:
           fi
 
           exit $fail
+
+  oldest-xcode:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Use Xcode 16.4, the oldest the README supports
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app
+          swift --version
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v6
+        with:
+          path: .build
+          key: spm-xcode16.4-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-xcode16.4-
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Tests
+        run: swift test

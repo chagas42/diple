@@ -25,7 +25,7 @@ jobs:
       version: ${{ steps.next.outputs.version }}
       release: ${{ steps.next.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
 
       - name: Work out the next version
@@ -86,16 +86,14 @@ jobs:
   release:
     needs: decide
     if: needs.decide.outputs.release == 'true'
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
 
-      - name: Use the newest Xcode on the runner
+      - name: Use Xcode 26.6
         run: |
-          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
-          echo "using $latest"
-          sudo xcode-select -s "$latest"
+          sudo xcode-select -s /Applications/Xcode_26.6.app
           swift --version
 
       - name: Build
@@ -152,7 +150,7 @@ jobs:
           git push origin "v$V"
 
       - name: Publish
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.decide.outputs.version }}
           overwrite_files: true
