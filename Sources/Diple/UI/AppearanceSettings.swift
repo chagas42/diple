@@ -14,8 +14,29 @@ struct AppearanceSettings: View {
        }
     """
 
+    private var rightIsCrowded: Bool { NotchGeometry.current().wings().crowded }
+
     var body: some View {
         Form {
+            Section {
+                Toggle("Show the eye", isOn: $model.settings.showsEye)
+                Toggle("Blink", isOn: $model.settings.eyeBlinks)
+                    .disabled(!model.settings.showsEye)
+                Picker("Count", selection: $model.settings.countSide) {
+                    ForEach(CountSide.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .disabled(rightIsCrowded)
+            } header: {
+                Text("Notch")
+            } footer: {
+                Text(rightIsCrowded
+                     ? "Menu bar icons fill the space right of the notch, so the count and the eye share the left side."
+                     : "The little eye follows your pointer from the side opposite the count.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Code") {
                 Picker("Theme", selection: Binding(
                     get: { model.settings.codeTheme },
