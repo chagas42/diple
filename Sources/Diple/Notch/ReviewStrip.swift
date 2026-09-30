@@ -4,16 +4,16 @@ import AppKit
 struct ReviewStrip: View {
     let tick: ReviewTick
     let start: Date
-    let width: CGFloat
+    let wings: Wings
     let notchWidth: CGFloat
     let notchHeight: CGFloat
-    let countOnLeft: Bool
+    var eyeBesideCount = true
 
     static let drawer: CGFloat = 20
     static let length = 1.8
     static let paperLeaves = 0.2
     static let paperLands = 0.85
-    static let barWidth: CGFloat = 34
+    static let barInset: CGFloat = 12
 
     static func shortPR(_ key: String) -> String {
         let parts = key.split(separator: "/")
@@ -48,21 +48,25 @@ struct ReviewStrip: View {
         let cutout: ClosedRange<CGFloat>
     }
 
-    static func layout(width: CGFloat, notchWidth: CGFloat, notchHeight: CGFloat, countOnLeft: Bool) -> Layout {
-        let column = countOnLeft ? max(0, width - notchWidth) : max(0, (width - notchWidth) / 2)
-        let rowY = notchHeight + drawer / 2 - 1
-        let start = column
+    static func layout(wings: Wings, notchWidth: CGFloat, notchHeight: CGFloat, eyeBesideCount: Bool = true) -> Layout {
+        let width = wings.left + notchWidth + wings.right
+        let rowY = notchHeight + drawer / 2 - 2
+        let countX: CGFloat = wings.crowded ? wings.left / 2 + (eyeBesideCount ? 10.5 : 0)
+            : wings.countOnLeft ? wings.left / 2
+            : width - wings.right / 2
         return Layout(
-            count: CGPoint(x: countOnLeft ? column / 2 : width - column / 2, y: notchHeight / 2),
+            count: CGPoint(x: countX, y: notchHeight / 2),
             drawer: CGPoint(x: width - drawerColumn / 2 - 6, y: rowY + 1),
             number: CGPoint(x: width - drawerColumn / 2 + 9, y: rowY),
             rowY: rowY,
-            cutout: start...max(start, start + notchWidth)
+            cutout: wings.left...(wings.left + notchWidth)
         )
     }
 
+    private var width: CGFloat { wings.left + notchWidth + wings.right }
+
     private var laid: Layout {
-        Self.layout(width: width, notchWidth: notchWidth, notchHeight: notchHeight, countOnLeft: countOnLeft)
+        Self.layout(wings: wings, notchWidth: notchWidth, notchHeight: notchHeight, eyeBesideCount: eyeBesideCount)
     }
 
     static let drawerColumn: CGFloat = 40
@@ -86,6 +90,9 @@ struct ReviewStrip: View {
             row(t)
                 .frame(width: width, height: Self.drawer)
                 .offset(y: notchHeight)
+                .opacity(shown)
+            bar(Self.fill(at: t, reducedMotion: reducedMotion), glow: Self.glow(at: t))
+                .offset(x: Self.barInset, y: notchHeight + Self.drawer - 5)
                 .opacity(shown)
             DrawerBack()
                 .frame(width: 15, height: 10)
@@ -120,16 +127,13 @@ struct ReviewStrip: View {
 
     private func row(_ t: Double) -> some View {
         HStack(spacing: 0) {
-            HStack(spacing: 5) {
-                label
-                Spacer(minLength: 4)
-                bar(Self.fill(at: t, reducedMotion: reducedMotion), glow: Self.glow(at: t))
-            }
-            .padding(.leading, 12)
-            .padding(.trailing, 4)
+            label
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
             Color.clear.frame(width: Self.drawerColumn)
         }
-        .padding(.bottom, 2)
+        .padding(.bottom, 6)
     }
 
     private var label: some View {
@@ -149,15 +153,16 @@ struct ReviewStrip: View {
     }
 
     private func bar(_ p: Double, glow: Double) -> some View {
-        let filled: CGFloat = max(2, Self.barWidth * CGFloat(p))
+        let length = max(0, width - 2 * Self.barInset)
+        let filled: CGFloat = max(2, length * CGFloat(p))
         let tint = tick.verdict.color
         return ZStack(alignment: .leading) {
-            Capsule().fill(.white.opacity(0.12))
+            Capsule().fill(.white.opacity(0.1))
             Capsule().fill(tint).frame(width: filled)
-                .shadow(color: tint.opacity(0.9 * glow), radius: 4 * glow)
+                .shadow(color: tint.opacity(0.9 * glow), radius: 5 * glow)
         }
-        .frame(width: Self.barWidth, height: 3)
-        .scaleEffect(y: 1 + 0.5 * CGFloat(glow))
+        .frame(width: length, height: 2.5)
+        .scaleEffect(y: 1 + 0.6 * CGFloat(glow))
     }
 
     private func number(_ t: Double) -> some View {

@@ -29,4 +29,20 @@ import Testing
         #expect(eye.gaze == CGPoint(x: 0.5, y: 0))
         _ = c
     }
+
+    @Test func theEyeShowsUnlessTurnedOff() throws {
+        let older = try JSONDecoder().decode(Settings.self, from: Data("{}".utf8))
+        #expect(older.showsEye)
+        #expect(older.eyeBlinks)
+        #expect(older.countSide == .right)
+
+        var off = Settings()
+        off.showsEye = false
+        off.eyeBlinks = false
+        off.countSide = .left
+        let saved = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(off))
+        #expect(!saved.showsEye)
+        #expect(!saved.eyeBlinks)
+        #expect(saved.countSide == .left)
+    }
 }

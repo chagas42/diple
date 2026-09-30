@@ -91,9 +91,10 @@ fitted to the gap instead, measured from `CGWindowListCopyWindowInfo`: status
 items are windows at `kCGStatusWindowLevel`, and their bounds need no Screen
 Recording permission. Items change width as they tick (a meeting countdown),
 so the fit is re-checked every 2 s while idle. When less than 27pt fits, the
-eye would have to shrink against the corner, so the right wing goes away, the
-eye is hidden, and the count moves to a full left wing; the shape is then
-shifted left by half a wing. The left wing is not measured: an app's menus are
+eye would have to shrink against the corner, so the right wing goes away and
+the count moves to a full left wing, with the eye beside it; the shape is then
+shifted left. With the eye turned off its wing is dropped, not left empty, and
+the wake-ups are skipped, being all eye. The left wing is not measured: an app's menus are
 drawn inside one full-width menu bar window, and reading their extents takes
 Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
 gap, to see each layout without arranging the menu bar.
@@ -166,8 +167,9 @@ at a zero frame in the corner and the content grew in from the left.
 
 **It also wakes after the Mac rests.** Going to sleep or the screens sleeping
 shuts the eye; coming back plays a wake-up sized by how long the Mac was
-away: under 2 minutes (the lid closed and opened) the eye just opens and blinks,
-about 1.5 s with no z's; up to an hour it dozes for 1.6 s, blinks once and looks
+away: under 2 minutes (the lid closed and opened) it dozes for 1 s with quicker z's
+(the first after 0.1 s, one every 0.28 s, each gone in 1.3 s) and opens and
+blinks, about 2.3 s, so even a short rest reads as sleep; up to an hour it dozes for 1.6 s, blinks once and looks
 around; an hour or more is the full launch wake-up. The rest is measured from
 sleep to wake, not to unlock, and when the screen is locked the wake-up waits
 for the unlock, since behind the lock screen nobody would see it. Sleep and the
@@ -207,8 +209,12 @@ outside working hours, which is correct for real events and wrong for a test
 button — a test that does not fire because of the clock looks like a broken
 app. The test path bypasses it explicitly.
 
-**`threadIdentifier`** groups several notifications from one PR into a single
-banner. **`UNTextInputNotificationAction`** is what puts a reply field in it.
+**`threadIdentifier` only when asked.** Notification Center makes one stack per
+thread, so a thread per PR leaves one entry per PR — five PRs, five entries.
+Without it, every Diple notification stacks under the app, the way Slack's do
+(Slack sets none either). That is the default; "One stack per pull request"
+brings the per-PR thread back. **`UNTextInputNotificationAction`** is what puts a reply field in the
+banner.
 
 **Picks shape review requests only when asked to.** `review-requested:@me`
 matches requests to any GitHub team you are on, which is most of the noise.

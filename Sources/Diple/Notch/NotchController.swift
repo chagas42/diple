@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 @MainActor
 final class NotchController: ObservableObject {
@@ -15,6 +16,7 @@ final class NotchController: ObservableObject {
     @Published private(set) var waking = false
     @Published private(set) var asleep = false
     private(set) var fellAsleep = Date()
+    @Published private(set) var dozesQuickly = false
     @Published private(set) var tick: ReviewTick?
     private(set) var tickStart = Date()
     private(set) var pendingTicks: [ReviewTick] = []
@@ -45,6 +47,9 @@ final class NotchController: ObservableObject {
     var nap: @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     private var wakeTask: Task<Void, Never>?
     private let resting = RestWatcher()
+    private var showsEye = true
+    private var countOnLeft = false
+    private var wingSettings: AnyCancellable?
     var clock: @MainActor () -> Date = Date.init
     static let longestSwitch: TimeInterval = 1.5
     private var arrivingSince: Date?
@@ -56,6 +61,9 @@ final class NotchController: ObservableObject {
 
     func mount(model: AppModel) {
         self.model = model
+        wingSettings = model.$settings
+            .removeDuplicates { $0.showsEye == $1.showsEye && $0.countSide == $1.countSide }
+            .sink { [weak self] s in self?.arrange(showsEye: s.showsEye, countOnLeft: s.countSide == .left) }
         settleBeforeFirstFrame()
         fallAsleep()
         measure()
@@ -102,12 +110,12 @@ final class NotchController: ObservableObject {
 
     private func apply() {
         let g = NotchGeometry.current()
-        wings = g.wings
+        wings = g.wings(showsEye: showsEye, countOnLeft: countOnLeft)
         shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
-        case .active: tick == nil ? g.active
-            : CGSize(width: g.active.width, height: g.active.height + ReviewStrip.drawer)
+        case .active: tick == nil ? g.active(wings)
+            : CGSize(width: g.active(wings).width, height: g.active(wings).height + ReviewStrip.drawer)
         case .open:    g.open
         case .alert:    g.alert
         }
@@ -144,9 +152,17 @@ final class NotchController: ObservableObject {
         (underFullScreen || arriving) && !menuBarRevealed ? .hidden : .active
     }
 
+    func arrange(showsEye: Bool, countOnLeft: Bool) {
+        self.showsEye = showsEye
+        self.countOnLeft = countOnLeft
+        if !showsEye { finishWaking() }
+        settleIdle()
+    }
+
     func fallAsleep() {
         guard wakes, state == .active else { return }
         asleep = true
+        dozesQuickly = false
         fellAsleep = Date()
         shutEyes()
     }
@@ -172,7 +188,7 @@ final class NotchController: ObservableObject {
         wakeTask?.cancel()
         wakeTask = nil
         asleep = false
-        guard wakes, state == .active || state == .hidden else { return }
+        guard wakes, showsEye, state == .active || state == .hidden else { return }
         shutEyes()
     }
 
@@ -184,10 +200,9 @@ final class NotchController: ObservableObject {
         guard waking else { return }
         refreshIdle()
         guard state == .active else { return finishWaking() }
-        if nap != .short {
-            asleep = true
-            fellAsleep = Date()
-        }
+        asleep = true
+        fellAsleep = Date()
+        dozesQuickly = nap == .short
         startWaking(nap)
     }
 
@@ -216,7 +231,8 @@ final class NotchController: ObservableObject {
     }
 
     private func wakeShort() async -> Bool {
-        guard await rest(250) else { return false }
+        guard await rest(1000) else { return false }
+        asleep = false
         guard state == .active else { finishWaking(); return false }
         eye.lidSpeed = 0.25
         eye.lid = 1
@@ -408,7 +424,7 @@ final class NotchController: ObservableObject {
     private func settleIdle() {
         guard state == .hidden || state == .active else { return }
         let next = idle()
-        if next != state || NotchGeometry.current().wings != wings {
+        if next != state || NotchGeometry.current().wings(showsEye: showsEye, countOnLeft: countOnLeft) != wings {
             state = next
             apply()
         }
@@ -484,7 +500,7 @@ final class NotchController: ObservableObject {
     }
 
     private func aim() {
-        guard !waking, state == .hidden || state == .active else { return }
+        guard showsEye, !waking, state == .hidden || state == .active else { return }
         let g = NotchGeometry.current()
         let f = g.rect(size, shift: shift)
         let m = pointer()
@@ -495,11 +511,17 @@ final class NotchController: ObservableObject {
         eye.look(at: next)
     }
 
+    private var blinks: Bool {
+        guard let s = model?.settings else { return true }
+        return s.showsEye && s.eyeBlinks
+    }
+
     private func blinkOccasionally() {
         blinkTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Double.random(in: 4...9)))
                 guard let self, !Task.isCancelled else { return }
+                guard self.blinks else { continue }
                 self.eye.blinking = true
                 try? await Task.sleep(for: .milliseconds(110))
                 self.eye.blinking = false
@@ -518,13 +540,14 @@ final class NotchController: ObservableObject {
                 size: notch.size,
                 notchWidth: notch.notchWidth,
                 notchHeight: notch.notchHeight,
-                countOnLeft: notch.wings.countOnLeft,
+                wings: notch.wings,
                 shift: notch.shift,
                 shrinking: notch.shrinking,
                 appearing: notch.appearing,
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
+                dozesQuickly: notch.dozesQuickly,
                 tick: notch.tick,
                 tickStart: notch.tickStart,
                 heldCount: notch.heldCount,

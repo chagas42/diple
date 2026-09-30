@@ -115,21 +115,29 @@ import Testing
     @Test(arguments: [180.0, 185.0, 200.0, 210.0])
     func atEveryWidthTheSheetLeavesTheCountForTheDrawerAndStaysOutOfTheCutout(notch: Double) {
         let notchWidth = CGFloat(notch), notchHeight: CGFloat = 32, sheetHalf: CGFloat = 6.5
-        let layouts: [(width: CGFloat, left: Bool)] =
-            [42, 36, 32, 27].map { (notchWidth + 2 * $0, false) } + [42, 30].map { (notchWidth + $0, true) }
-        for l in layouts {
-            let at = ReviewStrip.layout(width: l.width, notchWidth: notchWidth, notchHeight: notchHeight, countOnLeft: l.left)
-            #expect(!at.cutout.contains(at.count.x))
-            #expect(at.drawer.x > 0 && at.number.x < l.width)
+        var layouts: [(Wings, Bool)] = []
+        for free in [60.0, 44, 38, 33, 29, 20] {
+            for eye in [true, false] {
+                for left in [false, true] {
+                    layouts.append((NotchGeometry.wings(freeRight: free, full: 42, showsEye: eye, countOnLeft: left), eye))
+                }
+            }
+        }
+        for (wings, eye) in layouts {
+            let width = wings.left + notchWidth + wings.right
+            let at = ReviewStrip.layout(wings: wings, notchWidth: notchWidth, notchHeight: notchHeight, eyeBesideCount: eye)
+            #expect(!at.cutout.contains(at.count.x), "count under the cutout: \(wings)")
+            #expect(at.count.x > 0 && at.count.x < width)
+            #expect(at.drawer.x > 0 && at.number.x < width)
             #expect(at.drawer.y - 5 >= notchHeight)
             let to = CGPoint(x: at.drawer.x, y: at.drawer.y + 1)
             #expect(ReviewStrip.flight(0, from: at.count, to: to, glide: at.rowY).point == at.count)
             let end = ReviewStrip.flight(1, from: at.count, to: to, glide: at.rowY).point
             #expect(abs(end.x - to.x) < 0.001 && abs(end.y - to.y) < 0.001)
-            for i in 0...100 {
-                let point = ReviewStrip.flight(Double(i) / 100, from: at.count, to: to, glide: at.rowY).point
+            for k in 0...100 {
+                let point = ReviewStrip.flight(Double(k) / 100, from: at.count, to: to, glide: at.rowY).point
                 let inside = point.x > at.cutout.lowerBound + 5 && point.x < at.cutout.upperBound - 5
-                if inside { #expect(point.y - sheetHalf >= notchHeight - 1.5) }
+                if inside { #expect(point.y - sheetHalf >= notchHeight - 1.5, "sheet in the cutout: \(wings)") }
             }
         }
     }
@@ -138,10 +146,10 @@ import Testing
         let notchHeight: CGFloat = 32, cutout = 42.0...227.0, sheetHalf: CGFloat = 6.5
         let from = CGPoint(x: 21, y: 16), to = CGPoint(x: 201, y: 42)
         for i in 0...100 {
-            let point = ReviewStrip.flight(Double(i) / 100, from: from, to: to, glide: 41).point
+            let point = ReviewStrip.flight(Double(i) / 100, from: from, to: to, glide: 40).point
             if cutout.contains(Double(point.x)) { #expect(point.y - sheetHalf >= notchHeight - 1.5) }
         }
-        let end = ReviewStrip.flight(1, from: from, to: to, glide: 41).point
+        let end = ReviewStrip.flight(1, from: from, to: to, glide: 40).point
         #expect(abs(end.x - to.x) < 0.001 && abs(end.y - to.y) < 0.001)
     }
 
@@ -181,7 +189,7 @@ import Testing
     @Test func aReviewOpensAThinStripUnderTheNotchAndClosesIt() async {
         let gate = Gate()
         let n = notch(gate: gate)
-        let resting = NotchGeometry.current().active
+        let resting = NotchGeometry.current().active(n.wings)
         n.tick(Self.tick("a"))
         #expect(n.tick?.pr == "a")
         #expect(n.size == CGSize(width: resting.width, height: resting.height + ReviewStrip.drawer))
