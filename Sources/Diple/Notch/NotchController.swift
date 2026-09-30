@@ -17,7 +17,6 @@ final class NotchController: ObservableObject {
     private(set) var fellAsleep = Date()
     @Published private(set) var tick: ReviewTick?
     private(set) var tickStart = Date()
-    private(set) var tickTotal = 0
     private(set) var pendingTicks: [ReviewTick] = []
     @Published private(set) var heldCount: Int?
     private(set) var expecting: Set<String> = []
@@ -341,8 +340,6 @@ final class NotchController: ObservableObject {
     private func showPendingTick() {
         guard state == .active, !waking, tick == nil, !pendingTicks.isEmpty else { return }
         let t = pendingTicks.removeFirst()
-        let left = heldCount.map { max(model?.count ?? 0, $0 - 1) } ?? (model?.count ?? 0)
-        tickTotal = t.today + left
         tick = t
         tickStart = Date()
         apply()
@@ -530,7 +527,6 @@ final class NotchController: ObservableObject {
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
                 tick: notch.tick,
                 tickStart: notch.tickStart,
-                tickTotal: notch.tickTotal,
                 heldCount: notch.heldCount,
                 eye: notch.eye,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,

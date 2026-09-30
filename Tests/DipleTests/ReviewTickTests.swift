@@ -93,20 +93,34 @@ import Testing
         #expect(ReviewStrip.shortPR("acme/orders-api#7867") == "orders-api#7867")
     }
 
-    @Test func theBarStepsOnceTheSheetIsInTheDrawer() {
-        let t = ReviewTick(id: "t", pr: "acme/orders-api#7867", verdict: .approved, today: 3)
-        #expect(ReviewStrip.fill(t, total: 8, at: 0.2) == 2.0 / 8)
-        #expect(ReviewStrip.fill(t, total: 8, at: ReviewStrip.paperLands + 0.3) == 3.0 / 8)
-        #expect(ReviewStrip.fill(t, total: 8, at: 0, reducedMotion: true) == 3.0 / 8)
-        #expect(ReviewStrip.fill(t, total: 0, at: 0) == 1)
+    @Test func theBarFillsFromEmptyToFullAsTheSheetFallsIntoTheDrawer() {
+        #expect(ReviewStrip.fill(at: 0) == 0)
+        #expect(ReviewStrip.fill(at: ReviewStrip.paperLeaves) == 0)
+        #expect(abs(ReviewStrip.fill(at: (ReviewStrip.paperLeaves + ReviewStrip.paperLands) / 2) - 0.5) < 1e-9)
+        #expect(ReviewStrip.fill(at: ReviewStrip.paperLands) == 1)
+        #expect(ReviewStrip.fill(at: ReviewStrip.length) == 1)
+        #expect(ReviewStrip.fill(at: 0, reducedMotion: true) == 1)
+        #expect(ReviewStrip.glow(at: ReviewStrip.paperLands) == 0)
+        #expect(ReviewStrip.glow(at: ReviewStrip.paperLands + 0.175) > 0.99)
     }
 
     @Test func theSheetLeavesTheCountAndEndsInTheDrawer() {
-        let from = CGPoint(x: 200, y: 16), to = CGPoint(x: 194, y: 42)
-        #expect(ReviewStrip.flight(0, from: from, to: to).point == from)
-        let end = ReviewStrip.flight(1, from: from, to: to).point
+        let from = CGPoint(x: 248, y: 16), to = CGPoint(x: 243, y: 42)
+        #expect(ReviewStrip.flight(0, from: from, to: to, glide: 39).point == from)
+        let end = ReviewStrip.flight(1, from: from, to: to, glide: 39).point
         #expect(abs(end.x - to.x) < 0.001 && abs(end.y - to.y) < 0.001)
-        #expect(ReviewStrip.flight(0.5, from: from, to: to).point.y < (from.y + to.y) / 2)
+        #expect(ReviewStrip.flight(0.5, from: from, to: to, glide: 39).point.y < (from.y + to.y) / 2)
+    }
+
+    @Test func fromTheOtherSideTheSheetGoesUnderTheCutoutToFindTheDrawer() {
+        let notchHeight: CGFloat = 32, cutout = 42.0...227.0, sheetHalf: CGFloat = 6.5
+        let from = CGPoint(x: 21, y: 16), to = CGPoint(x: 201, y: 42)
+        for i in 0...100 {
+            let point = ReviewStrip.flight(Double(i) / 100, from: from, to: to, glide: 41).point
+            if cutout.contains(Double(point.x)) { #expect(point.y - sheetHalf >= notchHeight - 1.5) }
+        }
+        let end = ReviewStrip.flight(1, from: from, to: to, glide: 41).point
+        #expect(abs(end.x - to.x) < 0.001 && abs(end.y - to.y) < 0.001)
     }
 
     final class Gate {

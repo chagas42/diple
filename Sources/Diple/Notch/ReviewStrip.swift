@@ -4,7 +4,6 @@ import AppKit
 struct ReviewStrip: View {
     let tick: ReviewTick
     let start: Date
-    let total: Int
     let width: CGFloat
     let notchWidth: CGFloat
     let notchHeight: CGFloat
@@ -25,13 +24,15 @@ struct ReviewStrip: View {
         reducedMotion || elapsed >= paperLands ? t.today : t.today - 1
     }
 
-    static func fill(_ t: ReviewTick, total: Int, at elapsed: Double, reducedMotion: Bool = false) -> Double {
-        guard total > 0 else { return 1 }
-        let before = Double(max(0, t.today - 1)) / Double(total)
-        let after = min(1, Double(t.today) / Double(total))
-        if reducedMotion { return after }
-        let p = ease(clamp((elapsed - paperLands) / 0.3))
-        return before + (after - before) * p
+    static func fill(at elapsed: Double, reducedMotion: Bool = false) -> Double {
+        if reducedMotion { return 1 }
+        return ease(clamp((elapsed - paperLeaves) / (paperLands - paperLeaves)))
+    }
+
+    static func glow(at elapsed: Double) -> Double {
+        let b = (elapsed - paperLands) / 0.35
+        guard b > 0, b < 1 else { return 0 }
+        return sin(b * .pi)
     }
 
     static func clamp(_ x: Double) -> Double { min(1, max(0, x)) }
@@ -43,10 +44,14 @@ struct ReviewStrip: View {
         countOnLeft ? max(0, width - notchWidth) : max(0, (width - notchWidth) / 2)
     }
 
-    private var columnX: CGFloat { countOnLeft ? column / 2 : width - column / 2 }
+    static let drawerColumn: CGFloat = 40
+
+    private var countAt: CGPoint {
+        CGPoint(x: countOnLeft ? column / 2 : width - column / 2, y: notchHeight / 2)
+    }
     private var rowY: CGFloat { notchHeight + Self.drawer / 2 - 1 }
-    private var drawerAt: CGPoint { CGPoint(x: columnX - 6, y: rowY + 1) }
-    private var numberAt: CGPoint { CGPoint(x: columnX + 9, y: rowY) }
+    private var drawerAt: CGPoint { CGPoint(x: width - Self.drawerColumn / 2 - 6, y: rowY + 1) }
+    private var numberAt: CGPoint { CGPoint(x: width - Self.drawerColumn / 2 + 9, y: rowY) }
 
     var body: some View {
         TimelineView(.animation) { context in
@@ -96,15 +101,14 @@ struct ReviewStrip: View {
 
     private func row(_ t: Double) -> some View {
         HStack(spacing: 0) {
-            if countOnLeft { Color.clear.frame(width: column) }
             HStack(spacing: 5) {
                 label
                 Spacer(minLength: 4)
-                bar(Self.fill(tick, total: total, at: t, reducedMotion: reducedMotion))
+                bar(Self.fill(at: t, reducedMotion: reducedMotion), glow: Self.glow(at: t))
             }
-            .padding(.leading, countOnLeft ? 4 : 12)
-            .padding(.trailing, countOnLeft ? 12 : 4)
-            if !countOnLeft { Color.clear.frame(width: column) }
+            .padding(.leading, 12)
+            .padding(.trailing, 4)
+            Color.clear.frame(width: Self.drawerColumn)
         }
         .padding(.bottom, 2)
     }
@@ -125,13 +129,16 @@ struct ReviewStrip: View {
         }
     }
 
-    private func bar(_ p: Double) -> some View {
+    private func bar(_ p: Double, glow: Double) -> some View {
         let filled: CGFloat = max(2, Self.barWidth * CGFloat(p))
+        let tint = tick.verdict.color
         return ZStack(alignment: .leading) {
             Capsule().fill(.white.opacity(0.12))
-            Capsule().fill(tick.verdict.color).frame(width: filled)
+            Capsule().fill(tint).frame(width: filled)
+                .shadow(color: tint.opacity(0.9 * glow), radius: 4 * glow)
         }
         .frame(width: Self.barWidth, height: 3)
+        .scaleEffect(y: 1 + 0.5 * CGFloat(glow))
     }
 
     private func number(_ t: Double) -> some View {
@@ -154,22 +161,42 @@ struct ReviewStrip: View {
         let opacity: Double
     }
 
-    static func flight(_ p: Double, from: CGPoint, to: CGPoint) -> Flight {
-        let e = ease(p)
-        let dx = Double(to.x - from.x)
-        let dy = Double(to.y - from.y)
-        let hop = 7 * sin(p * .pi)
-        let x = Double(from.x) + dx * e
-        let y = Double(from.y) + dy * e - hop
+    static let nearby: CGFloat = 30
+
+    static func flight(_ p: Double, from: CGPoint, to: CGPoint, glide: CGFloat) -> Flight {
         let grow = 0.75 + 0.35 * sin(p * .pi)
         let fade = p < 0.15 ? p / 0.15 : (p > 0.9 ? max(0, (1 - p) / 0.1) : 1)
-        return Flight(point: CGPoint(x: x, y: y), angle: -18 + 26 * e, scale: CGFloat(grow), opacity: fade)
+        let point = abs(to.x - from.x) < nearby ? hop(p, from: from, to: to) : across(p, from: from, to: to, glide: glide)
+        let lean = to.x < from.x ? -1.0 : 1.0
+        return Flight(point: point, angle: lean * (-18 + 26 * ease(p)), scale: CGFloat(grow), opacity: fade)
+    }
+
+    private static func hop(_ p: Double, from: CGPoint, to: CGPoint) -> CGPoint {
+        let e = ease(p)
+        let x = Double(from.x) + Double(to.x - from.x) * e
+        let y = Double(from.y) + Double(to.y - from.y) * e - 7 * sin(p * .pi)
+        return CGPoint(x: x, y: y)
+    }
+
+    private static func across(_ p: Double, from: CGPoint, to: CGPoint, glide: CGFloat) -> CGPoint {
+        let side: Double = to.x > from.x ? 1 : -1
+        let drop = 0.35
+        let nudge = 8 * side
+        if p < drop {
+            let q = p / drop
+            let out = 1 - (1 - q) * (1 - q)
+            return CGPoint(x: Double(from.x) + nudge * q, y: Double(from.y) + Double(glide - from.y) * out)
+        }
+        let q = (p - drop) / (1 - drop)
+        let startX = Double(from.x) + nudge
+        let x = startX + (Double(to.x) - startX) * ease(q)
+        let y = Double(glide) - 2 * sin(q * .pi) + Double(to.y - glide) * q * q * q
+        return CGPoint(x: x, y: y)
     }
 
     private func paper(_ p: Double) -> some View {
-        let from = CGPoint(x: columnX, y: notchHeight / 2)
         let to = CGPoint(x: drawerAt.x, y: drawerAt.y + 1)
-        let f = Self.flight(p, from: from, to: to)
+        let f = Self.flight(p, from: countAt, to: to, glide: rowY)
         return Paper(tint: tick.verdict.color)
             .frame(width: 10, height: 13)
             .scaleEffect(f.scale)

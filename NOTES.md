@@ -191,9 +191,12 @@ so the strip shows seconds after you review; that PR leaves Needs you at once,
 before the next sync. The count keeps its old number until the strip plays,
 drops the moment a sheet leaves it, and the sheet falls into a small drawer
 whose number (today's reviews) goes up as it lands, so the two numbers move
-together. The bar beside it is today's reviews over today's reviews plus what
-still needs you, so it steps once per review and never judges how you
-reviewed. A request that
+together. The drawer always sits at the strip's right end; when the count is on
+the left (a tight menu bar), the sheet first drops to the strip and glides
+under the cutout, since anything drawn at wing height there is hidden by the
+camera housing. The bar beside it fills from empty to full as the sheet travels and
+glows when it lands: each review reads as one finished piece of work, whatever
+the verdict. A request that
 goes away without a review of yours (reassigned, PR closed) lets the count go
 with no strip; a hold nobody answers lets go after 20 s. Today resets at local
 midnight. Settings → Notifications → Your reviews turns it off, and
