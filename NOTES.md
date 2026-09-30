@@ -194,6 +194,28 @@ for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
 
+**Diple goes quiet in Focus.** A macOS Focus is read through
+`INFocusStatusCenter` (after the Focus permission, which works on an ad-hoc
+signature) and polled every 5 s, since it posts no change notification.
+Clicking the eye in the open panel focuses from Diple too, with no macOS
+Focus. The idle notch's eye is not clickable on purpose: making it a target
+meant hovering it could no longer open the panel, and the notch felt smaller
+and slower to open. While focused, the notch drops no alerts, notifications are
+posted `.passive` with no sound (they land in Notification Center), the eye
+stops blinking, half closes and turns a pale indigo, and the panel's body is
+covered and takes no clicks, showing how long the focus has lasted; only the
+top strip stays live, so the eye can end it. The cover arrives and leaves
+with a line of its own: the terminal one, a small zsh window of fixed size (so lines appearing never shift it), types `heads-down`, prints that
+notifications are paused and waits at a blinking prompt; leaving types `exit`
+and prints how long the focus lasted. The cover lingers 1.8 s for that goodbye
+before fading. The time counts seconds for the first minute, so it never sits
+at 0. It lives in memory only. The dev build's right-click menu picks the
+cover (Terminal, Breathing, Pomodoro). The eye in the open panel
+follows the pointer from where it sits (top left, 41pt in, halfway down the
+menu bar), over a shorter range than the idle eye. The click hurts: the eye
+squints shut, turns pink and shakes for about half a second, then opens into
+the new state. Settings → Notifications → Focus turns following macOS off.
+
 ## Notifications
 
 **A review you send slides a strip out of the notch.** When a PR leaves your

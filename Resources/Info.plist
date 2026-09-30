@@ -13,5 +13,6 @@
 	<key>LSMinimumSystemVersion</key>  <string>14.0</string>
 	<key>LSUIElement</key>             <true/>
 	<key>NSHighResolutionCapable</key> <true/>
+	<key>NSFocusStatusUsageDescription</key> <string>Diple stays quiet while a Focus is on: no alerts in the notch and no notification sounds.</string>
 </dict>
 </plist>

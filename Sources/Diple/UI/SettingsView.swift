@@ -138,6 +138,13 @@ struct NotificationsPane: View {
                 Text("Notification Center")
             }
 
+            Section("Focus") {
+                Toggle("Quiet while a macOS Focus is on", isOn: $model.settings.followsFocus)
+                Text("While focused, the notch drops no alerts, the eye stops blinking and half closes, the panel is covered, and notifications go straight to Notification Center without a sound. Click the eye in the open notch to focus from Diple too.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Quiet hours") {
                 Toggle("Mute outside these hours", isOn: $model.settings.quietHoursOn)
                 HStack {
