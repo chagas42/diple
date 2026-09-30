@@ -15,6 +15,7 @@ final class NotchPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        appearance = NSAppearance(named: .darkAqua)
         hidesOnDeactivate = false
         isMovableByWindowBackground = false
         acceptsMouseMovedEvents = true

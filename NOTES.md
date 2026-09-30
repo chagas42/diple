@@ -190,6 +190,12 @@ right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it wai
 for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
 `--nap short|medium|long` does the same 9 s after launch.
 
+**The panel is always dark.** It is black whatever the system appearance, so
+it sets `darkAqua` on itself; without it a light system appearance draws the
+legacy scroller (a mouse attached, or *Show scroll bars: Always*) with a
+white track down the side of the lists. The app's windows are not forced and
+follow the system.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
