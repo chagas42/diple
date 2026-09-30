@@ -214,6 +214,7 @@ struct ReposPane: View {
 struct AccountPane: View {
     @ObservedObject var model: AppModel
     @StateObject private var login = LoginItem()
+    @ObservedObject private var updates = Updates.shared
 
     var body: some View {
         Form {
@@ -245,6 +246,33 @@ struct AccountPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Diple") {
+                LabeledContent("Version", value: updates.summary)
+                if !updates.isDevelopment {
+                    HStack {
+                        updateStatus
+                        Spacer()
+                        if case .available(_, let page) = updates.state {
+                            Button("Download") { NSWorkspace.shared.open(page) }
+                        }
+                        Button("Check now") { Task { await updates.check() } }
+                            .disabled(updates.state == .checking)
+                    }
+                    if case .available = updates.state, updates.viaHomebrew {
+                        HStack {
+                            Text("brew upgrade --cask diple")
+                                .font(.system(size: 11, design: .monospaced))
+                                .textSelection(.enabled)
+                            Spacer()
+                            Button("Copy") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString("brew upgrade --cask diple", forType: .string)
+                            }
+                        }
+                    }
+                }
+            }
+
             Section("Startup") {
                 Toggle("Start at login", isOn: Binding(get: { login.isOn }, set: { login.set($0) }))
                 if login.awaitsApproval {
@@ -274,9 +302,27 @@ struct AccountPane: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { login.refresh() }
+        .onAppear {
+            login.refresh()
+            if updates.state == .idle || updates.state == .failed { Task { await updates.check() } }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             login.refresh()
+        }
+    }
+}
+
+extension AccountPane {
+    @ViewBuilder private var updateStatus: some View {
+        switch updates.state {
+        case .idle, .checking:
+            Text("Checking for updates…").foregroundStyle(.secondary)
+        case .current:
+            Text("Up to date").foregroundStyle(.secondary)
+        case .available(let version, _):
+            Text("Version \(version) is out").foregroundStyle(.orange)
+        case .failed:
+            Text("Could not reach GitHub").foregroundStyle(.secondary)
         }
     }
 }
