@@ -91,9 +91,10 @@ fitted to the gap instead, measured from `CGWindowListCopyWindowInfo`: status
 items are windows at `kCGStatusWindowLevel`, and their bounds need no Screen
 Recording permission. Items change width as they tick (a meeting countdown),
 so the fit is re-checked every 2 s while idle. When less than 27pt fits, the
-eye would have to shrink against the corner, so the right wing goes away, the
-eye is hidden, and the count moves to a full left wing; the shape is then
-shifted left by half a wing. The left wing is not measured: an app's menus are
+eye would have to shrink against the corner, so the right wing goes away and
+the count moves to a full left wing, with the eye beside it; the shape is then
+shifted left. With the eye turned off its wing is dropped, not left empty, and
+the wake-ups are skipped, being all eye. The left wing is not measured: an app's menus are
 drawn inside one full-width menu bar window, and reading their extents takes
 Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
 gap, to see each layout without arranging the menu bar.
@@ -169,6 +170,26 @@ hovering mid-blink cannot leave the eye half shut. It is skipped over a
 fullscreen app, under Reduce Motion, in `--film` and in benches, and hovering
 or an alert ends it at once.
 
+**The wings spread from the notch.** The window is placed before the hosting
+view exists, and the shape starts at the notch's own size, black on black, so
+the first frame shows nothing new. 60 ms later both wings open outward together
+over 0.55 s on an ease-out curve with no overshoot. Before, the panel started
+at a zero frame in the corner and the content grew in from the left.
+
+**It also wakes after the Mac rests.** Going to sleep or the screens sleeping
+shuts the eye; coming back plays a wake-up sized by how long the Mac was
+away: under 2 minutes (the lid closed and opened) it dozes for 1 s with quicker z's
+(the first after 0.1 s, one every 0.28 s, each gone in 1.3 s) and opens and
+blinks, about 2.3 s, so even a short rest reads as sleep; up to an hour it dozes for 1.6 s, blinks once and looks
+around; an hour or more is the full launch wake-up. The rest is measured from
+sleep to wake, not to unlock, and when the screen is locked the wake-up waits
+for the unlock, since behind the lock screen nobody would see it. Sleep and the
+screens sleeping arrive as separate notifications for one rest, so the first
+one starts it and the rest are ignored. To rehearse one, the dev build's
+right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it waits
+for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
+`--nap short|medium|long` does the same 9 s after launch.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
@@ -180,8 +201,12 @@ outside working hours, which is correct for real events and wrong for a test
 button — a test that does not fire because of the clock looks like a broken
 app. The test path bypasses it explicitly.
 
-**`threadIdentifier`** groups several notifications from one PR into a single
-banner. **`UNTextInputNotificationAction`** is what puts a reply field in it.
+**`threadIdentifier` only when asked.** Notification Center makes one stack per
+thread, so a thread per PR leaves one entry per PR — five PRs, five entries.
+Without it, every Diple notification stacks under the app, the way Slack's do
+(Slack sets none either). That is the default; "One stack per pull request"
+brings the per-PR thread back. **`UNTextInputNotificationAction`** is what puts a reply field in the
+banner.
 
 **Picks shape review requests only when asked to.** `review-requested:@me`
 matches requests to any GitHub team you are on, which is most of the noise.

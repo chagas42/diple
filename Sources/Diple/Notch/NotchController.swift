@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 @MainActor
 final class NotchController: ObservableObject {
@@ -10,10 +11,12 @@ final class NotchController: ObservableObject {
     @Published private(set) var wings = Wings(left: 42, right: 42)
     @Published private(set) var shift: CGFloat = 0
     @Published private(set) var shrinking = false
+    @Published private(set) var appearing = false
     @Published private(set) var hasNotch = true
     @Published private(set) var waking = false
     @Published private(set) var asleep = false
     private(set) var fellAsleep = Date()
+    @Published private(set) var dozesQuickly = false
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -36,6 +39,10 @@ final class NotchController: ObservableObject {
     var wakes = !Film.isOn && !Bench.isOn && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     var nap: @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     private var wakeTask: Task<Void, Never>?
+    private let resting = RestWatcher()
+    private var showsEye = true
+    private var countOnLeft = false
+    private var wingSettings: AnyCancellable?
     var clock: @MainActor () -> Date = Date.init
     static let longestSwitch: TimeInterval = 1.5
     private var arrivingSince: Date?
@@ -47,17 +54,22 @@ final class NotchController: ObservableObject {
 
     func mount(model: AppModel) {
         self.model = model
+        wingSettings = model.$settings
+            .removeDuplicates { $0.showsEye == $1.showsEye && $0.countSide == $1.countSide }
+            .sink { [weak self] s in self?.arrange(showsEye: s.showsEye, countOnLeft: s.countSide == .left) }
         settleBeforeFirstFrame()
         fallAsleep()
-        panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
         measure()
-        panel.setFrame(NotchGeometry.current().windowFrame(), display: true)
+        startFromTheNotch()
+        panel.setFrame(NotchGeometry.current().windowFrame(), display: false)
+        panel.contentView = NSHostingView(rootView: Host(notch: self, model: model))
         panel.orderFrontRegardless()
-        refreshIdle()
+        spreadWings()
         startWaking()
         trackPointer()
         watchMenuBar()
         blinkOccasionally()
+        watchRest()
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -91,11 +103,11 @@ final class NotchController: ObservableObject {
 
     private func apply() {
         let g = NotchGeometry.current()
-        wings = g.wings
+        wings = g.wings(showsEye: showsEye, countOnLeft: countOnLeft)
         shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
-        case .active: g.active
+        case .active: g.active(wings)
         case .open:    g.open
         case .alert:    g.alert
         }
@@ -108,41 +120,150 @@ final class NotchController: ObservableObject {
         }
     }
 
+    static let spread: Duration = .milliseconds(550)
+
+    private func startFromTheNotch() {
+        guard state == .active else { return }
+        size = NotchGeometry.current().closed
+        shift = 0
+    }
+
+    private func spreadWings() {
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(60))
+            guard let self else { return }
+            self.appearing = true
+            self.refreshIdle()
+            self.apply()
+            try? await Task.sleep(for: Self.spread)
+            self.appearing = false
+        }
+    }
+
     private func idle() -> NotchState {
         (underFullScreen || arriving) && !menuBarRevealed ? .hidden : .active
+    }
+
+    func arrange(showsEye: Bool, countOnLeft: Bool) {
+        self.showsEye = showsEye
+        self.countOnLeft = countOnLeft
+        if !showsEye { finishWaking() }
+        settleIdle()
     }
 
     func fallAsleep() {
         guard wakes, state == .active else { return }
         asleep = true
+        dozesQuickly = false
         fellAsleep = Date()
+        shutEyes()
+    }
+
+    private func shutEyes() {
         waking = true
+        eye.lidSpeed = 0.4
         eye.lid = 0
     }
 
-    private func startWaking() {
+    private func startWaking(_ nap: Nap = .long) {
         guard waking else { return }
-        wakeTask = Task { [weak self] in await self?.wake() }
+        wakeTask = Task { [weak self] in await self?.wake(after: nap) }
     }
 
-    func wake() async {
-        guard waking else { return }
-        guard await rest(3200) else { return }
+    private func watchRest() {
+        resting.onRest = { [weak self] in self?.restStarted() }
+        resting.onBack = { [weak self] seconds in self?.back(after: seconds) }
+        resting.start()
+    }
+
+    func restStarted() {
+        wakeTask?.cancel()
+        wakeTask = nil
         asleep = false
+        guard wakes, showsEye, state == .active || state == .hidden else { return }
+        shutEyes()
+    }
+
+    func back(after seconds: TimeInterval) {
+        back(from: Nap(resting: seconds))
+    }
+
+    func back(from nap: Nap) {
+        guard waking else { return }
+        refreshIdle()
         guard state == .active else { return finishWaking() }
+        asleep = true
+        fellAsleep = Date()
+        dozesQuickly = nap == .short
+        startWaking(nap)
+    }
+
+    func rehearse(_ nap: Nap, after delay: Duration = .seconds(1)) {
+        Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            for _ in 0..<100 where self?.state != .active {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard let self, self.state == .active else { return }
+            self.restStarted()
+            try? await Task.sleep(for: .seconds(1.5))
+            self.back(from: nap)
+        }
+    }
+
+    func wake(after nap: Nap = .long) async {
+        guard waking else { return }
+        let woke = switch nap {
+        case .short: await wakeShort()
+        case .medium: await wakeMedium()
+        case .long: await wakeLong()
+        }
+        guard woke else { return }
+        finishWaking()
+    }
+
+    private func wakeShort() async -> Bool {
+        guard await rest(1000) else { return false }
+        asleep = false
+        guard state == .active else { finishWaking(); return false }
+        eye.lidSpeed = 0.25
+        eye.lid = 1
+        guard await rest(450), await slowBlink(), await rest(200) else { return false }
+        return true
+    }
+
+    private func wakeMedium() async -> Bool {
+        guard await rest(1600) else { return false }
+        asleep = false
+        guard state == .active else { finishWaking(); return false }
+        eye.lid = 0.45
+        guard await rest(500), await slowBlink(), await rest(250) else { return false }
+        eye.lid = 1
+        guard await rest(350) else { return false }
+        return await lookAround()
+    }
+
+    private func wakeLong() async -> Bool {
+        guard await rest(3200) else { return false }
+        asleep = false
+        guard state == .active else { finishWaking(); return false }
         eye.lid = 0.45
         guard await rest(600), await slowBlink(), await rest(300),
-              await slowBlink(), await rest(350) else { return }
+              await slowBlink(), await rest(350) else { return false }
         for (lid, ms) in [(0.12, 450), (0.18, 500), (0.6, 350), (1, 0)] as [(CGFloat, Int)] {
             eye.lid = lid
-            guard await rest(ms) else { return }
+            guard await rest(ms) else { return false }
         }
-        guard await rest(400), await slowBlink(), await rest(250) else { return }
+        guard await rest(400), await slowBlink(), await rest(250) else { return false }
+        return await lookAround()
+    }
+
+    private func lookAround() async -> Bool {
         for (gaze, ms) in [(CGPoint(x: -0.8, y: 0.1), 350), (CGPoint(x: 0.8, y: 0.1), 350), (.zero, 200)] {
             eye.look(at: gaze)
-            guard await rest(ms) else { return }
+            guard await rest(ms) else { return false }
         }
-        finishWaking()
+        return true
     }
 
     private func rest(_ ms: Int) async -> Bool {
@@ -245,7 +366,7 @@ final class NotchController: ObservableObject {
     private func settleIdle() {
         guard state == .hidden || state == .active else { return }
         let next = idle()
-        guard next != state || NotchGeometry.current().wings != wings else { return }
+        guard next != state || NotchGeometry.current().wings(showsEye: showsEye, countOnLeft: countOnLeft) != wings else { return }
         state = next
         apply()
     }
@@ -319,7 +440,7 @@ final class NotchController: ObservableObject {
     }
 
     private func aim() {
-        guard !waking, state == .hidden || state == .active else { return }
+        guard showsEye, !waking, state == .hidden || state == .active else { return }
         let g = NotchGeometry.current()
         let f = g.rect(size, shift: shift)
         let m = pointer()
@@ -330,11 +451,17 @@ final class NotchController: ObservableObject {
         eye.look(at: next)
     }
 
+    private var blinks: Bool {
+        guard let s = model?.settings else { return true }
+        return s.showsEye && s.eyeBlinks
+    }
+
     private func blinkOccasionally() {
         blinkTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Double.random(in: 4...9)))
                 guard let self, !Task.isCancelled else { return }
+                guard self.blinks else { continue }
                 self.eye.blinking = true
                 try? await Task.sleep(for: .milliseconds(110))
                 self.eye.blinking = false
@@ -353,13 +480,16 @@ final class NotchController: ObservableObject {
                 size: notch.size,
                 notchWidth: notch.notchWidth,
                 notchHeight: notch.notchHeight,
-                countOnLeft: notch.wings.countOnLeft,
+                wings: notch.wings,
                 shift: notch.shift,
                 shrinking: notch.shrinking,
+                appearing: notch.appearing,
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
+                dozesQuickly: notch.dozesQuickly,
                 eye: notch.eye,
+                onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }
             )
         }

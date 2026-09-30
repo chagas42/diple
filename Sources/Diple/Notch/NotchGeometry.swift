@@ -18,7 +18,7 @@ struct NotchGeometry {
 
     var closed: CGSize { CGSize(width: notchWidth, height: topInset) }
 
-    var active: CGSize {
+    func active(_ wings: Wings) -> CGSize {
         CGSize(width: notchWidth + wings.left + wings.right, height: topInset)
     }
 
@@ -29,12 +29,21 @@ struct NotchGeometry {
     var asa: CGFloat { 42 }
 
     static let minWing: CGFloat = 27
+    static let eyeBesideCount: CGFloat = 20
 
-    var wings: Wings { Self.wings(freeRight: freeRight, full: asa) }
+    func wings(showsEye: Bool = true, countOnLeft: Bool = false) -> Wings {
+        Self.wings(freeRight: freeRight, full: asa, showsEye: showsEye, countOnLeft: countOnLeft)
+    }
 
-    static func wings(freeRight: CGFloat, full: CGFloat) -> Wings {
+    static func wings(freeRight: CGFloat, full: CGFloat, showsEye: Bool = true, countOnLeft: Bool = false) -> Wings {
         let fits = min(full, freeRight - 6)
-        return fits >= minWing ? Wings(left: fits, right: fits) : Wings(left: full, right: 0)
+        guard fits >= minWing else {
+            return Wings(left: full + (showsEye ? eyeBesideCount : 0), right: 0, countOnLeft: true, crowded: true)
+        }
+        let eye = showsEye ? fits : 0
+        return countOnLeft
+            ? Wings(left: fits, right: eye, countOnLeft: true)
+            : Wings(left: eye, right: fits)
     }
 
     var freeRight: CGFloat {
@@ -173,7 +182,10 @@ enum ManagedSpaces {
 struct Wings: Equatable {
     let left: CGFloat
     let right: CGFloat
+    var countOnLeft = false
 
-    var countOnLeft: Bool { right == 0 }
+    var crowded = false
+
+    var eye: CGFloat { crowded ? 0 : countOnLeft ? right : left }
     var shift: CGFloat { (right - left) / 2 }
 }

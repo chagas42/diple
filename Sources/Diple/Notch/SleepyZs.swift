@@ -2,14 +2,17 @@ import SwiftUI
 
 struct SleepyZs: View {
     let start: Date
+    var quick = false
 
     static let afterTheEye = 0.9
+    static let quickAfterTheEye = 0.1
 
     static let size = CGSize(width: 200, height: 130)
     static let eye = CGPoint(x: 145, y: 8)
 
-    private static let every = 0.55
-    private static let life = 2.6
+    private var afterTheEye: Double { quick ? Self.quickAfterTheEye : Self.afterTheEye }
+    private var every: Double { quick ? 0.28 : 0.55 }
+    private var life: Double { quick ? 1.3 : 2.6 }
     private static let lanes: [CGVector] = [
         CGVector(dx: -100, dy: 34), CGVector(dx: -52, dy: 84), CGVector(dx: 30, dy: 92),
     ]
@@ -17,12 +20,12 @@ struct SleepyZs: View {
 
     var body: some View {
         TimelineView(.animation) { context in
-            let elapsed = context.date.timeIntervalSince(start) - Self.afterTheEye
-            let newest = max(0, Int(elapsed / Self.every))
-            let oldest = max(0, newest - Int(Self.life / Self.every))
+            let elapsed = context.date.timeIntervalSince(start) - afterTheEye
+            let newest = max(0, Int(elapsed / every))
+            let oldest = max(0, newest - Int(life / every))
             ZStack {
                 ForEach(oldest...max(oldest, newest), id: \.self) { i in
-                    let p = (elapsed - Double(i) * Self.every) / Self.life
+                    let p = (elapsed - Double(i) * every) / life
                     if p >= 0, p <= 1 { letter(i, p) }
                 }
             }

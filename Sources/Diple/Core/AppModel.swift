@@ -409,6 +409,7 @@ final class AppModel: ObservableObject {
         notificador.settings = settings
         MenuBarItems.measuring = settings.fitsMenuBar
         startTelemetry()
+        Updates.shared.start()
 
         Task {
             await refresh()
