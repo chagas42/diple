@@ -99,6 +99,17 @@ drawn inside one full-width menu bar window, and reading their extents takes
 Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
 gap, to see each layout without arranging the menu bar.
 
+**On macOS 27 the status items are not windows any more.** One `MenuBarAgent`
+window draws the whole bar, so the window list shows no item at all and the
+gap cannot be measured from it. Without a measurement Diple assumes the bar is
+full: no right wing, the count on the left. The one other source is
+Accessibility (`AXExtrasMenuBar` of every running app), behind the opt-in
+*Fit the notch to the menu bar*. It reports positions only as laid out on the
+main display, and each display lays items out differently (a title that
+truncates on one is wider on another), so it is used only when the notch
+display is the main display. A window at the status level taller than the
+menu bar is not a status item: another Diple's panel sits there too.
+
 **The panel springs out and settles back in.** Growing uses an underdamped
 spring; shrinking uses a critically damped one. A bounce on the way in
 overshoots past the resting size, and the resting size hugs the notch, so the

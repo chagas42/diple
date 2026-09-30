@@ -63,6 +63,7 @@ final class AppModel: ObservableObject {
             notificador.settings = settings
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
+            MenuBarItems.measuring = settings.fitsMenuBar
         }
     }
 
@@ -406,6 +407,7 @@ final class AppModel: ObservableObject {
         restoreCached()
         settings = store.state.settings
         notificador.settings = settings
+        MenuBarItems.measuring = settings.fitsMenuBar
         startTelemetry()
         Updates.shared.start()
 
