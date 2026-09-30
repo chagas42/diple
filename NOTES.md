@@ -189,8 +189,12 @@ outside working hours, which is correct for real events and wrong for a test
 button — a test that does not fire because of the clock looks like a broken
 app. The test path bypasses it explicitly.
 
-**`threadIdentifier`** groups several notifications from one PR into a single
-banner. **`UNTextInputNotificationAction`** is what puts a reply field in it.
+**`threadIdentifier` only when asked.** Notification Center makes one stack per
+thread, so a thread per PR leaves one entry per PR — five PRs, five entries.
+Without it, every Diple notification stacks under the app, the way Slack's do
+(Slack sets none either). That is the default; "One stack per pull request"
+brings the per-PR thread back. **`UNTextInputNotificationAction`** is what puts a reply field in the
+banner.
 
 **Picks shape review requests only when asked to.** `review-requested:@me`
 matches requests to any GitHub team you are on, which is most of the noise.
