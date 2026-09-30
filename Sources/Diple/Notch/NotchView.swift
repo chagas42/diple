@@ -32,7 +32,7 @@ struct NotchView: View {
     let size: CGSize
     let notchWidth: CGFloat
     let notchHeight: CGFloat
-    var countOnLeft = false
+    let wings: Wings
     var shift: CGFloat = 0
     var shrinking = false
     var appearing = false
@@ -85,7 +85,7 @@ struct NotchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .top) {
-            if let since = sleepingSince {
+            if let since = sleepingSince, model.settings.showsEye {
                 SleepyZs(start: since)
                     .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
                             y: eyeCenter.y - SleepyZs.eye.y)
@@ -100,14 +100,24 @@ struct NotchView: View {
         .animation(.bouncy(duration: 0.35), value: model.count)
     }
 
+    private var eyeToggle: AnyTransition {
+        .scale(scale: 0.2).combined(with: .opacity)
+    }
+
+    private var eyeToggleAnimation: Animation {
+        .spring(response: 0.35, dampingFraction: 0.6)
+    }
+
     private var resize: Animation {
         appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
                   : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
     }
 
     private var eyeCenter: CGPoint {
-        let wing = max(0, (size.width - notchWidth) / 2)
-        return CGPoint(x: shift - notchWidth / 2 - wing / 2, y: notchHeight / 2)
+        let x = wings.crowded ? -notchWidth / 2 - wings.left / 2 - 10
+            : wings.countOnLeft ? notchWidth / 2 + wings.right / 2
+            : -notchWidth / 2 - wings.left / 2
+        return CGPoint(x: x, y: notchHeight / 2)
     }
 
     private var shape: PanelShape {
@@ -133,7 +143,7 @@ struct NotchView: View {
         case .hidden:
             Color.clear
         case .active:
-            wings
+            activeWings
         case .open:
             open
         case .alert(let e):
@@ -141,23 +151,43 @@ struct NotchView: View {
         }
     }
 
-    private var wings: some View {
+    private var activeWings: some View {
         HStack(spacing: 0) {
-            if countOnLeft {
-                count.frame(maxWidth: .infinity)
-                Spacer(minLength: notchWidth)
-                    .frame(width: notchWidth)
-            } else {
-                EyeView(eye: eye, width: 15)
-                    .opacity(model.count > 0 ? 1 : 0.42)
-                    .animation(.easeOut(duration: 0.25), value: model.count > 0)
-                    .frame(maxWidth: .infinity)
-                Spacer(minLength: notchWidth)
-                    .frame(width: notchWidth)
-                count.frame(maxWidth: .infinity)
+            Group {
+                if wings.crowded { eyeBesideCount } else if wings.countOnLeft { count } else { eyeWing }
             }
+            .frame(width: wings.left)
+            Spacer(minLength: notchWidth)
+                .frame(width: notchWidth)
+            Group {
+                if wings.countOnLeft { eyeWing } else { count }
+            }
+            .frame(width: wings.right)
         }
         .frame(height: notchHeight)
+        .animation(eyeToggleAnimation, value: wings.countOnLeft)
+    }
+
+    private var eyeWing: some View {
+        ZStack {
+            if model.settings.showsEye, wings.eye > 0 { wingEye }
+        }
+        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+    }
+
+    private var eyeBesideCount: some View {
+        HStack(spacing: 6) {
+            if model.settings.showsEye { wingEye }
+            count
+        }
+        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+    }
+
+    private var wingEye: some View {
+        EyeView(eye: eye, width: 15)
+            .opacity(model.count > 0 ? 1 : 0.42)
+            .animation(.easeOut(duration: 0.25), value: model.count > 0)
+            .transition(eyeToggle)
     }
 
     private var count: some View {
@@ -182,8 +212,11 @@ struct NotchView: View {
     private var topStrip: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                EyeView(eye: eye, width: 15)
-                    .padding(.trailing, 2)
+                if model.settings.showsEye {
+                    EyeView(eye: eye, width: 15)
+                        .padding(.trailing, 2)
+                        .transition(eyeToggle)
+                }
                 ForEach(AppModel.NotchTab.allCases) { tab in
                     Button { model.notchTab = tab } label: {
                         Image(systemName: tab.icon)
@@ -206,6 +239,7 @@ struct NotchView: View {
             }
             .padding(.leading, 14 + flare)
             .frame(maxWidth: .infinity)
+            .animation(eyeToggleAnimation, value: model.settings.showsEye)
 
             Spacer(minLength: notchWidth).frame(width: notchWidth)
 

@@ -52,6 +52,18 @@ import Testing
         #expect(!n.waking)
     }
 
+    @Test func turningTheEyeOffMidWakeEndsIt() async {
+        let log = Log()
+        let n = notch(log: log) { n, step in if step == 3 { n.arrange(showsEye: false, countOnLeft: false) } }
+        n.settleBeforeFirstFrame()
+        n.fallAsleep()
+        await n.wake()
+        #expect(log.steps.count == 3)
+        #expect(!n.asleep)
+        #expect(!n.waking)
+        #expect(n.state == .active)
+    }
+
     @Test func openingThePanelMidWakeEndsItAwake() async {
         let log = Log()
         let n = notch(log: log) { n, step in if step == 3 { n.open() } }
@@ -69,6 +81,15 @@ import Testing
         #expect(Nap(resting: 20 * 60) == .medium)
         #expect(Nap(resting: Nap.longest) == .long)
         #expect(Nap(resting: 8 * 60 * 60) == .long)
+    }
+
+    @Test func withTheEyeOffARestShutsNothing() {
+        let n = notch(log: Log())
+        n.settleBeforeFirstFrame()
+        n.arrange(showsEye: false, countOnLeft: false)
+        n.restStarted()
+        #expect(!n.waking)
+        #expect(n.eye.lid == 1)
     }
 
     @Test func aShortRestComesBackWithoutZs() {

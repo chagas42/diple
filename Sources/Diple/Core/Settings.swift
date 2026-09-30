@@ -23,6 +23,8 @@ struct Settings: Codable, Sendable, Equatable {
     var mapModel: String? = nil
     var shareUsage = true
     var reviewFilter = ReviewFilter.everyone
+    var showsEye = true
+    var countSide = CountSide.right
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -98,6 +100,8 @@ struct Settings: Codable, Sendable, Equatable {
         d.mapModel = try c.decodeIfPresent(String.self, forKey: .mapModel) ?? d.mapModel
         d.shareUsage = try c.decodeIfPresent(Bool.self, forKey: .shareUsage) ?? d.shareUsage
         d.reviewFilter = (try? c.decodeIfPresent(ReviewFilter.self, forKey: .reviewFilter)) ?? d.reviewFilter
+        d.showsEye = try c.decodeIfPresent(Bool.self, forKey: .showsEye) ?? d.showsEye
+        d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
         self = d
     }
 
@@ -134,6 +138,19 @@ enum Attribution: String, CaseIterable, Identifiable, Sendable {
 
 extension Settings {
     var attributionMode: Attribution { Attribution(rawValue: attribution) ?? .onMyOwn }
+}
+
+enum CountSide: String, Codable, Sendable, CaseIterable, Identifiable {
+    case left, right
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .left:  "Left"
+        case .right: "Right"
+        }
+    }
 }
 
 enum ReviewFilter: String, Codable, Sendable, CaseIterable, Identifiable {
