@@ -11,6 +11,12 @@ final class NotchController: ObservableObject {
     @Published private(set) var wings = Wings(left: 42, right: 42)
     @Published private(set) var shift: CGFloat = 0
     @Published private(set) var shrinking = false
+    let pulling = PullState()
+    private var pull: Pull {
+        get { pulling.pull }
+        set { pulling.pull = newValue }
+    }
+    private var gravity = Gravity()
     @Published private(set) var appearing = false
     @Published private(set) var hasNotch = true
     @Published private(set) var waking = false
@@ -378,6 +384,7 @@ final class NotchController: ObservableObject {
                 guard let self else { return }
                 self.checkPointer()
                 self.aim()
+                self.pullTowardPointer()
             }
         }
     }
@@ -398,7 +405,8 @@ final class NotchController: ObservableObject {
         let g = NotchGeometry.current()
         let shape = g.rect(size, shift: shift)
 
-        let hotZone = shape.union(g.rect(g.closed))
+        let bulge = NSRect(x: shape.minX, y: shape.minY - pull.depth, width: shape.width, height: pull.depth)
+        let hotZone = shape.union(g.rect(g.closed)).union(bulge)
         let m = pointer()
 
         let revealed = underFullScreen
@@ -436,6 +444,18 @@ final class NotchController: ObservableObject {
         if outsideSince == nil { outsideSince = now }
         if now.timeIntervalSince(outsideSince!) >= 0.18 {
             closeNow()
+        }
+    }
+
+    func pullTowardPointer() {
+        guard Gravity.isOn, !waking, state == .active else {
+            if pull != .none { gravity = Gravity(); pull = .none }
+            return
+        }
+        let g = NotchGeometry.current()
+        let next = gravity.follow(gravity.target(pointer: pointer(), shape: g.rect(size, shift: shift)))
+        if abs(next.depth - pull.depth) > 0.05 || abs(next.center - pull.center) > 0.2 || (next == .none) != (pull == .none) {
+            pull = next
         }
     }
 
@@ -483,6 +503,7 @@ final class NotchController: ObservableObject {
                 wings: notch.wings,
                 shift: notch.shift,
                 shrinking: notch.shrinking,
+                pulling: notch.pulling,
                 appearing: notch.appearing,
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,

@@ -35,6 +35,7 @@ struct NotchView: View {
     let wings: Wings
     var shift: CGFloat = 0
     var shrinking = false
+    var pulling: PullState?
     var appearing = false
     var hidesByFading = false
     var waking = false
@@ -48,8 +49,9 @@ struct NotchView: View {
         let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                shape.fill(.black)
+                PulledFill(pulling: pulling, flare: flare, base: radius)
                 content
+                    .clipShape(shape)
                     .id(state.kind)
                     .transition(
                         .asymmetric(
@@ -60,8 +62,8 @@ struct NotchView: View {
                     )
             }
             .frame(width: size.width, height: size.height)
+            .contentShape(shape)
 
-            .clipShape(shape)
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
@@ -635,6 +637,32 @@ struct NotchView: View {
         case .checkFailed:     .red
         case .approved:       .green
         case .newPullRequest: .teal
+        }
+    }
+}
+
+private struct PulledFill: View {
+    var pulling: PullState?
+    let flare: CGFloat
+    let base: CGFloat
+
+    var body: some View {
+        if let pulling {
+            Pulled(pulling: pulling, flare: flare, base: base)
+        } else {
+            PanelShape(flare: flare, base: base).fill(.black)
+        }
+    }
+
+    private struct Pulled: View {
+        @ObservedObject var pulling: PullState
+        let flare: CGFloat
+        let base: CGFloat
+
+        var body: some View {
+            PanelShape(flare: flare, base: base, pull: pulling.pull.depth, pullCenter: pulling.pull.center)
+                .fill(.black)
+                .animation(.interpolatingSpring(stiffness: 60, damping: 16), value: pulling.pull)
         }
     }
 }
