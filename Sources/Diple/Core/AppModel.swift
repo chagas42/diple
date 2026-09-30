@@ -739,6 +739,15 @@ final class AppModel: ObservableObject {
 
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
 
+    var teammates: [Person] { Self.others(team, viewer: queue.viewer) }
+
+    var pickedTeammates: Int { teammates.filter { following.contains($0.login) }.count }
+
+    nonisolated static func others(_ people: [Person], viewer: String) -> [Person] {
+        guard !viewer.isEmpty else { return people }
+        return people.filter { $0.login.caseInsensitiveCompare(viewer) != .orderedSame }
+    }
+
     private func rankingScope(_ all: [Person]) -> [Person] {
         let picked = all.filter { following.contains($0.login) || $0.login == queue.viewer }
         return picked.count >= 2 ? picked : Array(all.prefix(20))
