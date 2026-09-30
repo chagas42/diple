@@ -18,6 +18,7 @@ final class NotchController: ObservableObject {
     private(set) var fellAsleep = Date()
     @Published private(set) var dozesQuickly = false
     let eye = EyeState()
+    let glowing = GlowState()
 
     private let panel = NotchPanel()
 
@@ -378,6 +379,7 @@ final class NotchController: ObservableObject {
                 guard let self else { return }
                 self.checkPointer()
                 self.aim()
+                self.trackGlow()
             }
         }
     }
@@ -391,6 +393,15 @@ final class NotchController: ObservableObject {
                 self?.mapFullScreenWindows()
             }
         }
+    }
+
+    func trackGlow() {
+        let g = NotchGeometry.current()
+        guard state == .open, g.hasNotch else {
+            glowing.show(.off)
+            return
+        }
+        glowing.show(Glow.target(pointer: pointer(), cutout: g.rect(g.closed)))
     }
 
     func checkPointer() {
@@ -489,6 +500,7 @@ final class NotchController: ObservableObject {
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
                 dozesQuickly: notch.dozesQuickly,
                 eye: notch.eye,
+                glowing: notch.glowing,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }
             )

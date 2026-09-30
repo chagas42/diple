@@ -41,6 +41,7 @@ struct NotchView: View {
     var sleepingSince: Date?
     var dozesQuickly = false
     let eye: EyeState
+    var glowing: GlowState?
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
 
@@ -58,6 +59,9 @@ struct NotchView: View {
                             removal: .opacity.animation(.easeIn(duration: 0.08))
                         )
                     )
+                if let glowing, state == .open {
+                    PointerGlowView(state: glowing, width: size.width)
+                }
             }
             .frame(width: size.width, height: size.height)
 
