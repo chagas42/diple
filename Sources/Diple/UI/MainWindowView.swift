@@ -32,7 +32,7 @@ struct MainWindowView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    Task { await model.refresh() }
+                    Task { await model.refreshVisible() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }

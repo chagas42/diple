@@ -269,11 +269,7 @@ struct NotchView: View {
                     ProgressView().controlSize(.small).tint(.white).frame(width: 22)
                 } else {
                     iconButton("arrow.clockwise") {
-                        let tab = model.notchTab
-                        Task {
-                            await model.refresh()
-                            model.loadTab(tab, force: true)
-                        }
+                        Task { await model.refreshVisible() }
                     }
                 }
                 iconButton("bubble.left.and.exclamationmark.bubble.right") {

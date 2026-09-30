@@ -184,8 +184,10 @@ final class QueryClient {
         for entry in entries.values where entry.tags.contains(tag) { expireAndRefetch(entry) }
     }
 
-    func invalidateAll() {
-        for entry in entries.values { expireAndRefetch(entry) }
+    func invalidateAll(except spared: QueryTag? = nil) {
+        for entry in entries.values where spared.map({ !entry.tags.contains($0) }) ?? true {
+            expireAndRefetch(entry)
+        }
     }
 
     func setData<T: Sendable>(_ key: QueryKey, _ update: (inout T) -> Void) {
@@ -226,7 +228,7 @@ final class QueryClient {
 
     private func needsFetch<T>(_ entry: AnyEntry, _ q: CacheQuery<T>) -> Bool {
         guard entry.data != nil, let at = entry.fetchedAt, !entry.invalidated else { return true }
-        return now().timeIntervalSince(at) > q.staleAfter.seconds
+        return now().timeIntervalSince(at) >= q.staleAfter.seconds
     }
 
     private func start<T: Sendable>(_ q: CacheQuery<T>, _ entry: AnyEntry) -> Task<any Sendable, Error> {

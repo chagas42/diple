@@ -10,7 +10,7 @@ final class AppModel: ObservableObject {
     var onCountChange: (() -> Void)?
 
     @Published private(set) var queue = Queue()
-    @Published private(set) var loading = false
+    var loading: Bool { queueObserver?.isFetching ?? false }
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastSync: Date?
     @Published private(set) var hasPermission = false
@@ -276,9 +276,13 @@ final class AppModel: ObservableObject {
         let old = queue.all.first { $0.key == fresh.key } ?? pr
         let oldStack = stackOf(old)
         func swap(_ list: [PR]) -> [PR] { list.map { $0.key == fresh.key ? fresh : $0 } }
-        queue.mine = swap(queue.mine)
-        queue.toReview = swap(queue.toReview)
-        queue.following = swap(queue.following)
+        func swap(_ q: inout Queue) {
+            q.mine = swap(q.mine)
+            q.toReview = swap(q.toReview)
+            q.following = swap(q.following)
+        }
+        swap(&queue)
+        queries.setData(.queue(watching: watching)) { (q: inout Queue) in swap(&q) }
         if selected?.key == fresh.key { selected = fresh }
         queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
         carryForward(from: old, oldStack, to: fresh)
@@ -317,6 +321,8 @@ final class AppModel: ObservableObject {
     func toggleWatch(_ repo: String) {
         store.toggleWatch(repo)
         watching = store.state.watching ?? []
+        guard lastSync != nil, isOnline, !Demo.isOn else { return }
+        bindQueue()
     }
 
     private let client: GitHubClient
@@ -388,7 +394,10 @@ final class AppModel: ObservableObject {
     @Published var isOnline = true
     private(set) var failures = 0
     private(set) var partialFailures = 0
-    private var pendingFull = false
+    private var fullRequested = 0
+    private var fullServed = 0
+    private var syncedWatching: Set<String>?
+    private var queueObserver: QueryObserver<Queue>?
     private var notchOpen = false
 
     private var started = false
@@ -562,24 +571,48 @@ final class AppModel: ObservableObject {
             onCountChange?()
             return
         }
-        guard isOnline else {
-            pendingFull = pendingFull || full
-            return
-        }
-        guard !loading else { return }
-        loading = true
-        defer { loading = false }
+        if full { fullRequested += 1 }
+        guard isOnline else { return }
+        bindQueue()
+        let q = queueQuery
+        _ = try? await queries.fetch(q)
+        if fullRequested > fullServed { _ = try? await queries.fetch(q) }
+    }
 
+    func refreshVisible() async {
+        if isOnline, !Demo.isOn { queries.invalidateAll(except: .queue) }
+        await refresh()
+    }
+
+    private var queueQuery: CacheQuery<Queue> {
+        CacheQuery(key: .queue(watching: watching), tags: [.queue], staleAfter: .zero, forgetAfter: .seconds(3600)) {
+            [weak self] _ in
+            guard let self else { throw CancellationError() }
+            return try await self.syncQueue()
+        }
+    }
+
+    private func bindQueue() {
+        queueObserver = rebind(queueObserver, to: queueQuery, fetching: false) { [weak self] in
+            guard let self, let fresh = self.queueObserver?.data, fresh != self.queue else { return }
+            self.queue = fresh
+        }
+    }
+
+    private func syncQueue() async throws -> Queue {
+        let full = fullRequested
+        let lastWatched = syncedWatching
+        let watchChanged = lastWatched.map { $0 != watching } ?? false
         do {
             await sync.setWatching(watching)
-            let wantsFull = full || pendingFull
+            syncedWatching = watching
             if let seed = pendingSeed {
                 pendingSeed = nil
                 await sync.seed(seed)
             }
-            let outcome = try await sync.sync(full: wantsFull)
+            let outcome = try await sync.sync(full: full > fullServed || watchChanged)
             let nova = outcome.queue
-            pendingFull = false
+            fullServed = max(fullServed, full)
             let events = store.diff(nova, meuLogin: nova.viewer)
                 .filter { e in
                     let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
@@ -620,10 +653,14 @@ final class AppModel: ObservableObject {
             if let first = events.first(where: { $0.kind.interrupts }) {
                 onEvent?(first)
             }
+            return nova
         } catch {
-            guard let m = report(error, in: .refresh) else { return }
-            failures += 1
-            errorMessage = m
+            syncedWatching = lastWatched
+            if let m = report(error, in: .refresh) {
+                failures += 1
+                errorMessage = m
+            }
+            throw error
         }
     }
 
@@ -1224,7 +1261,7 @@ final class AppModel: ObservableObject {
         do {
             try await client.resolve(threadId: thread)
             telemetry.capture(.threadResolved(source: .window))
-            await refresh()
+            if let pr = selected { await reread(pr) } else { await refresh() }
             return nil
         } catch {
             report(error, in: .resolve)
