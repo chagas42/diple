@@ -138,7 +138,7 @@ struct PopoverView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Sincronizar now")
+                .help("Sync now")
             }
         }
     }
