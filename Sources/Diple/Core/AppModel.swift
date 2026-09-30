@@ -407,6 +407,7 @@ final class AppModel: ObservableObject {
         settings = store.state.settings
         notificador.settings = settings
         startTelemetry()
+        Updates.shared.start()
 
         Task {
             await refresh()

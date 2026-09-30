@@ -27,6 +27,7 @@ enum NotchState: Equatable {
 
 struct NotchView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var updates = Updates.shared
     let state: NotchState
     let size: CGSize
     let notchWidth: CGFloat
@@ -63,6 +64,10 @@ struct NotchView: View {
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
+                if case .available(let version, let page) = updates.state {
+                    Button("Update to \(version)…") { NSWorkspace.shared.open(page) }
+                    Divider()
+                }
                 Button("Settings…") { Windows.shared.openSettings(model) }
                 Button("Main Window") { Windows.shared.openMain(model) }
                 if let onNap {
@@ -73,6 +78,7 @@ struct NotchView: View {
                     }
                 }
                 Divider()
+                Text("Diple \(updates.summary)")
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
             Spacer(minLength: 0)
