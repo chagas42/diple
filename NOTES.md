@@ -5,6 +5,15 @@ carries no comments.
 
 ## GitHub API
 
+**Review history comes from search, not `contributionsCollection`.** For an
+org's private repositories `pullRequestReviewContributions` reported 0 reviews
+over six months that search counted in the thousands, so it cannot feed the
+Activity grid. The grid pages `reviewed-by:` search instead, one point per 100
+PRs, in non-overlapping 30-day `updated:` windows because a search stops at
+1000 results. A PR shows up in the window of its last update, and only its
+reviews submitted inside the grid count. The full six months is fetched once;
+after that only the last two days are, and older days come from the cache.
+
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
 separate connection. Reading one and not the other makes the app blind to the
@@ -190,11 +199,43 @@ right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it wai
 for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
 `--nap short|medium|long` does the same 9 s after launch.
 
+**Gravity is smoothed twice and must never overshoot.** *Lean toward the
+pointer* (on by default, off under Reduce Motion) bulges the idle notch toward
+the pointer. The pointer is only sampled at 30 Hz, so an exponential
+moving average takes the jitter out and an
+interpolating spring draws the bulge at display rate between samples; a
+retargeted spring keeps its velocity, so a new sample never shows as a step.
+The spring is critically damped because a negative bulge dents the notch
+upward and shows the cutout's edge. The pull lives in its own observable
+object, like the eye, so only the fill redraws.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
 
 ## Notifications
+
+**A review you send slides a strip out of the notch.** When a PR leaves your
+review requests, Diple asks GitHub whether you reviewed it since the request
+first showed up (one small query per PR, at most five per sync). A PR opened
+from Diple is also checked every 10 s for 30 minutes, at most three at a time,
+so the strip shows seconds after you review; that PR leaves Needs you at once,
+before the next sync. The count keeps its old number until the strip plays,
+drops the moment a sheet leaves it, and the sheet falls into a small drawer
+whose number (today's reviews) goes up as it lands, so the two numbers move
+together. The drawer always sits at the strip's right end; when the count is on
+the left (a tight menu bar), the sheet first drops to the strip and glides
+under the cutout, since anything drawn at wing height there is hidden by the
+camera housing. The drawer opens a little as the sheet comes, stays open while
+it lands, then shuts and shakes, so the shake reads as the drawer closing, not
+the sheet falling. It shows more sheets inside as the day's reviews pile up
+(one, then two from 3, three from 7, four from 15). The bar beside it fills from empty to full as the sheet travels and
+glows when it lands: each review reads as one finished piece of work, whatever
+the verdict. A request that
+goes away without a review of yours (reassigned, PR closed) lets the count go
+with no strip; a hold nobody answers lets go after 20 s. Today resets at local
+midnight. Settings → Notifications → Your reviews turns it off, and
+`--demo --rehearse-review` plays three.
 
 **Quiet hours silence the test too.** The rule lets only direct replies through
 outside working hours, which is correct for real events and wrong for a test

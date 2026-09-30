@@ -119,6 +119,14 @@ struct NotificationsPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Your reviews") {
+                Toggle("Show each review you send in the notch", isOn: $model.settings.showsReviews)
+                Text("A thin strip slides out of the notch with the PR, and a sheet drops from "
+                     + "the count onto how many you have reviewed today.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Toggle("One stack per pull request", isOn: $model.settings.stackPerPR)
                 Text(model.settings.stackPerPR
@@ -304,7 +312,7 @@ struct AccountPane: View {
 
             Section {
                 HStack {
-                    Button("Sincronizar now") { Task { await model.refresh() } }
+                    Button("Sync now") { Task { await model.refresh() } }
                         .disabled(model.loading)
                     Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
                     Spacer()

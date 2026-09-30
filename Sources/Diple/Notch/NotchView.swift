@@ -35,11 +35,15 @@ struct NotchView: View {
     let wings: Wings
     var shift: CGFloat = 0
     var shrinking = false
+    var pulling: PullState?
     var appearing = false
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
     var dozesQuickly = false
+    var tick: ReviewTick?
+    var tickStart = Date()
+    var heldCount: Int?
     let eye: EyeState
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
@@ -48,8 +52,9 @@ struct NotchView: View {
         let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                shape.fill(.black)
+                PulledFill(pulling: pulling, flare: flare, base: radius, resting: state == .active, settle: resize)
                 content
+                    .clipShape(shape)
                     .id(state.kind)
                     .transition(
                         .asymmetric(
@@ -60,8 +65,8 @@ struct NotchView: View {
                     )
             }
             .frame(width: size.width, height: size.height)
+            .contentShape(shape)
 
-            .clipShape(shape)
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
@@ -98,8 +103,10 @@ struct NotchView: View {
         .animation(resize, value: size)
         .animation(resize, value: shift)
         .animation(.easeOut(duration: 0.22), value: state.kind)
-        .animation(.bouncy(duration: 0.35), value: model.count)
+        .animation(.bouncy(duration: 0.35), value: shownCount)
     }
+
+    private var shownCount: Int { heldCount ?? model.count }
 
     private var eyeToggle: AnyTransition {
         .scale(scale: 0.2).combined(with: .opacity)
@@ -144,7 +151,15 @@ struct NotchView: View {
         case .hidden:
             Color.clear
         case .active:
-            activeWings
+            ZStack(alignment: .top) {
+                activeWings
+                if let t = tick {
+                    ReviewStrip(tick: t, start: tickStart, wings: wings, notchWidth: notchWidth,
+                                notchHeight: notchHeight, eyeBesideCount: model.settings.showsEye)
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: size.width, height: size.height, alignment: .top)
         case .open:
             open
         case .alert(let e):
@@ -186,19 +201,19 @@ struct NotchView: View {
 
     private var wingEye: some View {
         EyeView(eye: eye, width: 15)
-            .opacity(model.count > 0 ? 1 : 0.42)
-            .animation(.easeOut(duration: 0.25), value: model.count > 0)
+            .opacity(shownCount > 0 ? 1 : 0.42)
+            .animation(.easeOut(duration: 0.25), value: shownCount > 0)
             .transition(eyeToggle)
     }
 
     private var count: some View {
-        Text("\(model.count)")
+        Text("\(shownCount)")
             .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
+            .foregroundStyle(.white.opacity(shownCount > 0 ? 0.92 : 0.34))
             .monospacedDigit()
             .contentTransition(.numericText())
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
-            .contentTransition(.numericText(value: Double(model.count)))
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: shownCount)
+            .contentTransition(.numericText(value: Double(shownCount)))
             .opacity(waking ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: waking)
     }
@@ -635,6 +650,41 @@ struct NotchView: View {
         case .checkFailed:     .red
         case .approved:       .green
         case .newPullRequest: .teal
+        }
+    }
+}
+
+private struct PulledFill: View {
+    var pulling: PullState?
+    let flare: CGFloat
+    let base: CGFloat
+    let resting: Bool
+    let settle: Animation
+
+    var body: some View {
+        if let pulling {
+            Pulled(pulling: pulling, flare: flare, base: base, resting: resting, settle: settle)
+        } else {
+            PanelShape(flare: flare, base: base).fill(.black)
+        }
+    }
+
+    private struct Pulled: View {
+        @ObservedObject var pulling: PullState
+        let flare: CGFloat
+        let base: CGFloat
+        let resting: Bool
+        let settle: Animation
+
+        private var motion: Animation? {
+            if pulling.snaps { return nil }
+            return resting ? .interpolatingSpring(stiffness: 30, damping: 11) : settle
+        }
+
+        var body: some View {
+            PanelShape(flare: flare, base: base, pull: pulling.pull)
+                .fill(.black)
+                .animation(motion, value: pulling.pull)
         }
     }
 }
