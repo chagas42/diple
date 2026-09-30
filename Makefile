@@ -9,6 +9,7 @@ NAME   := $(APP) (Dev)
 endif
 DEST   := build/$(NAME).app
 INSTALLED := /Applications/$(NAME).app
+MIN_MACOS := $(shell /usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" Resources/Info.plist)
 
 .PHONY: build app run install stop clean test tools probe bench bench-review bench-compare
 
@@ -54,6 +55,8 @@ app: build
 	@rm -rf "$(DEST)"
 	@mkdir -p "$(DEST)/Contents/MacOS" "$(DEST)/Contents/Resources"
 	@cp $(BUILD)/$(APP) "$(DEST)/Contents/MacOS/$(APP)"
+	@xcrun vtool -set-build-version macos $(MIN_MACOS) $$(xcrun --show-sdk-version) -replace \
+		-output "$(DEST)/Contents/MacOS/$(APP)" "$(DEST)/Contents/MacOS/$(APP)"
 	@cp Resources/Info.plist "$(DEST)/Contents/Info.plist"
 	@/usr/libexec/PlistBuddy -c "Set :CFBundleName $(NAME)" -c "Set :CFBundleDisplayName $(NAME)" "$(DEST)/Contents/Info.plist"
 	@cp Resources/Diple.icns "$(DEST)/Contents/Resources/Diple.icns"
