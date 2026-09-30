@@ -92,7 +92,7 @@ import Testing
         #expect(n.eye.lid == 1)
     }
 
-    @Test func aShortRestComesBackWithoutZs() {
+    @Test func aShortRestComesBackWithQuickZs() {
         let n = notch(log: Log())
         n.settleBeforeFirstFrame()
         n.restStarted()
@@ -101,7 +101,8 @@ import Testing
         #expect(!n.asleep)
 
         n.back(after: 30)
-        #expect(!n.asleep)
+        #expect(n.asleep)
+        #expect(n.dozesQuickly)
         #expect(n.waking)
     }
 
@@ -111,6 +112,7 @@ import Testing
         n.restStarted()
         n.back(after: 3 * 60 * 60)
         #expect(n.asleep)
+        #expect(!n.dozesQuickly)
         #expect(n.waking)
     }
 

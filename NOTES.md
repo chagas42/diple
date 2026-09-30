@@ -167,8 +167,9 @@ at a zero frame in the corner and the content grew in from the left.
 
 **It also wakes after the Mac rests.** Going to sleep or the screens sleeping
 shuts the eye; coming back plays a wake-up sized by how long the Mac was
-away: under 2 minutes (the lid closed and opened) the eye just opens and blinks,
-about 1.5 s with no z's; up to an hour it dozes for 1.6 s, blinks once and looks
+away: under 2 minutes (the lid closed and opened) it dozes for 1 s with quicker z's
+(the first after 0.1 s, one every 0.28 s, each gone in 1.3 s) and opens and
+blinks, about 2.3 s, so even a short rest reads as sleep; up to an hour it dozes for 1.6 s, blinks once and looks
 around; an hour or more is the full launch wake-up. The rest is measured from
 sleep to wake, not to unlock, and when the screen is locked the wake-up waits
 for the unlock, since behind the lock screen nobody would see it. Sleep and the

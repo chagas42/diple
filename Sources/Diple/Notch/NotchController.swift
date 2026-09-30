@@ -16,6 +16,7 @@ final class NotchController: ObservableObject {
     @Published private(set) var waking = false
     @Published private(set) var asleep = false
     private(set) var fellAsleep = Date()
+    @Published private(set) var dozesQuickly = false
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -153,6 +154,7 @@ final class NotchController: ObservableObject {
     func fallAsleep() {
         guard wakes, state == .active else { return }
         asleep = true
+        dozesQuickly = false
         fellAsleep = Date()
         shutEyes()
     }
@@ -190,10 +192,9 @@ final class NotchController: ObservableObject {
         guard waking else { return }
         refreshIdle()
         guard state == .active else { return finishWaking() }
-        if nap != .short {
-            asleep = true
-            fellAsleep = Date()
-        }
+        asleep = true
+        fellAsleep = Date()
+        dozesQuickly = nap == .short
         startWaking(nap)
     }
 
@@ -222,7 +223,8 @@ final class NotchController: ObservableObject {
     }
 
     private func wakeShort() async -> Bool {
-        guard await rest(250) else { return false }
+        guard await rest(1000) else { return false }
+        asleep = false
         guard state == .active else { finishWaking(); return false }
         eye.lidSpeed = 0.25
         eye.lid = 1
@@ -485,6 +487,7 @@ final class NotchController: ObservableObject {
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
+                dozesQuickly: notch.dozesQuickly,
                 eye: notch.eye,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }
