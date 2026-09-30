@@ -71,17 +71,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Use Xcode 16.4, the oldest the README supports
+      - name: Use Xcode 26.0.1, the oldest the README supports
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.4.app
+          sudo xcode-select -s /Applications/Xcode_26.0.1.app
           swift --version
 
       - name: Cache SwiftPM
         uses: actions/cache@v6
         with:
           path: .build
-          key: spm-xcode16.4-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-xcode16.4-
+          key: spm-xcode26.0.1-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-xcode26.0.1-
 
       - name: Build
         run: swift build -c release

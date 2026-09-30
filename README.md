@@ -139,7 +139,7 @@ so there is no dialog here either.
 
 ### From source
 
-Requires **macOS 14+**, **Xcode 16+** and the [GitHub CLI](https://cli.github.com)
+Requires **macOS 14+**, **Xcode 26+** and the [GitHub CLI](https://cli.github.com)
 already signed in (`gh auth login`). Diple borrows that token — there is no
 setup screen and nothing to paste.
 
