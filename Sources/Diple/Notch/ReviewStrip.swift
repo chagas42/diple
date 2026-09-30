@@ -40,18 +40,37 @@ struct ReviewStrip: View {
 
     private let reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
-    private var column: CGFloat {
-        countOnLeft ? max(0, width - notchWidth) : max(0, (width - notchWidth) / 2)
+    struct Layout {
+        let count: CGPoint
+        let drawer: CGPoint
+        let number: CGPoint
+        let rowY: CGFloat
+        let cutout: ClosedRange<CGFloat>
+    }
+
+    static func layout(width: CGFloat, notchWidth: CGFloat, notchHeight: CGFloat, countOnLeft: Bool) -> Layout {
+        let column = countOnLeft ? max(0, width - notchWidth) : max(0, (width - notchWidth) / 2)
+        let rowY = notchHeight + drawer / 2 - 1
+        let start = column
+        return Layout(
+            count: CGPoint(x: countOnLeft ? column / 2 : width - column / 2, y: notchHeight / 2),
+            drawer: CGPoint(x: width - drawerColumn / 2 - 6, y: rowY + 1),
+            number: CGPoint(x: width - drawerColumn / 2 + 9, y: rowY),
+            rowY: rowY,
+            cutout: start...max(start, start + notchWidth)
+        )
+    }
+
+    private var laid: Layout {
+        Self.layout(width: width, notchWidth: notchWidth, notchHeight: notchHeight, countOnLeft: countOnLeft)
     }
 
     static let drawerColumn: CGFloat = 40
 
-    private var countAt: CGPoint {
-        CGPoint(x: countOnLeft ? column / 2 : width - column / 2, y: notchHeight / 2)
-    }
-    private var rowY: CGFloat { notchHeight + Self.drawer / 2 - 1 }
-    private var drawerAt: CGPoint { CGPoint(x: width - Self.drawerColumn / 2 - 6, y: rowY + 1) }
-    private var numberAt: CGPoint { CGPoint(x: width - Self.drawerColumn / 2 + 9, y: rowY) }
+    private var countAt: CGPoint { laid.count }
+    private var rowY: CGFloat { laid.rowY }
+    private var drawerAt: CGPoint { laid.drawer }
+    private var numberAt: CGPoint { laid.number }
 
     var body: some View {
         TimelineView(.animation) { context in

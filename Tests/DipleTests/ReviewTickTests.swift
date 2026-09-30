@@ -112,6 +112,28 @@ import Testing
         #expect(ReviewStrip.flight(0.5, from: from, to: to, glide: 39).point.y < (from.y + to.y) / 2)
     }
 
+    @Test(arguments: [180.0, 185.0, 200.0, 210.0])
+    func atEveryWidthTheSheetLeavesTheCountForTheDrawerAndStaysOutOfTheCutout(notch: Double) {
+        let notchWidth = CGFloat(notch), notchHeight: CGFloat = 32, sheetHalf: CGFloat = 6.5
+        let layouts: [(width: CGFloat, left: Bool)] =
+            [42, 36, 32, 27].map { (notchWidth + 2 * $0, false) } + [42, 30].map { (notchWidth + $0, true) }
+        for l in layouts {
+            let at = ReviewStrip.layout(width: l.width, notchWidth: notchWidth, notchHeight: notchHeight, countOnLeft: l.left)
+            #expect(!at.cutout.contains(at.count.x))
+            #expect(at.drawer.x > 0 && at.number.x < l.width)
+            #expect(at.drawer.y - 5 >= notchHeight)
+            let to = CGPoint(x: at.drawer.x, y: at.drawer.y + 1)
+            #expect(ReviewStrip.flight(0, from: at.count, to: to, glide: at.rowY).point == at.count)
+            let end = ReviewStrip.flight(1, from: at.count, to: to, glide: at.rowY).point
+            #expect(abs(end.x - to.x) < 0.001 && abs(end.y - to.y) < 0.001)
+            for i in 0...100 {
+                let point = ReviewStrip.flight(Double(i) / 100, from: at.count, to: to, glide: at.rowY).point
+                let inside = point.x > at.cutout.lowerBound + 5 && point.x < at.cutout.upperBound - 5
+                if inside { #expect(point.y - sheetHalf >= notchHeight - 1.5) }
+            }
+        }
+    }
+
     @Test func fromTheOtherSideTheSheetGoesUnderTheCutoutToFindTheDrawer() {
         let notchHeight: CGFloat = 32, cutout = 42.0...227.0, sheetHalf: CGFloat = 6.5
         let from = CGPoint(x: 21, y: 16), to = CGPoint(x: 201, y: 42)
