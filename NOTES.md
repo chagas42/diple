@@ -356,6 +356,23 @@ in `build/` starts that build at login. Its status, not a stored setting, is
 the source of truth: removing Diple in System Settings → Login Items turns the
 switch off the next time Settings is shown.
 
+## Filming
+
+**The film is the panel, not the screen.** `cacheDisplay` renders the panel's
+content view, so no Screen Recording permission is needed, and nothing outside
+the panel exists: no cursor, no menu bar, no camera cutout. The cursor, the
+cutout and the desktop are composited on afterwards (`FilmStage`). The cutout
+is drawn last, in pure black with rounded bottom corners, so a cursor entering
+it disappears the way it does on the hardware.
+
+**Time is the frame's, not the clock's.** Capturing is slower than real time
+at high frame rates, so a pointer driven by the wall clock would jump. The
+scripted pointer is placed from `frame / fps`, and each frame waits for its
+own deadline; SwiftUI animations still run on the wall clock, so if capture
+falls behind (the recorder says so) they look faster than the pointer. The
+pointer timer does not run while filming: each frame calls `followPointer()`,
+which is what the timer calls.
+
 ## Measuring
 
 **Two kinds of proof, on purpose.** `swift test` gates CI on counts —

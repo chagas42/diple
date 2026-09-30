@@ -438,12 +438,7 @@ final class NotchController: ObservableObject {
     private func trackPointer() {
         if Film.isOn { return }
         pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                self.checkPointer()
-                self.aim()
-                self.pullTowardPointer()
-            }
+            Task { @MainActor in self?.followPointer() }
         }
     }
 
@@ -458,8 +453,13 @@ final class NotchController: ObservableObject {
         }
     }
 
+    func followPointer() {
+        checkPointer()
+        aim()
+        pullTowardPointer()
+    }
+
     func checkPointer() {
-        if Film.isOn { return }
         let g = NotchGeometry.current()
         let shape = g.rect(size, shift: shift)
 
