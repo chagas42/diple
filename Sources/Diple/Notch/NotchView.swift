@@ -32,6 +32,7 @@ struct NotchView: View {
     let size: CGSize
     let notchWidth: CGFloat
     let notchHeight: CGFloat
+    var countOnLeft = false
     var shift: CGFloat = 0
     var shrinking = false
     var appearing = false
@@ -142,13 +143,19 @@ struct NotchView: View {
 
     private var wings: some View {
         HStack(spacing: 0) {
-            EyeView(eye: eye, width: 15)
-                .opacity(model.count > 0 ? 1 : 0.42)
-                .animation(.easeOut(duration: 0.25), value: model.count > 0)
-                .frame(maxWidth: .infinity)
-            Spacer(minLength: notchWidth)
-                .frame(width: notchWidth)
-            count.frame(maxWidth: .infinity)
+            if countOnLeft {
+                count.frame(maxWidth: .infinity)
+                Spacer(minLength: notchWidth)
+                    .frame(width: notchWidth)
+            } else {
+                EyeView(eye: eye, width: 15)
+                    .opacity(model.count > 0 ? 1 : 0.42)
+                    .animation(.easeOut(duration: 0.25), value: model.count > 0)
+                    .frame(maxWidth: .infinity)
+                Spacer(minLength: notchWidth)
+                    .frame(width: notchWidth)
+                count.frame(maxWidth: .infinity)
+            }
         }
         .frame(height: notchHeight)
     }
