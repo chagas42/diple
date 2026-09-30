@@ -37,6 +37,7 @@ final class NotchController: ObservableObject {
     var wakes = !Film.isOn && !Bench.isOn && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     var nap: @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     private var wakeTask: Task<Void, Never>?
+    private let resting = RestWatcher()
     var clock: @MainActor () -> Date = Date.init
     static let longestSwitch: TimeInterval = 1.5
     private var arrivingSince: Date?
@@ -60,6 +61,7 @@ final class NotchController: ObservableObject {
         trackPointer()
         watchMenuBar()
         blinkOccasionally()
+        watchRest()
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -138,33 +140,114 @@ final class NotchController: ObservableObject {
         guard wakes, state == .active else { return }
         asleep = true
         fellAsleep = Date()
+        shutEyes()
+    }
+
+    private func shutEyes() {
         waking = true
+        eye.lidSpeed = 0.4
         eye.lid = 0
     }
 
-    private func startWaking() {
+    private func startWaking(_ nap: Nap = .long) {
         guard waking else { return }
-        wakeTask = Task { [weak self] in await self?.wake() }
+        wakeTask = Task { [weak self] in await self?.wake(after: nap) }
     }
 
-    func wake() async {
-        guard waking else { return }
-        guard await rest(3200) else { return }
+    private func watchRest() {
+        resting.onRest = { [weak self] in self?.restStarted() }
+        resting.onBack = { [weak self] seconds in self?.back(after: seconds) }
+        resting.start()
+    }
+
+    func restStarted() {
+        wakeTask?.cancel()
+        wakeTask = nil
         asleep = false
+        guard wakes, state == .active || state == .hidden else { return }
+        shutEyes()
+    }
+
+    func back(after seconds: TimeInterval) {
+        back(from: Nap(resting: seconds))
+    }
+
+    func back(from nap: Nap) {
+        guard waking else { return }
+        refreshIdle()
         guard state == .active else { return finishWaking() }
+        if nap != .short {
+            asleep = true
+            fellAsleep = Date()
+        }
+        startWaking(nap)
+    }
+
+    func rehearse(_ nap: Nap, after delay: Duration = .seconds(1)) {
+        Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            for _ in 0..<100 where self?.state != .active {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard let self, self.state == .active else { return }
+            self.restStarted()
+            try? await Task.sleep(for: .seconds(1.5))
+            self.back(from: nap)
+        }
+    }
+
+    func wake(after nap: Nap = .long) async {
+        guard waking else { return }
+        let woke = switch nap {
+        case .short: await wakeShort()
+        case .medium: await wakeMedium()
+        case .long: await wakeLong()
+        }
+        guard woke else { return }
+        finishWaking()
+    }
+
+    private func wakeShort() async -> Bool {
+        guard await rest(250) else { return false }
+        guard state == .active else { finishWaking(); return false }
+        eye.lidSpeed = 0.25
+        eye.lid = 1
+        guard await rest(450), await slowBlink(), await rest(200) else { return false }
+        return true
+    }
+
+    private func wakeMedium() async -> Bool {
+        guard await rest(1600) else { return false }
+        asleep = false
+        guard state == .active else { finishWaking(); return false }
+        eye.lid = 0.45
+        guard await rest(500), await slowBlink(), await rest(250) else { return false }
+        eye.lid = 1
+        guard await rest(350) else { return false }
+        return await lookAround()
+    }
+
+    private func wakeLong() async -> Bool {
+        guard await rest(3200) else { return false }
+        asleep = false
+        guard state == .active else { finishWaking(); return false }
         eye.lid = 0.45
         guard await rest(600), await slowBlink(), await rest(300),
-              await slowBlink(), await rest(350) else { return }
+              await slowBlink(), await rest(350) else { return false }
         for (lid, ms) in [(0.12, 450), (0.18, 500), (0.6, 350), (1, 0)] as [(CGFloat, Int)] {
             eye.lid = lid
-            guard await rest(ms) else { return }
+            guard await rest(ms) else { return false }
         }
-        guard await rest(400), await slowBlink(), await rest(250) else { return }
+        guard await rest(400), await slowBlink(), await rest(250) else { return false }
+        return await lookAround()
+    }
+
+    private func lookAround() async -> Bool {
         for (gaze, ms) in [(CGPoint(x: -0.8, y: 0.1), 350), (CGPoint(x: 0.8, y: 0.1), 350), (.zero, 200)] {
             eye.look(at: gaze)
-            guard await rest(ms) else { return }
+            guard await rest(ms) else { return false }
         }
-        finishWaking()
+        return true
     }
 
     private func rest(_ ms: Int) async -> Bool {
@@ -383,6 +466,7 @@ final class NotchController: ObservableObject {
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
                 eye: notch.eye,
+                onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }
             )
         }

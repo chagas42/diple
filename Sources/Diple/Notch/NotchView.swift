@@ -39,6 +39,7 @@ struct NotchView: View {
     var waking = false
     var sleepingSince: Date?
     let eye: EyeState
+    var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
 
     var body: some View {
@@ -64,6 +65,13 @@ struct NotchView: View {
             .contextMenu {
                 Button("Settings…") { Windows.shared.openSettings(model) }
                 Button("Main Window") { Windows.shared.openMain(model) }
+                if let onNap {
+                    Menu("Rehearse Nap") {
+                        Button("Short") { onNap(.short) }
+                        Button("Medium") { onNap(.medium) }
+                        Button("Long") { onNap(.long) }
+                    }
+                }
                 Divider()
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
