@@ -63,6 +63,14 @@ sync does one full fetch anyway, so anything GitHub changes without moving
 one after another; three requests in parallel return in ~1.4 s instead of
 ~2.4 s, for 3 points a cycle instead of 1 — about 180 of the 5000 an hour.
 
+**A sync asked for during another one runs right after it.** `refresh()`
+used to drop any call made while one was loading. When the network dropped
+mid-sync and came back, the sync that `setOnline(true)` asks for landed while
+the failing one was still unwinding, so it was dropped: the failure stayed on
+screen ("could not update" or the offline error) until the next timer tick. A
+dropped call now marks the running one to go again as soon as it ends,
+keeping any request for a full sync.
+
 ## The notch panel
 
 **The window never resizes.** It is always the open size, pinned to the top.

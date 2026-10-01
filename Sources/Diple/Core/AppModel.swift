@@ -394,6 +394,7 @@ final class AppModel: ObservableObject {
     private(set) var failures = 0
     private(set) var partialFailures = 0
     private var pendingFull = false
+    private var refreshAgain = false
     private var notchOpen = false
     private var refreshTask: Task<Void, Never>?
     private var refreshKey: String?
@@ -581,9 +582,19 @@ final class AppModel: ObservableObject {
             pendingFull = pendingFull || full
             return
         }
-        guard !loading else { return }
+        guard !loading else {
+            refreshAgain = true
+            pendingFull = pendingFull || full
+            return
+        }
         loading = true
-        defer { loading = false }
+        defer {
+            loading = false
+            if refreshAgain {
+                refreshAgain = false
+                Task { await refresh() }
+            }
+        }
 
         do {
             await sync.setWatching(watching)
