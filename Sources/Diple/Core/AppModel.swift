@@ -253,7 +253,9 @@ final class AppModel: ObservableObject {
     private var reposQuery: CacheQuery<[RepoRef]> { reporting(Queries.repos, in: .loadRepos) }
 
     private func repoQuery(_ repo: String) -> CacheQuery<[PR]> {
-        Queries.repoPRs(repo).onError { [weak self] error in
+        var q = Queries.repoPRs(repo)
+        q.retryDelays = Queries.networkRetries
+        return q.onError { [weak self] error in
             guard let self, self.selectedRepo == repo, let m = self.report(error, in: .repoPRs) else { return }
             self.errorMessage = m
         }
@@ -713,7 +715,9 @@ final class AppModel: ObservableObject {
     }
 
     private func reporting<T>(_ q: CacheQuery<T>, in operation: ErrorReport.Operation) -> CacheQuery<T> {
-        q.onError { [weak self] error in
+        var q = q
+        q.retryDelays = Queries.networkRetries
+        return q.onError { [weak self] error in
             guard let self, let m = self.report(error, in: operation) else { return }
             self.errorMessage = m
         }

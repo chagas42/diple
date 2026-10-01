@@ -1,6 +1,8 @@
 import Foundation
 
 enum Queries {
+    static let networkRetries: [Duration] = [.seconds(2), .seconds(8)]
+
     static func team(org: String) -> CacheQuery<[Person]> {
         CacheQuery(
             key: .team(org: org), tags: [.team],

@@ -231,6 +231,31 @@ final class Source: @unchecked Sendable {
         #expect(source.count == 1)
     }
 
+    @Test func aDroppedConnectionIsRetriedWithBackoff() async throws {
+        let client = QueryClient(github: Self.github)
+        let calls = Locked(0)
+        var q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
+            calls.value += 1
+            if calls.value < 3 { throw URLError(.networkConnectionLost) }
+            return 1
+        }
+        q.retryDelays = [.milliseconds(5), .milliseconds(5)]
+        #expect(try await client.fetch(q) == 1)
+        #expect(calls.value == 3)
+    }
+
+    @Test func retriesStopWhenTheyRunOut() async throws {
+        let client = QueryClient(github: Self.github)
+        let calls = Locked(0)
+        var q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
+            calls.value += 1
+            throw URLError(.timedOut)
+        }
+        q.retryDelays = [.milliseconds(5)]
+        await #expect(throws: URLError.self) { try await client.fetch(q) }
+        #expect(calls.value == 2)
+    }
+
     @Test func persistedDataIsReadBackAtLaunch() async throws {
         let dir = StoreDiffTests.tempDirectory()
         let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))

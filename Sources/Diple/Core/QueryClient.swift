@@ -37,6 +37,7 @@ struct CacheQuery<T: Sendable>: Sendable {
     var forgetAfter: Duration = .seconds(300)
     var persists = false
     var persistFor: Duration = .seconds(30 * 24 * 3600)
+    var retryDelays: [Duration] = []
     var onSuccess: (@MainActor @Sendable (T) async -> Void)? = nil
     var onError: (@MainActor @Sendable (Error) -> Void)? = nil
     let fetch: @Sendable (GitHubClient, T?) async throws -> T
@@ -313,7 +314,7 @@ final class QueryClient {
         let previous = entry.data as? T
         let task = Task<any Sendable, Error> { @MainActor [weak self] in
             do {
-                let value = try await q.fetch(github, previous)
+                let value = try await Self.fetching(q, github, previous) { entry.version == version }
                 guard entry.version == version else { throw Superseded() }
                 let old = entry.data as? T
                 let unchanged = Self.same(value, old)
@@ -344,6 +345,20 @@ final class QueryClient {
         entry.task = task
         changed(entry)
         return task
+    }
+
+    private static func fetching<T>(
+        _ q: CacheQuery<T>, _ github: GitHubClient, _ previous: T?, stillWanted: () -> Bool
+    ) async throws -> T {
+        var delays = q.retryDelays[...]
+        while true {
+            do {
+                return try await q.fetch(github, previous)
+            } catch let error as URLError where error.code != .cancelled {
+                guard let delay = delays.popFirst(), stillWanted() else { throw error }
+                try await Task.sleep(for: delay)
+            }
+        }
     }
 
     private func changed(_ entry: AnyEntry) {
