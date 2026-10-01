@@ -146,7 +146,10 @@ private struct Superseded: Error {}
 
 @MainActor
 final class QueryClient {
+    typealias Answer = @Sendable (QueryKey) async throws -> any Sendable
+
     private let github: GitHubClient
+    private let answer: Answer?
     private let store: Store?
     private let now: () -> Date
     private var entries: [QueryKey: AnyEntry] = [:]
@@ -158,11 +161,14 @@ final class QueryClient {
 
     var onChange: (() -> Void)?
 
+    var answersLocally: Bool { answer != nil }
+
     init(
         github: GitHubClient, store: Store? = nil, now: @escaping () -> Date = Date.init,
-        decoders: [String: Decode] = [:]
+        decoders: [String: Decode] = [:], answer: Answer? = nil
     ) {
         self.github = github
+        self.answer = answer
         self.store = store
         self.now = now
         pruneExpired()
@@ -321,10 +327,15 @@ final class QueryClient {
     private func start<T: Sendable>(_ q: CacheQuery<T>, _ entry: AnyEntry) -> Task<any Sendable, Error> {
         let version = entry.version
         let github = github
+        let answer = answer
         let previous = entry.data as? T
         let task = Task<any Sendable, Error> { @MainActor [weak self] in
             do {
-                let value = try await Self.fetching(q, github, previous) { entry.version == version }
+                let value: T = if let answer {
+                    try await Self.answered(q.key, by: answer)
+                } else {
+                    try await Self.fetching(q, github, previous) { entry.version == version }
+                }
                 guard entry.version == version else { throw Superseded() }
                 let old = entry.data as? T
                 let unchanged = Self.same(value, old)
@@ -355,6 +366,11 @@ final class QueryClient {
         entry.task = task
         changed(entry)
         return task
+    }
+
+    private nonisolated static func answered<T>(_ key: QueryKey, by answer: Answer) async throws -> T {
+        guard let value = try await answer(key) as? T else { throw ClientError.empty }
+        return value
     }
 
     private static func fetching<T>(
