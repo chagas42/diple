@@ -1260,7 +1260,7 @@ final class AppModel: ObservableObject {
         do {
             try await client.resolve(threadId: thread)
             telemetry.capture(.threadResolved(source: .window))
-            if let pr = selected { await reread(pr) } else { await refresh() }
+            await refresh()
             return nil
         } catch {
             report(error, in: .resolve)
