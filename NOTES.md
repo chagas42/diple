@@ -578,8 +578,13 @@ it, since the earlier shine band read as an interface effect. Clicking one in
 the collection opens it in SceneKit (no dependency): the outline is traced from
 that dilated sprite and extruded 0.14 cells with a small chamfer, the front is
 the sprite under a clear coat, the back is the printed backing paper, and it
-floats just above a cutting mat that catches its shadow. SceneKit is
-deprecated, so this stays small until the MacBook lid replaces it.
+floats on a dark backdrop with a soft glow in its rarity's colour, over a floor
+that shows only its shadow (`.shadowOnly`). The scene fills the window and the
+name, flavor and the review it came from sit on a translucent panel at the
+bottom. Its idle sway uses `rotateTo` between two fixed angles: `rotateBy`
+there on two axes does not undo itself exactly, so over a few minutes the
+sticker drifted until it stood edge-on. SceneKit is deprecated, so this stays
+small until the MacBook lid replaces it.
 `DIPLE_RENDER_STICKERS=<dir> swift test --filter StickerRenderProbe` renders
 every sticker front, back and flat to PNGs.
 

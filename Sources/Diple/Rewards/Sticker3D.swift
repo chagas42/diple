@@ -159,38 +159,34 @@ enum StickerShape {
     _output.color.rgb = mix(_output.color.rgb, _output.color.rgb * (0.85 + rainbow * 0.3), 0.12 + 0.3 * f);
     """
 
-    static let mat: NSImage = {
+    static func backdrop(_ rarity: Rarity) -> NSImage {
         let size: CGFloat = 1024
+        let glow = NSColor(rarity.color).usingColorSpace(.sRGB) ?? .white
         return NSImage(size: NSSize(width: size, height: size), flipped: false) { r in
-            NSColor(srgbRed: 0.10, green: 0.25, blue: 0.21, alpha: 1).setFill()
+            NSColor(srgbRed: 0.06, green: 0.06, blue: 0.08, alpha: 1).setFill()
             r.fill()
-            for i in 0...32 {
-                let x = CGFloat(i) * size / 32
-                let strong = i % 4 == 0
-                NSColor(srgbRed: 0.45, green: 0.72, blue: 0.62, alpha: strong ? 0.35 : 0.14).setFill()
-                NSRect(x: x, y: 0, width: strong ? 2 : 1, height: size).fill()
-                NSRect(x: 0, y: x, width: size, height: strong ? 2 : 1).fill()
+            let colors = [glow.withAlphaComponent(0.34).cgColor, glow.withAlphaComponent(0.08).cgColor, NSColor.clear.cgColor] as CFArray
+            let space = CGColorSpace(name: CGColorSpace.sRGB)!
+            if let g = CGGradient(colorsSpace: space, colors: colors, locations: [0, 0.45, 1]),
+               let ctx = NSGraphicsContext.current?.cgContext {
+                let c = CGPoint(x: size / 2, y: size * 0.56)
+                ctx.drawRadialGradient(g, startCenter: c, startRadius: 0, endCenter: c, endRadius: size * 0.55, options: [])
             }
             return true
         }
-    }()
+    }
 
     static func scene(_ a: Artifact, caption: String) -> SCNScene {
         let scene = SCNScene()
-        scene.background.contents = NSColor(srgbRed: 0.07, green: 0.16, blue: 0.14, alpha: 1)
+        scene.background.contents = backdrop(a.rarity)
 
-        let matGeometry = SCNPlane(width: 12, height: 12)
-        let matMaterial = SCNMaterial()
-        matMaterial.diffuse.contents = mat
-        matMaterial.diffuse.contentsTransform = SCNMatrix4MakeScale(3, 3, 1)
-        matMaterial.diffuse.wrapS = .repeat
-        matMaterial.diffuse.wrapT = .repeat
-        matMaterial.lightingModel = .physicallyBased
-        matMaterial.roughness.contents = 0.9
-        matGeometry.materials = [matMaterial]
-        let matNode = SCNNode(geometry: matGeometry)
-        matNode.position = SCNVector3(0, 0, -0.02)
-        scene.rootNode.addChildNode(matNode)
+        let floor = SCNPlane(width: 12, height: 12)
+        let catcher = SCNMaterial()
+        catcher.lightingModel = .shadowOnly
+        floor.materials = [catcher]
+        let floorNode = SCNNode(geometry: floor)
+        floorNode.position = SCNVector3(0, 0, -0.02)
+        scene.rootNode.addChildNode(floorNode)
 
         let holder = SCNNode()
         let sticker = node(a, caption: caption)
@@ -199,8 +195,8 @@ enum StickerShape {
         holder.addChildNode(sticker)
         holder.eulerAngles = SCNVector3(0, 0, CGFloat(ArtifactTile.tilt(a)) * .pi / 180)
         let sway = SCNAction.repeatForever(.sequence([
-            .rotateBy(x: 0.18, y: 0.28, z: 0, duration: 2.6),
-            .rotateBy(x: -0.18, y: -0.28, z: 0, duration: 2.6),
+            .rotateTo(x: 0.09, y: 0.14, z: 0, duration: 2.6, usesShortestUnitArc: true),
+            .rotateTo(x: -0.09, y: -0.14, z: 0, duration: 2.6, usesShortestUnitArc: true),
         ]))
         sway.timingMode = .easeInEaseOut
         sticker.runAction(sway, forKey: "idle")
@@ -210,8 +206,8 @@ enum StickerShape {
         camera.camera = SCNCamera()
         camera.camera?.fieldOfView = 32
         camera.camera?.wantsDepthOfField = false
-        camera.position = SCNVector3(0, -1.1, 3.6)
-        camera.look(at: SCNVector3(0, 0, 0))
+        camera.position = SCNVector3(0, -1.5, 4.9)
+        camera.look(at: SCNVector3(0, -0.42, 0))
         scene.rootNode.addChildNode(camera)
 
         let key = SCNNode()
@@ -221,7 +217,7 @@ enum StickerShape {
         key.light?.castsShadow = true
         key.light?.shadowRadius = 6
         key.light?.shadowSampleCount = 16
-        key.light?.shadowColor = NSColor.black.withAlphaComponent(0.45)
+        key.light?.shadowColor = NSColor.black.withAlphaComponent(0.6)
         key.light?.shadowMode = .deferred
         key.eulerAngles = SCNVector3(-0.5, 0.35, 0.2)
         scene.rootNode.addChildNode(key)
