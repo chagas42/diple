@@ -78,7 +78,9 @@ struct NotchView: View {
             .offset(x: shift)
             .contextMenu {
                 if case .available(let version, let page) = updates.state {
-                    Button("Update to \(version)…") { NSWorkspace.shared.open(page) }
+                    Button("Update to \(version)…") {
+                        if updates.canInstall { updates.install() } else { NSWorkspace.shared.open(page) }
+                    }
                     Divider()
                 }
                 Button("Settings…") { Windows.shared.openSettings(model) }
@@ -462,7 +464,7 @@ struct NotchView: View {
                 if let problem = model.syncProblem {
                     problemStrip(problem)
                 }
-                ScrollView {
+                ThinScrollView {
                     VStack(spacing: 0) {
                         ForEach(Array(model.prs(model.tab).enumerated()), id: \.element.id) { i, pr in
                             if i > 0 {
@@ -504,7 +506,6 @@ struct NotchView: View {
                         }
                     }
                 }
-                .scrollIndicators(.visible)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
