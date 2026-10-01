@@ -432,7 +432,7 @@ struct NotchView: View {
                 if let problem = model.syncProblem {
                     problemStrip(problem)
                 }
-                ScrollView {
+                ThinScrollView {
                     VStack(spacing: 0) {
                         ForEach(Array(model.prs(model.tab).enumerated()), id: \.element.id) { i, pr in
                             if i > 0 {
@@ -474,7 +474,6 @@ struct NotchView: View {
                         }
                     }
                 }
-                .scrollIndicators(.visible)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
