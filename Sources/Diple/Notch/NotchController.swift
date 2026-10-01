@@ -28,6 +28,7 @@ final class NotchController: ObservableObject {
     private var holdRelease: Task<Void, Never>?
     var holdsAtMost: Duration = .seconds(20)
     let eye = EyeState()
+    let glowing = GlowState()
 
     private let panel = NotchPanel()
 
@@ -278,6 +279,7 @@ final class NotchController: ObservableObject {
     }
 
     private func lookAround() async -> Bool {
+        if Motion.reduced { return true }
         for (gaze, ms) in [(CGPoint(x: -0.8, y: 0.1), 350), (CGPoint(x: 0.8, y: 0.1), 350), (.zero, 200)] {
             eye.look(at: gaze)
             guard await rest(ms) else { return false }
@@ -464,6 +466,16 @@ final class NotchController: ObservableObject {
         checkPointer()
         aim()
         pullTowardPointer()
+        trackGlow()
+    }
+
+    func trackGlow() {
+        let g = NotchGeometry.current()
+        guard state == .open, g.hasNotch else {
+            glowing.show(.off)
+            return
+        }
+        glowing.show(Glow.target(pointer: pointer(), cutout: g.rect(g.closed)))
     }
 
     func checkPointer() {
@@ -557,13 +569,12 @@ final class NotchController: ObservableObject {
         }
         let dx = max(-1, min(1, (m.x - from.x) / range))
         let dy = max(-1, min(1, (from.y - m.y) / range))
-        let next = CGPoint(x: dx, y: dy)
-        eye.look(at: next)
+        eye.look(at: Motion.reduced ? .zero : CGPoint(x: dx, y: dy))
     }
 
     private var blinks: Bool {
         guard let s = model?.settings else { return true }
-        return s.showsEye && s.eyeBlinks && !eye.focused
+        return s.showsEye && s.eyeBlinks && !eye.focused && !Motion.reduced
     }
 
     func focus(_ on: Bool) {
@@ -648,6 +659,7 @@ final class NotchController: ObservableObject {
                 focusEnded: notch.focusEnded,
                 focusLook: model.settings.focusLook,
                 eye: notch.eye,
+                glowing: notch.glowing,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }
             )

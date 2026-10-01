@@ -251,11 +251,11 @@ struct MainWindowView: View {
             }
         }
         .navigationTitle(model.tab.title)
+        .task(id: model.queue.all.map(\.key)) { model.loadRequirements(for: model.queue.all) }
         .onChange(of: model.selected?.key, initial: true) { _, key in
             guard let key, let stack = queueShown.groupedIntoStacks().first(where: { $0.isStack && $0.prs.contains { $0.key == key } }) else { return }
             openStacks.insert(stack.id)
         }
-        .task(id: model.queue.all.map(\.key)) { model.loadRequirements(for: model.queue.all) }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Picker("", selection: $onlyUnreviewed) {

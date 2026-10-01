@@ -52,8 +52,11 @@ struct NotchView: View {
     var focusEnded: Date?
     var focusLook = FocusLook.terminal
     let eye: EyeState
+    var glowing: GlowState?
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let _ = Metrics.shared.body("NotchView")
@@ -63,13 +66,11 @@ struct NotchView: View {
                 content
                     .clipShape(shape)
                     .id(state.kind)
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .offset(y: -10))
-                                .animation(.easeOut(duration: 0.2).delay(0.08)),
-                            removal: .opacity.animation(.easeIn(duration: 0.08))
-                        )
-                    )
+                    .transition(stateChange)
+                if let glowing, state == .open {
+                    PointerGlowView(state: glowing, width: size.width, height: size.height,
+                                    cutout: CGSize(width: notchWidth, height: notchHeight))
+                }
             }
             .frame(width: size.width, height: size.height)
             .contentShape(shape)
@@ -113,22 +114,31 @@ struct NotchView: View {
         .animation(resize, value: size)
         .animation(resize, value: shift)
         .animation(.easeOut(duration: 0.22), value: state.kind)
-        .animation(.bouncy(duration: 0.35), value: shownCount)
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .bouncy(duration: 0.35), value: shownCount)
+    }
+
+    private var stateChange: AnyTransition {
+        let removal = AnyTransition.opacity.animation(.easeIn(duration: 0.08))
+        let insertion = reduceMotion
+            ? AnyTransition.opacity.animation(.easeOut(duration: 0.15))
+            : AnyTransition.opacity.combined(with: .offset(y: -10)).animation(.easeOut(duration: 0.2).delay(0.08))
+        return .asymmetric(insertion: insertion, removal: removal)
     }
 
     private var shownCount: Int { heldCount ?? model.count }
 
     private var eyeToggle: AnyTransition {
-        .scale(scale: 0.2).combined(with: .opacity)
+        reduceMotion ? .opacity : .scale(scale: 0.2).combined(with: .opacity)
     }
 
     private var eyeToggleAnimation: Animation {
-        .spring(response: 0.35, dampingFraction: 0.6)
+        reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.6)
     }
 
     private var resize: Animation {
-        appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
-                  : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
+        if reduceMotion { return .easeInOut(duration: 0.2) }
+        return appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
+                         : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
     }
 
     private var eyeCenter: CGPoint {
@@ -218,9 +228,9 @@ struct NotchView: View {
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .foregroundStyle(.white.opacity(shownCount > 0 ? 0.92 : 0.34))
             .monospacedDigit()
-            .contentTransition(.numericText())
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: shownCount)
-            .contentTransition(.numericText(value: Double(shownCount)))
+            .contentTransition(reduceMotion ? .opacity : .numericText(value: Double(shownCount)))
+            .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.7),
+                       value: shownCount)
             .opacity(waking ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: waking)
     }
@@ -234,7 +244,7 @@ struct NotchView: View {
                     if let since = focusedSince {
                         FocusCover(since: since, ended: focusEnded, look: focusLook,
                                    comeBack: model.settings.showsEye ? "click the eye" : "click the moon")
-                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98)))
                     }
                 }
                 .animation(.easeInOut(duration: 0.4), value: focusedSince == nil)
@@ -297,13 +307,7 @@ struct NotchView: View {
                     Windows.shared.openMain(model)
                     onClose()
                 }
-                if model.loading || model.refreshingTab != nil {
-                    ProgressView().controlSize(.small).tint(.white).frame(width: 22)
-                } else {
-                    iconButton("arrow.clockwise") {
-                        Task { await model.refreshVisible() }
-                    }
-                }
+                refreshButton
                 iconButton("bubble.left.and.exclamationmark.bubble.right") {
                     Windows.shared.openFeedback(model, feature: model.notchTab.feedbackFeature)
                     onClose()
@@ -323,14 +327,34 @@ struct NotchView: View {
 
     private func iconButton(_ name: String, _ acao: @escaping () -> Void) -> some View {
         Button(action: acao) {
-            Image(systemName: name)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.78))
-                .frame(width: 26, height: 26)
-                .background(Color.white.opacity(0.1), in: Circle())
-                .contentShape(Rectangle())
+            iconFace { Image(systemName: name).font(.system(size: 11, weight: .semibold)) }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NotchIconStyle())
+    }
+
+    private var refreshButton: some View {
+        let busy = model.loading || model.refreshingTab != nil
+        return Button {
+            Task { await model.refreshVisible() }
+        } label: {
+            iconFace {
+                if busy {
+                    ProgressView().controlSize(.small).tint(.white).scaleEffect(0.8)
+                } else {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
+                }
+            }
+        }
+        .buttonStyle(NotchIconStyle())
+        .disabled(busy)
+    }
+
+    private func iconFace<Glyph: View>(@ViewBuilder _ glyph: () -> Glyph) -> some View {
+        glyph()
+            .foregroundStyle(.white.opacity(0.78))
+            .frame(width: 26, height: 26)
+            .background(Color.white.opacity(0.1), in: Circle())
+            .contentShape(Rectangle())
     }
 
     private var openBody: some View {
@@ -713,5 +737,11 @@ private struct PulledFill: View {
                 .fill(.black)
                 .animation(motion, value: pulling.pull)
         }
+    }
+}
+
+private struct NotchIconStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
