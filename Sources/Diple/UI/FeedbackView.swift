@@ -22,21 +22,22 @@ struct FeedbackView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(feature.title).font(.system(size: 15, weight: .semibold))
-                Spacer()
+            Text(feature.title).font(.system(size: 17, weight: .semibold))
+            if mode == .quick { quick } else { issue }
+        }
+        .padding([.horizontal, .bottom], 20)
+        .padding(.top, 6)
+        .frame(width: 480)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
                 Picker("", selection: $mode) {
                     ForEach(Mode.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 260)
+                .fixedSize()
             }
-
-            if mode == .quick { quick } else { issue }
         }
-        .padding(18)
-        .frame(width: 480)
     }
 
     @ViewBuilder
@@ -46,14 +47,24 @@ struct FeedbackView: View {
                 .foregroundStyle(.green)
                 .frame(maxWidth: .infinity, minHeight: 160)
         } else if !model.canSendQuickFeedback {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Quick feedback travels with anonymous usage, which is off.")
-                Text("You can still open an issue on GitHub, or turn sharing on in Settings → Privacy.")
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 20))
                     .foregroundStyle(.secondary)
-                Button("Write a GitHub issue instead") { mode = .issue }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Quick feedback travels with anonymous usage, which is off.")
+                        .font(.system(size: 13, weight: .medium))
+                    Text("You can still open an issue on GitHub, or turn sharing on in Settings → Privacy.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Write a GitHub issue instead") { mode = .issue }
+                        .padding(.top, 4)
+                }
             }
-            .font(.system(size: 12))
-            .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
@@ -92,7 +103,11 @@ struct FeedbackView: View {
     private var issue: some View {
         VStack(alignment: .leading, spacing: 10) {
             TextField("Title", text: $title, prompt: Text("\(feature.title): what went wrong"))
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 8)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             editor($text, prompt: "Steps, what you expected, what happened instead…")
             Toggle(isOn: $diagnostics) {
                 Text("Include app version, macOS and Mac model")
@@ -130,7 +145,7 @@ struct FeedbackView: View {
             }
         }
         .frame(height: 150)
-        .background(RoundedRectangle(cornerRadius: 7).fill(.quaternary.opacity(0.35)))
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onChange(of: binding.wrappedValue) { _, new in
             if new.count > FeedbackText.limit + 200 { binding.wrappedValue = String(new.prefix(FeedbackText.limit + 200)) }
         }

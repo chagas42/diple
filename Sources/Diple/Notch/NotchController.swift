@@ -11,12 +11,22 @@ final class NotchController: ObservableObject {
     @Published private(set) var wings = Wings(left: 42, right: 42)
     @Published private(set) var shift: CGFloat = 0
     @Published private(set) var shrinking = false
+    let pulling = PullState()
+    private var pull: Pull { pulling.pull }
+    private var gravity = Gravity()
     @Published private(set) var appearing = false
     @Published private(set) var hasNotch = true
     @Published private(set) var waking = false
     @Published private(set) var asleep = false
     private(set) var fellAsleep = Date()
     @Published private(set) var dozesQuickly = false
+    @Published private(set) var tick: ReviewTick?
+    private(set) var tickStart = Date()
+    private(set) var pendingTicks: [ReviewTick] = []
+    @Published private(set) var heldCount: Int?
+    private(set) var expecting: Set<String> = []
+    private var holdRelease: Task<Void, Never>?
+    var holdsAtMost: Duration = .seconds(20)
     let eye = EyeState()
 
     private let panel = NotchPanel()
@@ -43,6 +53,9 @@ final class NotchController: ObservableObject {
     private var showsEye = true
     private var countOnLeft = false
     private var wingSettings: AnyCancellable?
+    private var focusWatch: AnyCancellable?
+    @Published private(set) var focusedSince: Date?
+    @Published private(set) var focusEnded: Date?
     var clock: @MainActor () -> Date = Date.init
     static let longestSwitch: TimeInterval = 1.5
     private var arrivingSince: Date?
@@ -57,6 +70,10 @@ final class NotchController: ObservableObject {
         wingSettings = model.$settings
             .removeDuplicates { $0.showsEye == $1.showsEye && $0.countSide == $1.countSide }
             .sink { [weak self] s in self?.arrange(showsEye: s.showsEye, countOnLeft: s.countSide == .left) }
+        focusWatch = model.focus.$byHand.combineLatest(model.focus.$system, model.focus.$setAside)
+            .map { $0 || ($1 && !$2) }
+            .removeDuplicates()
+            .sink { [weak self] on in self?.focus(on) }
         settleBeforeFirstFrame()
         fallAsleep()
         measure()
@@ -107,11 +124,13 @@ final class NotchController: ObservableObject {
         shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
-        case .active: g.active(wings)
+        case .active: tick == nil ? g.active(wings)
+            : CGSize(width: g.active(wings).width, height: g.active(wings).height + ReviewStrip.drawer)
         case .open:    g.open
         case .alert:    g.alert
         }
         shrinking = next.width < size.width || next.height < size.height
+        if next != size { resizedAt = Date() }
         size = next
 
         switch state {
@@ -311,6 +330,56 @@ final class NotchController: ObservableObject {
         state = idle()
         apply()
         model?.setNotchOpen(false)
+        showPendingTick()
+    }
+
+    func expectReviews(_ keys: [String], showing count: Int) {
+        if heldCount == nil { heldCount = count }
+        expecting.formUnion(keys)
+        holdRelease?.cancel()
+        let most = holdsAtMost
+        holdRelease = Task { [weak self] in
+            try? await Task.sleep(for: most)
+            guard !Task.isCancelled, let self else { return }
+            self.expecting = []
+            self.releaseCount()
+        }
+    }
+
+    func noReview(_ key: String) {
+        expecting.remove(key)
+        releaseCount()
+    }
+
+    func tick(_ t: ReviewTick) {
+        expecting.remove(t.pr)
+        pendingTicks.append(t)
+        showPendingTick()
+    }
+
+    private func releaseCount() {
+        guard expecting.isEmpty, tick == nil, pendingTicks.isEmpty else { return }
+        holdRelease?.cancel()
+        holdRelease = nil
+        heldCount = nil
+    }
+
+    private func showPendingTick() {
+        guard state == .active, !waking, tick == nil, !pendingTicks.isEmpty else { return }
+        let t = pendingTicks.removeFirst()
+        tick = t
+        tickStart = Date()
+        apply()
+        Task { [weak self] in
+            await self?.nap(.milliseconds(Int(ReviewStrip.paperLeaves * 1000)))
+            guard let self else { return }
+            if let h = self.heldCount { self.heldCount = max(self.model?.count ?? 0, h - 1) }
+            await self.nap(.milliseconds(Int((ReviewStrip.length - ReviewStrip.paperLeaves) * 1000)))
+            self.tick = nil
+            self.apply()
+            self.releaseCount()
+            self.showPendingTick()
+        }
     }
 
     func alert(_ e: Event) {
@@ -366,19 +435,17 @@ final class NotchController: ObservableObject {
     private func settleIdle() {
         guard state == .hidden || state == .active else { return }
         let next = idle()
-        guard next != state || NotchGeometry.current().wings(showsEye: showsEye, countOnLeft: countOnLeft) != wings else { return }
-        state = next
-        apply()
+        if next != state || NotchGeometry.current().wings(showsEye: showsEye, countOnLeft: countOnLeft) != wings {
+            state = next
+            apply()
+        }
+        showPendingTick()
     }
 
     private func trackPointer() {
         if Film.isOn { return }
         pointerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                self.checkPointer()
-                self.aim()
-            }
+            Task { @MainActor in self?.followPointer() }
         }
     }
 
@@ -393,12 +460,18 @@ final class NotchController: ObservableObject {
         }
     }
 
+    func followPointer() {
+        checkPointer()
+        aim()
+        pullTowardPointer()
+    }
+
     func checkPointer() {
-        if Film.isOn { return }
         let g = NotchGeometry.current()
         let shape = g.rect(size, shift: shift)
 
-        let hotZone = shape.union(g.rect(g.closed))
+        let stretch = Blob.maxStretch * pull.strength
+        let hotZone = shape.union(g.rect(g.closed)).union(shape.insetBy(dx: -stretch, dy: -stretch))
         let m = pointer()
 
         let revealed = underFullScreen
@@ -439,21 +512,98 @@ final class NotchController: ObservableObject {
         }
     }
 
+    static let openEyeX: CGFloat = 14 + 16 + 11
+
+    lazy var leans: @MainActor () -> Bool = { [weak self] in
+        (self?.model?.settings.liquidNotch ?? false) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+    private var resizedAt = Date.distantPast
+    static let settleAfterResize: TimeInterval = 0.45
+
+    private var pulls: Bool {
+        leans() && Date().timeIntervalSince(resizedAt) > Self.settleAfterResize
+    }
+
+    func pullTowardPointer() {
+        guard pulls, !waking, state == .active else {
+            if !pull.isNone { gravity = Gravity(); pulling.show(.none) }
+            return
+        }
+        let g = NotchGeometry.current()
+        let next = gravity.follow(gravity.target(pointer: pointer(), shape: g.rect(size, shift: shift)))
+        if pulling.snaps {
+            pulling.show(next)
+        } else if next.isNone != pull.isNone || (!next.isNone && (next - pull).magnitudeSquared > 0.01) {
+            pulling.show(next)
+        }
+    }
+
     private func aim() {
-        guard showsEye, !waking, state == .hidden || state == .active else { return }
+        guard showsEye, !waking, !eye.sore else { return }
         let g = NotchGeometry.current()
         let f = g.rect(size, shift: shift)
         let m = pointer()
-        let range: CGFloat = 300
-        let dx = max(-1, min(1, (m.x - f.midX) / range))
-        let dy = max(-1, min(1, (f.midY - m.y) / range))
+        let from: CGPoint
+        let range: CGFloat
+        switch state {
+        case .hidden, .active:
+            from = CGPoint(x: f.midX, y: f.midY)
+            range = 300
+        case .open:
+            from = CGPoint(x: f.minX + Self.openEyeX, y: f.maxY - notchHeight / 2)
+            range = 160
+        case .alert:
+            return
+        }
+        let dx = max(-1, min(1, (m.x - from.x) / range))
+        let dy = max(-1, min(1, (from.y - m.y) / range))
         let next = CGPoint(x: dx, y: dy)
         eye.look(at: next)
     }
 
     private var blinks: Bool {
         guard let s = model?.settings else { return true }
-        return s.showsEye && s.eyeBlinks
+        return s.showsEye && s.eyeBlinks && !eye.focused
+    }
+
+    func focus(_ on: Bool) {
+        eye.focused = on
+        if on {
+            focusEnded = nil
+            focusedSince = Date()
+            return
+        }
+        guard focusedSince != nil else { return }
+        let ended = Date()
+        focusEnded = ended
+        Task { [weak self] in
+            try? await Task.sleep(for: FocusCover.lingers)
+            guard let self, self.focusEnded == ended else { return }
+            self.focusedSince = nil
+            self.focusEnded = nil
+        }
+    }
+
+    func poke() {
+        Task { [weak self] in await self?.ouch() }
+    }
+
+    func ouch() async {
+        guard !eye.sore else { return }
+        finishWaking()
+        eye.pokes += 1
+        eye.complaining = true
+        eye.sore = true
+        eye.lidSpeed = 0.05
+        eye.lid = 0.1
+        await nap(.milliseconds(480))
+        model?.focus.toggle()
+        eye.lidSpeed = 0.3
+        eye.lid = 1
+        eye.sore = false
+        await nap(.milliseconds(450))
+        eye.complaining = false
+        eye.lidSpeed = 0.4
     }
 
     private func blinkOccasionally() {
@@ -483,11 +633,20 @@ final class NotchController: ObservableObject {
                 wings: notch.wings,
                 shift: notch.shift,
                 shrinking: notch.shrinking,
+                pulling: notch.pulling,
                 appearing: notch.appearing,
                 hidesByFading: !notch.hasNotch,
                 waking: notch.waking,
                 sleepingSince: notch.asleep ? notch.fellAsleep : nil,
                 dozesQuickly: notch.dozesQuickly,
+                tick: notch.tick,
+                tickStart: notch.tickStart,
+                heldCount: notch.heldCount,
+                onEyeTap: { notch.poke() },
+                onFocusToggle: { model.focus.toggle() },
+                focusedSince: notch.focusedSince,
+                focusEnded: notch.focusEnded,
+                focusLook: model.settings.focusLook,
                 eye: notch.eye,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }
