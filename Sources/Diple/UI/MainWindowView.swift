@@ -202,13 +202,11 @@ struct MainWindowView: View {
     }
 
     private func toggle(_ stack: PRStack) {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            if isOpen(stack) {
-                openStacks.remove(stack.id)
-                if stack.prs.contains(where: { $0.key == model.selected?.key }) { model.selected = nil }
-            } else {
-                openStacks.insert(stack.id)
-            }
+        if isOpen(stack) {
+            openStacks.remove(stack.id)
+            if stack.prs.contains(where: { $0.key == model.selected?.key }) { model.selected = nil }
+        } else {
+            openStacks.insert(stack.id)
         }
     }
 
@@ -218,9 +216,16 @@ struct MainWindowView: View {
     }
 
     private var queueList: some View {
-        List(selection: Binding(
-            get: { model.selected?.key },
-            set: { key in model.selected = model.prs(model.tab).first { $0.key == key } }
+        let stacked = Set(queueShown.groupedIntoStacks().filter(\.isStack).flatMap { $0.prs.map(\.key) })
+        return List(selection: Binding(
+            get: { model.selected.flatMap { stacked.contains($0.key) ? nil : $0.key } },
+            set: { key in
+                if let key {
+                    model.selected = model.prs(model.tab).first { $0.key == key }
+                } else if let current = model.selected?.key, !stacked.contains(current) {
+                    model.selected = nil
+                }
+            }
         )) {
             if onlyUnreviewed && queueShown.isEmpty {
                 Text("Every pull request here has a review.")
@@ -229,73 +234,14 @@ struct MainWindowView: View {
             }
             ForEach(queueShown.groupedIntoStacks()) { stack in
                 if stack.isStack {
-                    let n = stack.prs.count
-                    let open = isOpen(stack)
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .bold))
-                                .rotationEffect(.degrees(open ? 90 : 0))
-                            Image(systemName: "square.3.layers.3d.down.right")
-                                .font(.system(size: 10))
-                            Text("Stack of \(n)")
-                                .font(.system(size: 11, weight: .semibold))
-                            Text(verbatim: stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            if !open, stack.prs.contains(where: { model.unread.contains($0.key) }) {
-                                Circle().fill(.orange).frame(width: 6, height: 6)
-                            }
-                            if !open, let worst = stack.prs.map(\.checks).first(where: { $0 == .failing }) ?? stack.prs.first?.checks {
-                                ChecksDot(state: worst)
-                            }
-                            Text(open ? "merges top first" : "")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .foregroundStyle(.secondary)
-                        if !open, let top = stack.prs.first {
-                            Text(verbatim: n > 1 ? "\(top.title)  +\(n - 1)" : top.title)
-                                .font(.system(size: 12.5))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                                .padding(.leading, 21)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, open ? 6 : 10)
-                    .contentShape(Rectangle())
-                    .onTapGesture { toggle(stack) }
-                    .help(open ? "Collapse this stack" : "Show the \(n) pull requests in this stack")
-                    .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+                    StackGroup(
+                        stack: stack, model: model, open: isOpen(stack),
+                        toggle: { toggle(stack) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                     .listRowSeparator(.hidden)
-                    .listRowBackground(StackCard(index: 0, count: n + 2))
+                    .listRowBackground(Color.clear)
                     .selectionDisabled()
-                    if open {
-                    ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
-                        PRRow(
-                            pr: pr,
-                            unread: model.unread.contains(pr.key),
-                            stack: (i + 1, n),
-                            required: model.requiredApprovals(for: pr),
-                            selected: model.selected?.key == pr.key
-                        )
-                        .padding(.horizontal, 10)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(StackCard(index: i + 1, count: n + 2, selected: model.selected?.key == pr.key))
-                        .opacity(model.dims(pr) ? 0.45 : 1)
-                        .tag(pr.key)
-                    }
-                    }
-                    Color.clear
-                        .frame(height: StackCard.radius + StackCard.sheets)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(StackCard(index: n + 1, count: n + 2))
-                        .selectionDisabled()
                 } else if let pr = stack.prs.first {
                     PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr),
                           selected: model.selected?.key == pr.key)
@@ -356,6 +302,7 @@ struct PRRow: View {
     var stack: (index: Int, count: Int)? = nil
     var required: Int? = nil
     var selected = false
+    var showsRepo = true
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -416,7 +363,7 @@ struct PRRow: View {
 
     private var place: String {
         let repo = pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo
-        return stack == nil ? "\(repo) #\(pr.number)" : "#\(pr.number)"
+        return showsRepo ? "\(repo) #\(pr.number)" : "#\(pr.number)"
     }
 
     static func ago(_ date: Date, now: Date = Date()) -> String {
@@ -554,65 +501,102 @@ struct ApprovalCount: View {
     }
 }
 
-struct StackCard: View {
-    let index: Int
-    let count: Int
-    var selected = false
+struct StackGroup: View {
+    let stack: PRStack
+    @ObservedObject var model: AppModel
+    let open: Bool
+    let toggle: () -> Void
 
-    static let sheets: CGFloat = 14
     static let radius: CGFloat = 10
+    static let peek: CGFloat = 5
+    static let maxPeeks = 3
 
-    private var first: Bool { index == 0 }
-    private var last: Bool { index == count - 1 }
+    private var n: Int { stack.prs.count }
+
+    private var shown: [PR] { open ? stack.prs : Array(stack.prs.prefix(1)) }
+    private var peeks: Int { open ? 0 : min(n - 1, Self.maxPeeks) }
 
     var body: some View {
-        GeometryReader { g in
-            let card = CGRect(x: 6, y: first ? 4 : 0, width: g.size.width - 12,
-                              height: g.size.height - (first ? 4 : 0) - (last ? Self.sheets : 0))
-            ZStack(alignment: .topLeading) {
-                if last {
-                    sheet(inset: 20, at: card.maxY - Self.radius + 10, opacity: 0.7)
-                        .frame(width: g.size.width)
-                    sheet(inset: 11, at: card.maxY - Self.radius + 5, opacity: 0.95)
-                        .frame(width: g.size.width)
-                }
-                UnevenRoundedRectangle(
-                    topLeadingRadius: first ? Self.radius : 0, bottomLeadingRadius: last ? Self.radius : 0,
-                    bottomTrailingRadius: last ? Self.radius : 0, topTrailingRadius: first ? Self.radius : 0,
-                    style: .continuous
-                )
-                .fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.background.secondary))
-                .overlay(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: first ? Self.radius : 0, bottomLeadingRadius: last ? Self.radius : 0,
-                        bottomTrailingRadius: last ? Self.radius : 0, topTrailingRadius: first ? Self.radius : 0,
-                        style: .continuous
-                    )
-                    .strokeBorder(.separator, lineWidth: 0.5)
-                )
-                .overlay(alignment: .top) {
-                    if !first {
-                        Rectangle()
-                            .fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.background.secondary))
-                            .frame(height: 1)
-                            .padding(.horizontal, 0.5)
+        ZStack(alignment: .top) {
+            ForEach((0..<peeks).reversed(), id: \.self) { k in
+                sheet
+                    .padding(.horizontal, CGFloat(k + 1) * 8)
+                    .offset(y: CGFloat(k + 1) * Self.peek)
+                    .opacity(1 - Double(k) * 0.2)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                ForEach(Array(shown.enumerated()), id: \.element.key) { i, pr in
+                    VStack(spacing: 0) {
+                        Divider().opacity(0.6)
+                        row(pr, index: open ? i + 1 : nil)
                     }
                 }
-                .shadow(color: .black.opacity(last ? 0.18 : 0), radius: 3, y: 2)
-                .frame(width: card.width, height: card.height)
-                .offset(x: card.minX, y: card.minY)
             }
+            .background(
+                RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                    .fill(.background.secondary)
+                    .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
+            )
+            .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+            .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
         }
+        .padding(.bottom, CGFloat(peeks) * Self.peek + 2)
+        .padding(.horizontal, 4)
     }
 
-    private func sheet(inset: CGFloat, at y: CGFloat, opacity: Double) -> some View {
+    private var header: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .rotationEffect(.degrees(open ? 90 : 0))
+                .animation(.easeInOut(duration: 0.18), value: open)
+            Image(systemName: "square.3.layers.3d.down.right")
+                .font(.system(size: 10))
+            Text("Stack of \(n)")
+                .font(.system(size: 11, weight: .semibold))
+            Text(verbatim: stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
+                .font(.system(size: 11, design: .monospaced))
+            Spacer()
+            Text(open ? "merges top first" : "\(n) branches")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .help(open ? "Collapse this stack" : "Show the \(n) pull requests in this stack")
+    }
+
+    private func row(_ pr: PR, index: Int?) -> some View {
+        let selected = model.selected?.key == pr.key
+        return PRRow(
+            pr: pr,
+            unread: model.unread.contains(pr.key),
+            stack: index.map { ($0, n) },
+            required: model.requiredApprovals(for: pr),
+            showsRepo: false
+        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 1)
+        .background(selected ? Color.accentColor.opacity(0.14) : .clear)
+        .overlay(alignment: .leading) {
+            if selected { Rectangle().fill(Color.accentColor).frame(width: 3) }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { model.selected = pr }
+        .opacity(model.dims(pr) ? 0.45 : 1)
+    }
+
+    private var sheet: some View {
         RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
             .fill(.background.secondary)
             .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
             .shadow(color: .black.opacity(0.14), radius: 2, y: 1)
-            .opacity(opacity)
-            .frame(height: Self.radius + 2)
-            .padding(.horizontal, inset)
-            .offset(y: y)
+            .frame(height: 30)
+            .frame(maxHeight: .infinity, alignment: .bottom)
     }
 }
+

@@ -1,6 +1,15 @@
 import Foundation
 
 enum Queries {
+    static let networkRetries: [Duration] = [.seconds(2), .seconds(8)]
+
+    static let savedDecoders: [String: QueryClient.Decode] = [
+        "team": { try JSONDecoder().decode([Person].self, from: $0) },
+        "ranking": { try JSONDecoder().decode([RankRow].self, from: $0) },
+        "activity": { try JSONDecoder().decode(ActivityLog.self, from: $0) },
+        "repos": { try JSONDecoder().decode([RepoRef].self, from: $0) },
+    ]
+
     static func team(org: String) -> CacheQuery<[Person]> {
         CacheQuery(
             key: .team(org: org), tags: [.team],
@@ -53,7 +62,8 @@ enum Queries {
     static func activity(org: String, login: String) -> CacheQuery<ActivityLog> {
         CacheQuery(
             key: .activity(org: org, login: login), tags: [.team],
-            staleAfter: .seconds(3600), forgetAfter: .seconds(7 * 24 * 3600), persists: true
+            staleAfter: .seconds(3600), forgetAfter: .seconds(7 * 24 * 3600), persists: true,
+            persistFor: .seconds(Double(ActivityHistory.days) * 24 * 3600)
         ) { github, old in
             let today = Date()
             let from = ActivityHistory.refetchFrom(today: today, cachedFrom: old?.from)

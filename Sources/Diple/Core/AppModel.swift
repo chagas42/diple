@@ -113,6 +113,7 @@ final class AppModel: ObservableObject {
             guard settings != oldValue else { return }
             store.saveSettings(settings)
             notificador.settings = settings
+            focus.follows = settings.followsFocus
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
             MenuBarItems.measuring = settings.fitsMenuBar
@@ -253,7 +254,9 @@ final class AppModel: ObservableObject {
     private var reposQuery: CacheQuery<[RepoRef]> { reporting(Queries.repos, in: .loadRepos) }
 
     private func repoQuery(_ repo: String) -> CacheQuery<[PR]> {
-        Queries.repoPRs(repo).onError { [weak self] error in
+        var q = Queries.repoPRs(repo)
+        q.retryDelays = Queries.networkRetries
+        return q.onError { [weak self] error in
             guard let self, self.selectedRepo == repo, let m = self.report(error, in: .repoPRs) else { return }
             self.errorMessage = m
         }
@@ -304,6 +307,8 @@ final class AppModel: ObservableObject {
         queries.setData(.queue(watching: watching)) { (o: inout SyncOutcome) in swap(&o.queue) }
         if selected?.key == fresh.key { selected = fresh }
         queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
+        if queries.isFetching(.queue(watching: watching)) { queries.invalidate(.queue) }
+        if queries.isFetching(.repoPRs(repo: fresh.repo)) { queries.invalidate(.repo(fresh.repo)) }
         queries.invalidate(.pr(fresh.key))
     }
 
@@ -341,6 +346,7 @@ final class AppModel: ObservableObject {
     private let client: GitHubClient
     private let store: Store
     private let notificador = Notifier()
+    let focus = Focus()
 
     private let sync: SyncEngine
     let telemetry: Telemetry
@@ -361,7 +367,7 @@ final class AppModel: ObservableObject {
         self.notificador.telemetry = telemetry
         self.client = client
         self.store = store
-        let queries = QueryClient(github: client, store: store)
+        let queries = QueryClient(github: client, store: store, decoders: Queries.savedDecoders)
         self.queries = queries
         self.sync = SyncEngine(client: client)
         self.prefetcher = fetchRefs.map { Prefetcher(queries: queries, fetchRefs: $0) } ?? Prefetcher(queries: queries)
@@ -426,6 +432,9 @@ final class AppModel: ObservableObject {
         settings = store.state.settings
         notificador.settings = settings
         MenuBarItems.measuring = settings.fitsMenuBar
+        notificador.quiet = { [weak self] in self?.focus.isOn ?? false }
+        focus.follows = settings.followsFocus
+        focus.start()
         startTelemetry()
         Updates.shared.start()
 
@@ -667,7 +676,7 @@ final class AppModel: ObservableObject {
         recordActiveDay()
         schedulePrefetch()
         schedulePreload()
-        if let first = events.first(where: { $0.kind.interrupts }) {
+        if !focus.isOn, let first = events.first(where: { $0.kind.interrupts }) {
             onEvent?(first)
         }
     }
@@ -715,7 +724,9 @@ final class AppModel: ObservableObject {
     }
 
     private func reporting<T>(_ q: CacheQuery<T>, in operation: ErrorReport.Operation) -> CacheQuery<T> {
-        q.onError { [weak self] error in
+        var q = q
+        q.retryDelays = Queries.networkRetries
+        return q.onError { [weak self] error in
             guard let self, let m = self.report(error, in: operation) else { return }
             self.errorMessage = m
         }
@@ -1278,7 +1289,7 @@ final class AppModel: ObservableObject {
         do {
             try await client.resolve(threadId: thread)
             telemetry.capture(.threadResolved(source: .window))
-            if let pr = selected { await reread(pr) } else { await refresh() }
+            await refresh()
             return nil
         } catch {
             report(error, in: .resolve)
