@@ -10,7 +10,7 @@ final class AppModel: ObservableObject {
     var onCountChange: (() -> Void)?
 
     @Published private(set) var queue = Queue()
-    @Published private(set) var loading = false
+    var loading: Bool { queueObserver?.isFetching ?? false }
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastSync: Date?
     @Published private(set) var hasPermission = false
@@ -18,14 +18,66 @@ final class AppModel: ObservableObject {
     @Published private(set) var reviewedAhead: Set<String> = []
 
     @Published var notchTab: NotchTab = .queue
-    @Published private(set) var team: [Person] = []
-    @Published private(set) var ranking: [RankRow] = []
-    @Published private(set) var activity: [ActivityDay] = []
     @Published private(set) var following: Set<String> = []
-    @Published private(set) var refreshingTab: NotchTab?
 
-    @Published private(set) var reviewResults: [String: ReviewResult] = [:]
-    @Published private(set) var reviewContexts: [String: ReviewContext] = [:]
+    var team: [Person] {
+        if Demo.isOn { return Demo.team }
+        return teamObserver?.data ?? teamQuery.flatMap { queries.peek($0) } ?? []
+    }
+
+    var ranking: [RankRow] {
+        if Demo.isOn { return Demo.ranking(rankPeriod) }
+        let rows = rankingObserver?.data ?? rankingQuery.flatMap { queries.peek($0) } ?? []
+        let people = Dictionary(team.map { ($0.login, $0) }, uniquingKeysWith: { first, _ in first })
+        return rows.map { RankRow(person: people[$0.person.login] ?? $0.person, reviews: $0.reviews) }
+    }
+
+    var activity: [ActivityDay] {
+        if Demo.isOn { return Demo.activity }
+        return (activityObserver?.data ?? activityQuery.flatMap { queries.peek($0) })?.days ?? []
+    }
+
+    var refreshingTab: NotchTab? {
+        guard let tab = shownTab else { return nil }
+        let fetching = switch tab {
+        case .queue:    false
+        case .team:     teamObserver?.isFetching == true
+        case .ranking:  rankingObserver?.isFetching ?? (teamObserver?.isFetching == true)
+        case .activity: activityObserver?.isFetching == true
+        }
+        return fetching ? tab : nil
+    }
+
+    private var shownTab: NotchTab?
+    private var reposShown = 0
+    private var syncingScreens = false
+    private var teamObserver: QueryObserver<[Person]>?
+    private var rankingObserver: QueryObserver<[RankRow]>?
+    private var activityObserver: QueryObserver<ActivityLog>?
+
+    struct AIReview: Sendable {
+        var result: ReviewResult
+        var context: ReviewContext
+    }
+
+    func aiReview(_ pr: PR) -> AIReview? { queries.cached(reviewKey(pr)) }
+
+    func map(_ pr: PR) -> PRMap? { queries.cached(mapKey(stackOf(pr))) }
+
+    func resultIDs(_ pr: PR) -> [String] { [reviewKey(pr).id, mapKey(stackOf(pr)).id] }
+
+    func holdResults(for pr: PR) async {
+        let holds = [reviewKey(pr), mapKey(stackOf(pr))].map(queries.hold)
+        try? await Task.sleep(for: .seconds(365 * 24 * 3600))
+        withExtendedLifetime(holds) {}
+    }
+
+    private func reviewKey(_ pr: PR) -> QueryKey { .aiReview(pr: pr.key, revision: pr.revision) }
+
+    private func mapKey(_ stack: [PR]) -> QueryKey {
+        .map(stack: stack.map(\.key).joined(separator: "+"), revisions: stack.map(\.revision).joined(separator: "+"))
+    }
+
     struct ReviewRun: Sendable {
         var step: ReviewStep?
         var progress: [ProgressLine] = []
@@ -43,7 +95,6 @@ final class AppModel: ObservableObject {
         default:                    false
         }
     }
-    @Published private(set) var maps: [String: PRMap] = [:]
     @Published private(set) var mapRuns: [String: MapRun] = [:]
     @Published private(set) var mapNotices: [String: String] = [:]
     @Published private(set) var mapLayouts: [String: [String: CGPoint]] = [:]
@@ -127,15 +178,23 @@ final class AppModel: ObservableObject {
     var rankPeriod: RankPeriod = .month {
         didSet {
             guard rankPeriod != oldValue else { return }
-            ranking = Demo.isOn ? Demo.ranking(rankPeriod) : store.state.cache.rank(rankPeriod)
-            loadTab(.ranking)
+            objectWillChange.send()
+            syncScreens()
         }
     }
 
-    @Published var repos: [RepoRef] = []
-    @Published var selectedRepo: String?
-    @Published var repoPRs: [PR] = []
-    @Published var loadingRepo = false
+    @Published private(set) var selectedRepo: String?
+    private var reposObserver: QueryObserver<[RepoRef]>?
+    private var repoObserver: QueryObserver<[PR]>?
+
+    var repos: [RepoRef] { Demo.isOn ? Demo.repos : reposObserver?.data ?? queries.peek(reposQuery) ?? [] }
+
+    var repoPRs: [PR] {
+        guard Demo.isOn else { return repoObserver?.data ?? [] }
+        return Demo.queue.all.filter { $0.repo == selectedRepo }
+    }
+
+    var loadingRepo: Bool { repoObserver?.isFetching ?? false }
     @Published var repoShowsDraft = false
     @Published var watching: Set<String> = []
 
@@ -175,68 +234,37 @@ final class AppModel: ObservableObject {
         repoPRs.filter { $0.draft == repoShowsDraft }
     }
 
-    func loadRepos(force: Bool = false) {
+    func loadRepos() {
         if Demo.isOn {
-            repos = Demo.team.isEmpty ? [] : [
-                RepoRef(nameWithOwner: "acme/orders-api", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/console", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/notifier", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/mobile", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "acme/warehouse", owner: "acme", isOrg: true, isPrivate: true),
-                RepoRef(nameWithOwner: "chagas42/diple", owner: "you", isOrg: false, isPrivate: true),
-                RepoRef(nameWithOwner: "chagas42/jsonl-inspect", owner: "you", isOrg: false, isPrivate: false),
-            ]
             watching = ["acme/orders-api"]
             return
         }
-        let cache = store.state.cache
-        if !force, let cached = cache.repos, !cached.isEmpty,
-           !cache.isStale(cache.reposAt, after: 24 * 3600) {
-            repos = cached
-            return
-        }
-        if let cached = cache.repos { repos = cached }
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let fetched = try await client.fetchRepos()
-                var c = self.store.state.cache
-                c.repos = fetched
-                c.reposAt = Date()
-                self.store.saveCache(c)
-                self.repos = fetched
-            } catch {
-                if let m = self.report(error, in: .loadRepos) { self.errorMessage = m }
-            }
+        queries.prefetch(reposQuery)
+    }
+
+    func showRepos() async {
+        loadRepos()
+        reposShown += 1
+        syncScreens()
+        try? await Task.sleep(for: .seconds(365 * 24 * 3600))
+        reposShown -= 1
+        syncScreens()
+    }
+
+    private var reposQuery: CacheQuery<[RepoRef]> { reporting(Queries.repos, in: .loadRepos) }
+
+    private func repoQuery(_ repo: String) -> CacheQuery<[PR]> {
+        var q = Queries.repoPRs(repo)
+        q.retryDelays = Queries.networkRetries
+        return q.onError { [weak self] error in
+            guard let self, self.selectedRepo == repo, let m = self.report(error, in: .repoPRs) else { return }
+            self.errorMessage = m
         }
     }
 
     func selectRepo(_ full: String?) {
-        repoTask?.cancel()
         selectedRepo = full
-        repoPRs = []
-        guard let full else {
-            loadingRepo = false
-            return
-        }
-        loadingRepo = true
-        if Demo.isOn {
-            repoPRs = Demo.queue.all.filter { $0.repo == full }
-            loadingRepo = false
-            return
-        }
-        repoTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let prs = try await self.client.fetchRepoPRs(full)
-                guard !Task.isCancelled, self.selectedRepo == full else { return }
-                self.repoPRs = prs
-            } catch {
-                guard !Task.isCancelled, self.selectedRepo == full else { return }
-                if let m = self.report(error, in: .repoPRs) { self.errorMessage = m }
-            }
-            self.loadingRepo = false
-        }
+        syncScreens()
     }
 
     @Published private(set) var posting: Set<UUID> = []
@@ -270,11 +298,18 @@ final class AppModel: ObservableObject {
             return
         }
         func swap(_ list: [PR]) -> [PR] { list.map { $0.key == fresh.key ? fresh : $0 } }
-        queue.mine = swap(queue.mine)
-        queue.toReview = swap(queue.toReview)
-        queue.following = swap(queue.following)
+        func swap(_ q: inout Queue) {
+            q.mine = swap(q.mine)
+            q.toReview = swap(q.toReview)
+            q.following = swap(q.following)
+        }
+        swap(&queue)
+        queries.setData(.queue(watching: watching)) { (o: inout SyncOutcome) in swap(&o.queue) }
         if selected?.key == fresh.key { selected = fresh }
-        if repoPRs.contains(where: { $0.key == fresh.key }) { repoPRs = swap(repoPRs) }
+        queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
+        if queries.isFetching(.queue(watching: watching)) { queries.invalidate(.queue) }
+        if queries.isFetching(.repoPRs(repo: fresh.repo)) { queries.invalidate(.repo(fresh.repo)) }
+        queries.invalidate(.pr(fresh.key))
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }
@@ -304,6 +339,8 @@ final class AppModel: ObservableObject {
     func toggleWatch(_ repo: String) {
         store.toggleWatch(repo)
         watching = store.state.watching ?? []
+        guard lastSync != nil, isOnline, !Demo.isOn else { return }
+        bindQueue()
     }
 
     private let client: GitHubClient
@@ -316,27 +353,32 @@ final class AppModel: ObservableObject {
     @Published private(set) var usageNoticeVisible = false
     private var pendingSeed: Queue?
     let prefetcher: Prefetcher
+    let queries: QueryClient
     private var prefetchTask: Task<Void, Never>?
-    private var preloadTask: Task<Void, Never>?
     var preloadsTabs = true
 
     init(
         client: GitHubClient = GitHubClient(),
         store: Store = Store(),
-        prefetcher: Prefetcher? = nil,
+        fetchRefs: Prefetcher.FetchRefs? = nil,
         telemetry: Telemetry = .shared
     ) {
         self.telemetry = telemetry
         self.notificador.telemetry = telemetry
         self.client = client
         self.store = store
+        let queries = QueryClient(github: client, store: store, decoders: Queries.savedDecoders)
+        self.queries = queries
         self.sync = SyncEngine(client: client)
-        self.prefetcher = prefetcher ?? Prefetcher(client: client)
+        self.prefetcher = fetchRefs.map { Prefetcher(queries: queries, fetchRefs: $0) } ?? Prefetcher(queries: queries)
+        queries.onChange = { [weak self] in
+            self?.objectWillChange.send()
+            self?.syncScreens()
+        }
     }
 
     func reviewContext(for pr: PR) async throws -> ReviewContext {
-        if let cached = await prefetcher.context(for: pr) { return cached }
-        return try await client.reviewContext(repo: pr.repo, pr: pr.number)
+        try await queries.fetch(Queries.reviewContext(pr))
     }
 
     func prefetchTargets() -> [Prefetcher.Target] {
@@ -350,31 +392,14 @@ final class AppModel: ObservableObject {
     }
 
     func tabsSettled() async {
-        await preloadTask?.value
+        await queries.settle()
     }
 
     private func schedulePreload() {
-        guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline, preloadTask == nil else { return }
-        guard !ProcessInfo.processInfo.isLowPowerModeEnabled, !org.isEmpty else { return }
-        let stale = [NotchTab.ranking, .activity].filter { isStale($0) }
-        guard !stale.isEmpty else { return }
-        preloadTask = Task(priority: .utility) { [weak self] in
-            for tab in stale {
-                guard let self, !Task.isCancelled, self.refreshingTab == nil else { break }
-                await self.fetchTab(tab)
-            }
-            self?.preloadTask = nil
-        }
-    }
-
-    private func isStale(_ tab: NotchTab) -> Bool {
-        let cache = store.state.cache
-        return switch tab {
-        case .queue:    false
-        case .team:     cache.isStale(cache.teamAt, after: 24 * 3600)
-        case .ranking:  cache.isStale(cache.rankAt(rankPeriod), after: rankPeriod.freshFor)
-        case .activity: cache.isStale(cache.activityAt, after: 3600)
-        }
+        guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline else { return }
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled, let teamQuery else { return }
+        queries.prefetch(teamQuery) { [weak self] team in self?.rankingQuery(for: team) }
+        if let activityQuery { queries.prefetch(activityQuery) }
     }
 
     private func schedulePrefetch() {
@@ -393,12 +418,8 @@ final class AppModel: ObservableObject {
     @Published var isOnline = true
     private(set) var failures = 0
     private(set) var partialFailures = 0
-    private var pendingFull = false
+    private var queueObserver: QueryObserver<SyncOutcome>?
     private var notchOpen = false
-    private var refreshTask: Task<Void, Never>?
-    private var refreshKey: String?
-    private var refreshGeneration = 0
-    private var repoTask: Task<Void, Never>?
 
     private var started = false
 
@@ -436,7 +457,10 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in await self?.refresh(full: true) }
+            Task { @MainActor in
+                self?.refetchShown()
+                await self?.refresh(full: true)
+            }
         }
     }
 
@@ -508,12 +532,7 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
         following = store.state.following
         watching = store.state.watching ?? []
-        let cache = store.state.cache
-        team = cache.team
-        repos = cache.repos ?? []
-        ranking = cache.rank(rankPeriod)
-        activity = cache.activity
-        if !Demo.isOn, let cached = cache.queue, queue.all.isEmpty {
+        if !Demo.isOn, let cached = store.state.cache.queue, queue.all.isEmpty {
             queue = cached
             pendingSeed = cached
             onCountChange?()
@@ -549,97 +568,121 @@ final class AppModel: ObservableObject {
     func setNotchOpen(_ open: Bool) {
         guard open != notchOpen else { return }
         notchOpen = open
+        shownTab = open && notchTab != .queue ? notchTab : nil
+        syncScreens()
+        if open { refetchShown() }
         if open, let last = lastSync, Date().timeIntervalSince(last) > settings.interval {
             Task { await refresh() }
         }
         restartTimer()
     }
 
+    func windowFocused() { refetchShown() }
+
     func setOnline(_ online: Bool) {
         let cameBack = online && !isOnline
         isOnline = online
         guard cameBack else { return }
+        refetchShown()
         Task {
             await refresh()
             restartTimer()
         }
     }
 
+    private func refetchShown(force: Bool = false) {
+        guard isOnline, !Demo.isOn else { return }
+        queries.refetchObserved(force: force, except: .queue)
+    }
+
     func refresh(full: Bool = false) async {
         if Demo.isOn {
             queue = Demo.queue
             unread = Demo.unread
-            team = Demo.team
-            ranking = Demo.ranking(rankPeriod)
-            activity = Demo.activity
             lastSync = Date()
             errorMessage = nil
             onCountChange?()
             return
         }
-        guard isOnline else {
-            pendingFull = pendingFull || full
-            return
+        if full { await sync.requestFull() }
+        guard isOnline else { return }
+        if let seed = pendingSeed {
+            pendingSeed = nil
+            await sync.seed(seed, watching: watching)
         }
-        guard !loading else { return }
-        loading = true
-        defer { loading = false }
+        bindQueue()
+        guard (try? await queries.fetch(queueQuery)) != nil else { return }
+        if await sync.fullPending { _ = try? await queries.fetch(queueQuery) }
+    }
 
-        do {
-            await sync.setWatching(watching)
-            let wantsFull = full || pendingFull
-            if let seed = pendingSeed {
-                pendingSeed = nil
-                await sync.seed(seed)
+    func refreshVisible() async {
+        refetchShown(force: true)
+        await refresh()
+    }
+
+    private var queueQuery: CacheQuery<SyncOutcome> {
+        let watching = watching
+        return CacheQuery(
+            key: .queue(watching: watching), tags: [.queue], staleAfter: .zero, forgetAfter: .seconds(3600),
+            onSuccess: { [weak self] outcome in await self?.apply(outcome, watching: watching) },
+            onError: { [weak self] error in self?.syncFailed(error) }
+        ) { [sync] _ in try await sync.sync(watching: watching) }
+    }
+
+    private func bindQueue() {
+        queueObserver = observing(queueObserver, queueQuery)
+    }
+
+    private func apply(_ outcome: SyncOutcome, watching synced: Set<String>) async {
+        guard synced == watching else { return }
+        let nova = outcome.queue
+        let events = store.diff(nova, meuLogin: nova.viewer)
+            .filter { e in
+                let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
+                return !settings.mutedRepos.contains(repo)
             }
-            let outcome = try await sync.sync(full: wantsFull)
-            let nova = outcome.queue
-            pendingFull = false
-            let events = store.diff(nova, meuLogin: nova.viewer)
-                .filter { e in
-                    let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
-                    return !settings.mutedRepos.contains(repo)
-                }
-                .filter { e in
-                    guard e.kind == .reviewRequested,
-                          let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
-                    return !quiets(pr)
-                }
-            let candidates = settings.showsReviews
-                ? Array(store.unrequested.filter { !reviewedAhead.contains($0.key) }.prefix(5)) : []
-            if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
-            queue = nova
-            store.saveQueue(nova)
-            reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
-            confirmReviews(candidates)
-            if let s = selected {
-                selected = nova.all.first { $0.key == s.key } ?? s
+            .filter { e in
+                guard e.kind == .reviewRequested,
+                      let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
+                return !quiets(pr)
             }
-            unread = store.state.unread
-            lastSync = Date()
-            if let stale = outcome.staleMessage {
-                if let e = outcome.error { report(e, in: .refresh) }
-                failures = 0
-                partialFailures += 1
-                errorMessage = stale
-            } else {
-                failures = 0
-                partialFailures = 0
-                errorMessage = nil
-            }
-            await notificador.post(events)
-            onCountChange?()
-            recordActiveDay()
-            schedulePrefetch()
-            schedulePreload()
-            if !focus.isOn, let first = events.first(where: { $0.kind.interrupts }) {
-                onEvent?(first)
-            }
-        } catch {
-            guard let m = report(error, in: .refresh) else { return }
-            failures += 1
-            errorMessage = m
+        let candidates = settings.showsReviews
+            ? Array(store.unrequested.filter { !reviewedAhead.contains($0.key) }.prefix(5)) : []
+        if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
+        queue = nova
+        store.saveQueue(nova)
+        reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
+        confirmReviews(candidates)
+        if let s = selected {
+            selected = nova.all.first { $0.key == s.key } ?? s
         }
+        unread = store.state.unread
+        lastSync = Date()
+        if let stale = outcome.staleMessage {
+            if let e = outcome.error { report(e, in: .refresh) }
+            failures = 0
+            partialFailures += 1
+            errorMessage = stale
+        } else {
+            failures = 0
+            partialFailures = 0
+            errorMessage = nil
+        }
+        syncScreens()
+        await notificador.post(events)
+        onCountChange?()
+        recordActiveDay()
+        schedulePrefetch()
+        schedulePreload()
+        if !focus.isOn, let first = events.first(where: { $0.kind.interrupts }) {
+            onEvent?(first)
+        }
+    }
+
+    private func syncFailed(_ error: Error) {
+        guard let m = report(error, in: .refresh) else { return }
+        failures += 1
+        errorMessage = m
     }
 
     var org: String {
@@ -651,96 +694,62 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
-        picksChanged += 1
-        var cache = store.state.cache
-        cache.dropRanks()
-        store.saveCache(cache)
-        team = cache.team
-        activity = cache.activity
-        ranking = ranking.filter { rankingScope(cache.team).contains($0.person) }
-        loadTab(.ranking, force: true)
+        syncScreens()
+        if isOnline, !Demo.isOn, let rankingQuery { queries.prefetch(rankingQuery) }
     }
 
-    func loadTab(_ tab: NotchTab, force: Bool = false) {
-        guard !org.isEmpty else { return }
-        guard tab != .queue else { return }
-        let key = tab == .ranking ? "\(tab.rawValue)/\(rankPeriod.rawValue)" : tab.rawValue
-        guard force || refreshKey != key else { return }
+    func loadTab(_ tab: NotchTab) {
+        shownTab = tab == .queue ? nil : tab
+        syncScreens()
+        refetchShown()
+    }
 
-        guard force || isStale(tab) else { return }
+    private var teamQuery: CacheQuery<[Person]>? {
+        org.isEmpty ? nil : reporting(Queries.team(org: org), in: .loadTab)
+    }
 
-        refreshTask?.cancel()
-        refreshGeneration += 1
-        let generation = refreshGeneration
-        refreshKey = key
-        refreshingTab = tab
-        refreshTask = Task { [weak self] in
-            guard let self else { return }
-            await self.fetchTab(tab)
-            guard self.refreshGeneration == generation else { return }
-            self.refreshingTab = nil
-            self.refreshKey = nil
+    private var rankingQuery: CacheQuery<[RankRow]>? { rankingQuery(for: team) }
+
+    private func rankingQuery(for team: [Person]) -> CacheQuery<[RankRow]>? {
+        guard !org.isEmpty, !team.isEmpty else { return nil }
+        let logins = rankingScope(team).map(\.login)
+        return reporting(Queries.ranking(org: org, period: rankPeriod, logins: logins), in: .loadTab)
+    }
+
+    private var activityQuery: CacheQuery<ActivityLog>? {
+        guard !org.isEmpty, !queue.viewer.isEmpty else { return nil }
+        return reporting(Queries.activity(org: org, login: queue.viewer), in: .loadTab)
+    }
+
+    private func reporting<T>(_ q: CacheQuery<T>, in operation: ErrorReport.Operation) -> CacheQuery<T> {
+        var q = q
+        q.retryDelays = Queries.networkRetries
+        return q.onError { [weak self] error in
+            guard let self, let m = self.report(error, in: operation) else { return }
+            self.errorMessage = m
         }
     }
 
-    private func fetchTab(_ tab: NotchTab) async {
-        if Demo.isOn {
-            team = Demo.team
-            ranking = Demo.ranking(rankPeriod)
-            activity = Demo.activity
-            return
-        }
-        let org = self.org
-        let viewer = queue.viewer
-        let cache = store.state.cache
-        let teamIsStale = cache.team.isEmpty || cache.isStale(cache.teamAt, after: 24 * 3600)
-        let client = self.client
-        do {
-            async let freshTeam: [Person]? = teamIsStale ? client.fetchTeam(org: org) : nil
-            let people = cache.team.isEmpty ? (try await freshTeam ?? []) : cache.team
-
-            switch tab {
-            case .ranking:
-                let period = rankPeriod
-                let picks = picksChanged
-                let rows = try await client.fetchRanking(
-                    org: org, people: rankingScope(people), from: period.since
-                )
-                guard !Task.isCancelled else { return }
-                if picks == picksChanged {
-                    store.updateCache { $0.setRank(rows, for: period) }
-                    if period == rankPeriod { ranking = rows }
-                }
-            case .activity:
-                let today = Date()
-                let from = ActivityHistory.refetchFrom(today: today, cachedFrom: cache.activityFrom)
-                let counts = try await client.fetchReviewCounts(org: org, login: viewer, from: from, to: today)
-                guard !Task.isCancelled else { return }
-                let days = ActivityHistory.merged(old: cache.activity, fresh: counts, from: from, today: today)
-                let covered = min(cache.activityFrom ?? from, from)
-                store.updateCache {
-                    $0.activity = days
-                    $0.activityAt = today
-                    $0.activityFrom = covered
-                }
-                activity = days
-            default: break
-            }
-
-            if let fetched = try await freshTeam, !Task.isCancelled {
-                store.updateCache {
-                    $0.team = fetched
-                    $0.teamAt = Date()
-                }
-                team = fetched
-            }
-        } catch {
-            guard !Task.isCancelled else { return }
-            if let m = report(error, in: .loadTab) { errorMessage = m }
-        }
+    private func syncScreens() {
+        guard !Demo.isOn, !syncingScreens else { return }
+        syncingScreens = true
+        defer { syncingScreens = false }
+        let tab = shownTab
+        teamObserver = observing(teamObserver, tab == .team || tab == .ranking ? teamQuery : nil)
+        rankingObserver = observing(rankingObserver, tab == .ranking ? rankingQuery : nil, keepingPrevious: true)
+        activityObserver = observing(activityObserver, tab == .activity ? activityQuery : nil)
+        reposObserver = observing(reposObserver, reposShown > 0 ? reposQuery : nil)
+        repoObserver = observing(repoObserver, selectedRepo.map(repoQuery))
     }
 
-    private var picksChanged = 0
+    private func observing<T: Sendable>(
+        _ current: QueryObserver<T>?, _ q: CacheQuery<T>?, keepingPrevious: Bool = false
+    ) -> QueryObserver<T>? {
+        guard let q else { return nil }
+        if let current, current.key == q.key { return current }
+        objectWillChange.send()
+        return queries.observe(q, placeholder: keepingPrevious ? current?.data : nil)
+    }
 
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
 
@@ -809,8 +818,10 @@ final class AppModel: ObservableObject {
                 case .preparing(let t), .tool(let t): note(pr.key, t)
                 case .thinking: note(pr.key, "thinking")
                 case .done(let r):
-                    reviewContexts[pr.key] = context
-                    reviewResults[pr.key] = r
+                    queries.put(
+                        reviewKey(pr), AIReview(result: r, context: context),
+                        tags: [.pr(pr.key)], forgetAfter: Self.aiResultsForgetAfter
+                    )
                     outcome = .done
                     findings = r.novel.count
                     judged = r.threads.count
@@ -840,6 +851,12 @@ final class AppModel: ObservableObject {
         r.progress.append(ProgressLine(text: text, done: fechando))
         if r.progress.count > 14 { r.progress.removeFirst() }
         runs[key] = r
+    }
+
+    static let aiResultsForgetAfter: Duration = .seconds(24 * 3600)
+
+    private func putMap(_ map: PRMap, for stack: [PR]) {
+        queries.put(mapKey(stack), map, tags: stack.map { .pr($0.key) }, forgetAfter: Self.aiResultsForgetAfter)
     }
 
     func stackOf(_ pr: PR) -> [PR] {
@@ -889,10 +906,7 @@ final class AppModel: ObservableObject {
         do {
             let scans = try await withThrowingTaskGroup(of: PRFiles.self) { group in
                 for p in prs {
-                    group.addTask { [client, prefetcher] in
-                        if let cached = await prefetcher.changedFiles(for: p) { return cached }
-                        return try await client.changedFiles(repo: p.repo, pr: p.number)
-                    }
+                    group.addTask { [queries] in try await queries.fetch(Queries.changedFiles(p)) }
                 }
                 var all: [PRFiles] = []
                 for try await s in group { all.append(s) }
@@ -906,7 +920,7 @@ final class AppModel: ObservableObject {
             notice("could not read the diff: \(error.localizedDescription)")
             return
         }
-        for k in keys { maps[k] = map }
+        putMap(map, for: prs)
 
         guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
             notice("only the diff layer: \(pr.repo) is not on this machine. Point at the folder in Settings.")
@@ -959,7 +973,7 @@ final class AppModel: ObservableObject {
                         answered = true
                         let fm = FileManager.default
                         map = map.merged(a) { fm.fileExists(atPath: w.appendingPathComponent($0).path) }
-                        for k in keys { maps[k] = map }
+                        putMap(map, for: prs)
                     } else {
                         notice("only the diff layer: the session did not answer in the map's JSON")
                     }
@@ -1025,7 +1039,9 @@ final class AppModel: ObservableObject {
     }
 
     func discardFinding(_ pr: PR, _ a: Finding) {
-        reviewResults[pr.key]?.findings.removeAll { $0.id == a.id }
+        queries.setData(reviewKey(pr)) { (review: inout AIReview) in
+            review.result.findings.removeAll { $0.id == a.id }
+        }
     }
 
     var openURL: (URL) -> Void = { NSWorkspace.shared.open($0) }
@@ -1249,7 +1265,7 @@ final class AppModel: ObservableObject {
         do {
             try await client.resolve(threadId: thread)
             telemetry.capture(.threadResolved(source: .window))
-            await refresh()
+            if let pr = selected { await reread(pr) } else { await refresh() }
             return nil
         } catch {
             report(error, in: .resolve)

@@ -3,6 +3,8 @@ import SwiftUI
 struct FlameView: View {
     var size: CGFloat = 20
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var flicker: CGFloat = 0
     @State private var sway: CGFloat = 0
     @State private var sparkPhase: CGFloat = 0
@@ -56,6 +58,7 @@ struct FlameView: View {
         }
         .frame(width: size * 1.9, height: size * 1.9)
         .onAppear {
+            guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 0.17).repeatForever(autoreverses: true)) {
                 flicker = 1
             }

@@ -78,7 +78,7 @@ enum Worktree {
             let same = current?.trimmingCharacters(in: .whitespacesAndNewlines)
                 == wanted?.trimmingCharacters(in: .whitespacesAndNewlines)
             if same, current?.isEmpty == false { return target }
-            try? await git(["worktree", "remove", "--force", target.path], in: origin)
+            _ = try? await git(["worktree", "remove", "--force", target.path], in: origin)
         }
         if await !hasFetched(origin: origin, pr: pr, base: base, head: head) {
             try await fetchPR(origin: origin, pr: pr, base: base)

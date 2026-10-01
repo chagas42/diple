@@ -12,7 +12,7 @@ make tools     # says where gh, claude and git were found
 make run       # build, bundle, launch
 ```
 
-You need macOS 14+, Xcode 16+, and `gh auth login` already done — Diple borrows
+You need macOS 15.6+ (Xcode 26 runs on nothing older), Xcode 26+, and `gh auth login` already done — Diple borrows
 that token rather than asking for one.
 
 `make probe` prints the queue in the terminal without any UI, which is the

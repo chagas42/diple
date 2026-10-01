@@ -32,18 +32,6 @@ import Testing
         #expect(model.queue.all.isEmpty)
     }
 
-    @Test func savingOtherCachesKeepsTheQueue() async throws {
-        let dir = StoreDiffTests.tempDirectory()
-        let store = Store(directory: dir, metrics: Metrics())
-        let q = try await StoreDiffTests.queue(.realistic())
-        store.saveQueue(q)
-        var stale = store.state.cache
-        stale.queue = nil
-        stale.teamAt = Date()
-        store.saveCache(stale)
-        #expect(store.state.cache.queue?.all == q.all)
-    }
-
     @Test func aRefreshReplacesTheCachedQueue() async {
         let dir = StoreDiffTests.tempDirectory()
         let github = FakeGitHub(.realistic())

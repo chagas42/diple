@@ -102,6 +102,7 @@ struct EyeView: View {
 }
 
 struct Complaint: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var eye: EyeState
 
     var body: some View {
@@ -118,11 +119,13 @@ struct Complaint: View {
                 .background(Capsule().fill(.white))
                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                 .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.4, anchor: .topLeading).combined(with: .opacity)
-                            .animation(.spring(response: 0.28, dampingFraction: 0.55)),
-                        removal: .opacity.combined(with: .offset(y: -4)).animation(.easeIn(duration: 0.2))
-                    )
+                    reduceMotion
+                        ? .opacity.animation(.easeInOut(duration: 0.15))
+                        : .asymmetric(
+                            insertion: .scale(scale: 0.4, anchor: .topLeading).combined(with: .opacity)
+                                .animation(.spring(response: 0.28, dampingFraction: 0.55)),
+                            removal: .opacity.combined(with: .offset(y: -4)).animation(.easeIn(duration: 0.2))
+                        )
                 )
             }
         }
