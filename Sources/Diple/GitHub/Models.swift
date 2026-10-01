@@ -61,6 +61,7 @@ struct RawPR: Decodable, Sendable {
     let author: GHActor?
     let reviewDecision: String?
     let reviewRequests: RawRequests?
+    let latestReviews: RawReviews?
     let comments: RawComments
     let reviewThreads: RawThreads
     let commits: RawCommits
@@ -71,6 +72,11 @@ struct RawPR: Decodable, Sendable {
     struct RawReviewer: Decodable, Sendable {
         let __typename: String
         let login: String?
+    }
+    struct RawReviews: Decodable, Sendable { let nodes: [RawReview?] }
+    struct RawReview: Decodable, Sendable {
+        let state: String
+        let author: GHActor?
     }
     struct RawComments: Decodable, Sendable { let nodes: [RawComment?] }
     struct RawComment: Decodable, Sendable {
@@ -133,7 +139,11 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
 
     let askedYou: Bool?
 
+    let approvals: Int?
+    let reviewedByOthers: Bool?
+
     var asksYouByName: Bool { askedYou == true }
+    var hasNoReviews: Bool { reviewedByOthers == false }
 
     struct ReviewThread: Identifiable, Sendable, Equatable, Codable {
         let id: String
@@ -179,7 +189,8 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         id: String, repo: String, number: Int, title: String, url: URL,
         updatedAt: Date, createdAt: Date, draft: Bool, author: String, authorAvatar: URL?, isMine: Bool,
         headRef: String, baseRef: String, checks: CheckState, approved: Bool,
-        threads: [ReviewThread], lastComment: HumanComment?, askedYou: Bool = false, head: String? = nil
+        threads: [ReviewThread], lastComment: HumanComment?, askedYou: Bool = false, head: String? = nil,
+        approvals: Int? = nil, reviewedByOthers: Bool? = nil
     ) {
         self.id = id
         self.repo = repo
@@ -200,9 +211,22 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         self.threads = threads
         self.lastComment = lastComment
         self.askedYou = askedYou
+        self.approvals = approvals
+        self.reviewedByOthers = reviewedByOthers
     }
 
     var key: String { "\(repo)#\(number)" }
+
+    static let countedReviews: Set<String> = ["APPROVED", "CHANGES_REQUESTED", "COMMENTED"]
+
+    static func counted(_ raw: RawPR.RawReviews?, author: String?) -> [String]? {
+        raw.map { r in
+            r.nodes.compactMap { $0 }.filter { review in
+                guard let a = review.author, !a.isBot, a.login != author else { return false }
+                return countedReviews.contains(review.state)
+            }.map(\.state)
+        }
+    }
 
     var revision: String { head ?? "\(updatedAt.timeIntervalSince1970)" }
 
@@ -224,6 +248,9 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         baseRef = c.baseRefName
         checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         approved = c.reviewDecision == "APPROVED"
+        let reviews = Self.counted(c.latestReviews, author: c.author?.login)
+        approvals = reviews.map { $0.filter { $0 == "APPROVED" }.count }
+        reviewedByOthers = reviews.map { !$0.isEmpty }
         askedYou = c.reviewRequests?.nodes.contains {
             $0?.requestedReviewer?.__typename == "User" && $0?.requestedReviewer?.login == meuLogin
         } ?? false

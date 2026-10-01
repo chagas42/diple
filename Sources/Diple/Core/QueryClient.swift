@@ -11,6 +11,7 @@ enum QueryKey: Hashable, Sendable {
     case changedFiles(pr: String, at: Date)
     case aiReview(pr: String, revision: String)
     case map(stack: String, revisions: String)
+    case requiredApprovals(repo: String, branch: String)
 
     var id: String {
         switch self {
@@ -24,6 +25,7 @@ enum QueryKey: Hashable, Sendable {
         case .changedFiles(let pr, let at): "changedFiles/\(pr)/\(at.timeIntervalSince1970)"
         case .aiReview(let pr, let rev):    "aiReview/\(pr)/\(rev)"
         case .map(let stack, let revs):     "map/\(stack)/\(revs)"
+        case .requiredApprovals(let repo, let branch): "requiredApprovals/\(repo)/\(branch)"
         }
     }
 }
