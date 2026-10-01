@@ -236,7 +236,11 @@ follows the pointer from where it sits (top left, 41pt in, halfway down the
 menu bar), over a shorter range than the idle eye. The click hurts: the eye
 squints shut, turns pink and shakes for about half a second, then opens into
 the new state, while a bubble below it complains (`💢 ow!`, `hey!`, `my eye!`,
-`rude.`, `ouch!`, `why?!`, in turn) for about a second. Settings → Notifications → Focus turns following macOS off. `--scene focus` films the terminal cover coming and going, and
+`rude.`, `ouch!`, `why?!`, in turn) for about a second. With the eye turned off, a moon button takes its place in the
+open panel's top strip, and the notch's right-click menu always has Focus /
+Stop Focusing, so focus can be entered and left without the eye. The moon is a tap gesture, not a
+`Button`: as a plain `Button` in the panel it fired by itself a fraction of a
+second after focus ended, turning focus straight back on. Settings → Notifications → Focus turns following macOS off. `--scene focus` films the terminal cover coming and going, and
 `focus-breathing` and `focus-pomodoro` the other two; film them at `--fps 8`, since the cover's typing
 and the poke run on the wall clock and a 60 fps capture falls behind them.
 Films and benches never ask: they run

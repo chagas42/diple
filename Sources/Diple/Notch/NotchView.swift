@@ -45,6 +45,9 @@ struct NotchView: View {
     var tickStart = Date()
     var heldCount: Int?
     var onEyeTap: (() -> Void)?
+    var onFocusToggle: (() -> Void)?
+
+    private var isFocused: Bool { focusedSince != nil && focusEnded == nil }
     var focusedSince: Date?
     var focusEnded: Date?
     var focusLook = FocusLook.terminal
@@ -80,6 +83,7 @@ struct NotchView: View {
                 }
                 Button("Settings…") { Windows.shared.openSettings(model) }
                 Button("Main Window") { Windows.shared.openMain(model) }
+                Button(isFocused ? "Stop Focusing" : "Focus") { onFocusToggle?() }
                 if let onNap {
                     Menu("Rehearse Nap") {
                         Button("Short") { onNap(.short) }
@@ -226,7 +230,8 @@ struct NotchView: View {
             openBody
                 .overlay {
                     if let since = focusedSince {
-                        FocusCover(since: since, ended: focusEnded, look: focusLook)
+                        FocusCover(since: since, ended: focusEnded, look: focusLook,
+                                   comeBack: model.settings.showsEye ? "click the eye" : "click the moon")
                             .transition(.opacity.combined(with: .scale(scale: 0.98)))
                     }
                 }
@@ -249,6 +254,14 @@ struct NotchView: View {
                         }
                         .help(eye.focused ? "Focused. Click to stop." : "Click to focus.")
                         .transition(eyeToggle)
+                } else {
+                    Image(systemName: isFocused ? "moon.fill" : "moon")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(isFocused ? FocusCover.indigo : .white.opacity(0.42))
+                        .frame(width: 30, height: 26)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onFocusToggle?() }
+                        .help(isFocused ? "Focused. Click to stop." : "Focus")
                 }
                 ForEach(AppModel.NotchTab.allCases) { tab in
                     Button { model.notchTab = tab } label: {

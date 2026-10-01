@@ -18,6 +18,7 @@ struct FocusCover: View {
     let since: Date
     var ended: Date?
     let look: FocusLook
+    var comeBack = "click the eye"
 
     static let indigo = Color(red: 0.62, green: 0.58, blue: 1)
     static let round: TimeInterval = 25 * 60
@@ -51,7 +52,7 @@ struct FocusCover: View {
 
     private func caption(_ now: Date) -> some View {
         Text(ended == nil
-             ? "focused · \(Self.lasted(focused(at: now))) · click the eye to come back"
+             ? "focused · \(Self.lasted(focused(at: now))) · \(comeBack) to come back"
              : "back · focused \(Self.lasted(focused(at: now)))")
             .font(.system(size: 10.5, design: .monospaced))
             .foregroundStyle(.white.opacity(ended == nil ? 0.42 : 0.7))

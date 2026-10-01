@@ -643,6 +643,7 @@ final class NotchController: ObservableObject {
                 tickStart: notch.tickStart,
                 heldCount: notch.heldCount,
                 onEyeTap: { notch.poke() },
+                onFocusToggle: { model.focus.toggle() },
                 focusedSince: notch.focusedSince,
                 focusEnded: notch.focusEnded,
                 focusLook: model.settings.focusLook,
