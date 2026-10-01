@@ -27,6 +27,14 @@ final class EyeState: ObservableObject {
     @Published private(set) var gaze: CGPoint = .zero
     @Published var blinking = false
     @Published var lid: CGFloat = 1
+    @Published var focused = false
+    @Published var sore = false
+    @Published var pokes = 0
+    @Published var complaining = false
+
+    static let complaints = ["ow!", "hey!", "my eye!", "rude.", "ouch!", "why?!"]
+
+    var complaint: String { Self.complaints[(pokes - 1 + Self.complaints.count) % Self.complaints.count] }
     var lidSpeed: Double = 0.4
 
     func look(at next: CGPoint) {
@@ -40,7 +48,17 @@ struct EyeView: View {
     var width: CGFloat = 15
 
     private var gaze: CGPoint { eye.gaze }
-    private var openness: CGFloat { eye.blinking ? 0.05 : max(0.14, eye.lid) }
+    static let focusedLid: CGFloat = 0.42
+    static let focusedWhite = Color(red: 0.80, green: 0.78, blue: 1)
+    static let soreWhite = Color(red: 1, green: 0.70, blue: 0.72)
+
+    private var white: Color {
+        eye.sore ? Self.soreWhite : eye.focused ? Self.focusedWhite : .white.opacity(0.94)
+    }
+
+    private var openness: CGFloat {
+        eye.blinking ? 0.05 : max(0.14, eye.focused ? min(eye.lid, Self.focusedLid) : eye.lid)
+    }
     private var shape: EyeShape { EyeShape(openness: openness) }
     private var pupil: CGFloat { width * 0.30 }
     private var range: CGFloat { width * 0.17 }
@@ -48,7 +66,7 @@ struct EyeView: View {
     var body: some View {
         let _ = Metrics.shared.body("EyeView")
         ZStack {
-            shape.fill(.white.opacity(0.94))
+            shape.fill(white)
             Circle()
                 .fill(Color(red: 0.07, green: 0.08, blue: 0.10))
                 .frame(width: pupil, height: pupil)
@@ -65,6 +83,49 @@ struct EyeView: View {
         .clipShape(shape)
         .animation(.easeInOut(duration: 0.085), value: eye.blinking)
         .animation(.easeInOut(duration: eye.lidSpeed), value: eye.lid)
+        .animation(.easeInOut(duration: 0.35), value: eye.focused)
+        .animation(.easeOut(duration: 0.12), value: eye.sore)
+        .keyframeAnimator(initialValue: CGFloat(0), trigger: eye.pokes) { view, dx in
+            view.offset(x: dx)
+        } keyframes: { _ in
+            KeyframeTrack {
+                CubicKeyframe(-2.5, duration: 0.05)
+                CubicKeyframe(2.5, duration: 0.07)
+                CubicKeyframe(-2, duration: 0.07)
+                CubicKeyframe(1.5, duration: 0.07)
+                CubicKeyframe(-1, duration: 0.07)
+                CubicKeyframe(0, duration: 0.08)
+            }
+        }
         .animation(.spring(response: 0.24, dampingFraction: 0.6), value: gaze)
+    }
+}
+
+struct Complaint: View {
+    @ObservedObject var eye: EyeState
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if eye.complaining {
+                HStack(spacing: 3) {
+                    Text("💢").font(.system(size: 9))
+                    Text(eye.complaint)
+                        .font(.system(size: 10.5, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.black)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(.white))
+                .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.4, anchor: .topLeading).combined(with: .opacity)
+                            .animation(.spring(response: 0.28, dampingFraction: 0.55)),
+                        removal: .opacity.combined(with: .offset(y: -4)).animation(.easeIn(duration: 0.2))
+                    )
+                )
+            }
+        }
+        .allowsHitTesting(false)
     }
 }

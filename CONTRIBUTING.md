@@ -43,9 +43,10 @@ Write the commit message for someone who will read it in a year with no memory
 of the conversation: what changed, and why it had to. If a bug had a
 non-obvious cause, the cause is the most valuable line in the message.
 
-PRs need one approving review before merge — including mine. CI has to be
-green: it builds release, and fails on any Portuguese identifier or `//`
-comment sneaking back in.
+PRs need one approving review before merge — including mine. Opening one asks
+for my review on its own, through `.github/CODEOWNERS`. CI has to be green: it
+builds release, and fails on any Portuguese identifier or `//` comment sneaking
+back in.
 
 ## Reporting a bug
 
