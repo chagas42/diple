@@ -350,6 +350,7 @@ final class QueryClient {
     private func expire(_ entry: AnyEntry) {
         entry.version += 1
         entry.invalidated = true
+        entry.task?.cancel()
         entry.task = nil
     }
 

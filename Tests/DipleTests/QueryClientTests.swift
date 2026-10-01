@@ -202,6 +202,23 @@ final class Source: @unchecked Sendable {
         withExtendedLifetime(kept) {}
     }
 
+    @Test func aForcedRefetchCancelsTheRequestItReplaces() async throws {
+        let client = QueryClient(github: Self.github)
+        let cancelled = Locked(false)
+        let calls = Locked(0)
+        let q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
+            calls.value += 1
+            do { try await Task.sleep(for: .seconds(5)) } catch { cancelled.value = true; throw error }
+            return 1
+        }
+        client.prefetch(q)
+        try await Self.until { calls.value == 1 }
+        let forced = Task { try? await client.fetch(q, force: true) }
+        try await Self.until { cancelled.value }
+        #expect(cancelled.value)
+        forced.cancel()
+    }
+
     @Test func persistedDataIsReadBackAtLaunch() async throws {
         let dir = StoreDiffTests.tempDirectory()
         let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
