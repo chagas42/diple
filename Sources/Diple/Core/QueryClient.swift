@@ -73,6 +73,7 @@ final class QueryObserver<T: Sendable>: ObservableObject {
     var data: T? { fetched ?? placeholder }
     var isLoading: Bool { isFetching && fetched == nil }
 
+    fileprivate let token = UUID()
     private let client: QueryClient
     private let query: CacheQuery<T>
 
@@ -94,13 +95,14 @@ final class QueryObserver<T: Sendable>: ObservableObject {
     }
 
     deinit {
-        let (client, key, id) = (client, query.key, ObjectIdentifier(self))
-        Task { @MainActor in client.stopObserving(key, id) }
+        let (client, key, token) = (client, query.key, token)
+        Task { @MainActor in client.stopObserving(key, token) }
     }
 }
 
 @MainActor
 final class QueryHold {
+    fileprivate let token = UUID()
     private let client: QueryClient
     private let key: QueryKey
 
@@ -110,8 +112,8 @@ final class QueryHold {
     }
 
     deinit {
-        let (client, key, id) = (client, key, ObjectIdentifier(self))
-        Task { @MainActor in client.stopObserving(key, id) }
+        let (client, key, token) = (client, key, token)
+        Task { @MainActor in client.stopObserving(key, token) }
     }
 }
 
@@ -127,7 +129,7 @@ private final class AnyEntry {
     var persists = false
     var staleAfter: Duration = .zero
     var forgetAfter: Duration = .zero
-    var observers: [ObjectIdentifier: (AnyEntry) -> Void] = [:]
+    var observers: [UUID: (AnyEntry) -> Void] = [:]
     var refetch: ((_ force: Bool) -> Void)?
     var forget: Task<Void, Never>?
 
@@ -160,7 +162,7 @@ final class QueryClient {
         let observer = QueryObserver(client: self, query: q, placeholder: placeholder)
         entry.forget?.cancel()
         entry.forget = nil
-        entry.observers[ObjectIdentifier(observer)] = { [weak observer] in observer?.show($0) }
+        entry.observers[observer.token] = { [weak observer] in observer?.show($0) }
         if fetching { prefetch(q) }
         observer.show(entry)
         return observer
@@ -172,7 +174,7 @@ final class QueryClient {
         entries[key] = entry
         entry.forget?.cancel()
         entry.forget = nil
-        entry.observers[ObjectIdentifier(hold)] = { _ in }
+        entry.observers[hold.token] = { _ in }
         return hold
     }
 
@@ -259,7 +261,7 @@ final class QueryClient {
         }
     }
 
-    fileprivate func stopObserving(_ key: QueryKey, _ observer: ObjectIdentifier) {
+    fileprivate func stopObserving(_ key: QueryKey, _ observer: UUID) {
         guard let entry = entries[key] else { return }
         entry.observers[observer] = nil
         forgetIfUnobserved(key, entry)

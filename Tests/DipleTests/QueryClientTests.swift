@@ -186,6 +186,22 @@ final class Source: @unchecked Sendable {
         #expect(try await client.fetch(q) == 2)
     }
 
+    @Test func aReplacedObserverNeverUnsubscribesItsSuccessor() async throws {
+        let client = QueryClient(github: Self.github)
+        let q = Self.query(Source([1]), forgetAfter: .milliseconds(10))
+        var kept: [QueryObserver<Int>] = []
+        for _ in 0..<200 {
+            var gone: QueryObserver<Int>? = client.observe(q)
+            gone = nil
+            _ = gone
+            kept = [client.observe(q)]
+        }
+        try await Self.until { client.cached(.repos, as: Int.self) == 1 }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(client.cached(.repos, as: Int.self) == 1)
+        withExtendedLifetime(kept) {}
+    }
+
     @Test func persistedDataIsReadBackAtLaunch() async throws {
         let dir = StoreDiffTests.tempDirectory()
         let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
