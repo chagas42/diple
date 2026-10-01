@@ -297,13 +297,7 @@ struct NotchView: View {
                     Windows.shared.openMain(model)
                     onClose()
                 }
-                if model.loading || model.refreshingTab != nil {
-                    ProgressView().controlSize(.small).tint(.white).frame(width: 22)
-                } else {
-                    iconButton("arrow.clockwise") {
-                        Task { await model.refreshVisible() }
-                    }
-                }
+                refreshButton
                 iconButton("bubble.left.and.exclamationmark.bubble.right") {
                     Windows.shared.openFeedback(model, feature: model.notchTab.feedbackFeature)
                     onClose()
@@ -323,14 +317,34 @@ struct NotchView: View {
 
     private func iconButton(_ name: String, _ acao: @escaping () -> Void) -> some View {
         Button(action: acao) {
-            Image(systemName: name)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.78))
-                .frame(width: 26, height: 26)
-                .background(Color.white.opacity(0.1), in: Circle())
-                .contentShape(Rectangle())
+            iconFace { Image(systemName: name).font(.system(size: 11, weight: .semibold)) }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NotchIconStyle())
+    }
+
+    private var refreshButton: some View {
+        let busy = model.loading || model.refreshingTab != nil
+        return Button {
+            Task { await model.refreshVisible() }
+        } label: {
+            iconFace {
+                if busy {
+                    ProgressView().controlSize(.small).tint(.white).scaleEffect(0.8)
+                } else {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
+                }
+            }
+        }
+        .buttonStyle(NotchIconStyle())
+        .disabled(busy)
+    }
+
+    private func iconFace<Glyph: View>(@ViewBuilder _ glyph: () -> Glyph) -> some View {
+        glyph()
+            .foregroundStyle(.white.opacity(0.78))
+            .frame(width: 26, height: 26)
+            .background(Color.white.opacity(0.1), in: Circle())
+            .contentShape(Rectangle())
     }
 
     private var openBody: some View {
@@ -713,5 +727,11 @@ private struct PulledFill: View {
                 .fill(.black)
                 .animation(motion, value: pulling.pull)
         }
+    }
+}
+
+private struct NotchIconStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
