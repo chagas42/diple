@@ -81,4 +81,30 @@ import Testing
         await model.tabsSettled()
         #expect(!model.ranking.isEmpty)
     }
+
+    @Test func aSyncAlreadyRunningDoesNotUndoAReread() async throws {
+        let github = FakeGitHub(.realistic())
+        let model = Self.model(github.transport)
+        await model.refresh()
+        let pr = try #require(model.queue.mine.first)
+        github.transport.respond { [github] q in
+            if q.contains("pullRequest(number:") {
+                let w = github.world
+                let fresh = try! #require(w.all.first { $0.id == pr.id })
+                let body: [String: Any] = ["data": ["viewer": ["login": w.viewer], "repository": ["pullRequest": FakeWorld.json(fresh)]]]
+                return .init(body: try! JSONSerialization.data(withJSONObject: body))
+            }
+            var reply = github.reply(q)
+            if q.contains("query Beat") { reply.delay = .milliseconds(300) }
+            return reply
+        }
+        let steady = Task { await model.refresh() }
+        try await Task.sleep(for: .milliseconds(50))
+        github.edit { w in w.update(pr.id) { $0.title = "replied"; $0.updatedAt = $0.updatedAt.addingTimeInterval(60) } }
+        await model.reread(pr)
+        #expect(model.queue.mine.first { $0.key == pr.key }?.title == "replied")
+        await steady.value
+        await model.tabsSettled()
+        #expect(model.queue.mine.first { $0.key == pr.key }?.title == "replied")
+    }
 }

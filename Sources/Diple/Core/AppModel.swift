@@ -306,6 +306,8 @@ final class AppModel: ObservableObject {
         queries.setData(.queue(watching: watching)) { (o: inout SyncOutcome) in swap(&o.queue) }
         if selected?.key == fresh.key { selected = fresh }
         queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
+        if queries.isFetching(.queue(watching: watching)) { queries.invalidate(.queue) }
+        if queries.isFetching(.repoPRs(repo: fresh.repo)) { queries.invalidate(.repo(fresh.repo)) }
         queries.invalidate(.pr(fresh.key))
     }
 
