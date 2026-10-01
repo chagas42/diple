@@ -301,7 +301,9 @@ A stack is a card with sheets peeking below it, collapsed until its header
 is clicked (or a PR in it is selected): the header names the repository once,
 so its rows show only `#n`, and a rail down the left gives the order instead of
 `1/4`, which read like an approval count next to `1/2`. The base comes first
-and merges first (`groupedIntoStacks` reverses the chain from the tip). Rows in
+and merges first (`groupedIntoStacks` reverses the chain from the tip). A stack opens
+without animating: a List row animating its height drew the old and new
+content over each other, so only the chevron turns. Rows in
 a card draw their own selection, since a custom row background hides the
 system one, and the sheets sit in a row of their own so a selected last row
 does not bleed into them. Reviews show as marks: approvals against the
