@@ -113,6 +113,7 @@ final class AppModel: ObservableObject {
             guard settings != oldValue else { return }
             store.saveSettings(settings)
             notificador.settings = settings
+            focus.follows = settings.followsFocus
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
             MenuBarItems.measuring = settings.fitsMenuBar
@@ -345,6 +346,7 @@ final class AppModel: ObservableObject {
     private let client: GitHubClient
     private let store: Store
     private let notificador = Notifier()
+    let focus = Focus()
 
     private let sync: SyncEngine
     let telemetry: Telemetry
@@ -430,6 +432,9 @@ final class AppModel: ObservableObject {
         settings = store.state.settings
         notificador.settings = settings
         MenuBarItems.measuring = settings.fitsMenuBar
+        notificador.quiet = { [weak self] in self?.focus.isOn ?? false }
+        focus.follows = settings.followsFocus
+        focus.start()
         startTelemetry()
         Updates.shared.start()
 
@@ -669,7 +674,7 @@ final class AppModel: ObservableObject {
         recordActiveDay()
         schedulePrefetch()
         schedulePreload()
-        if let first = events.first(where: { $0.kind.interrupts }) {
+        if !focus.isOn, let first = events.first(where: { $0.kind.interrupts }) {
             onEvent?(first)
         }
     }

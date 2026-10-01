@@ -250,6 +250,40 @@ object, like the eye, so only the fill redraws.
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
 
+**Diple goes quiet in Focus.** A macOS Focus is read through
+`INFocusStatusCenter` (after the Focus permission, which works on an ad-hoc
+signature) and polled every 5 s, since it posts no change notification.
+Clicking the eye in the open panel focuses from Diple too, with no macOS
+Focus. The idle notch's eye is not clickable on purpose: making it a target
+meant hovering it could no longer open the panel, and the notch felt smaller
+and slower to open. While focused, the notch drops no alerts, notifications are
+posted `.passive` with no sound (they land in Notification Center), the eye
+stops blinking, half closes and turns a pale indigo, and the panel's body is
+covered and takes no clicks, showing how long the focus has lasted; only the
+top strip stays live, so the eye can end it. The cover arrives and leaves
+with a line of its own: the terminal one, a small zsh window of fixed size (so lines appearing never shift it), types `heads-down`, prints that
+notifications are paused and waits at a blinking prompt; leaving types `exit`
+and prints how long the focus lasted. The cover lingers 1.8 s for that goodbye
+before fading. The time counts seconds for the first minute, so it never sits
+at 0. It lives in memory only. Settings → Appearance → Focus picks the cover
+(Terminal by default, Breathing, Pomodoro). Clicking the eye during a macOS
+Focus sets that Focus aside, since Diple cannot end it: Diple stays out of focus
+until the macOS Focus ends, and the next one is followed again. The eye in the open panel
+follows the pointer from where it sits (top left, 41pt in, halfway down the
+menu bar), over a shorter range than the idle eye. The click hurts: the eye
+squints shut, turns pink and shakes for about half a second, then opens into
+the new state, while a bubble below it complains (`💢 ow!`, `hey!`, `my eye!`,
+`rude.`, `ouch!`, `why?!`, in turn) for about a second. With the eye turned off, a moon button takes its place in the
+open panel's top strip, and the notch's right-click menu always has Focus /
+Stop Focusing, so focus can be entered and left without the eye. The moon is a tap gesture, not a
+`Button`: as a plain `Button` in the panel it fired by itself a fraction of a
+second after focus ended, turning focus straight back on. Settings → Notifications → Focus turns following macOS off. `--scene focus` films the terminal cover coming and going, and
+`focus-breathing` and `focus-pomodoro` the other two; film them at `--fps 8`, since the cover's typing
+and the poke run on the wall clock and a 60 fps capture falls behind them.
+Films and benches never ask: they run
+the binary straight from a shell, so TCC holds the shell responsible, finds no
+`NSFocusStatusUsageDescription` in its Info.plist, and kills the process.
+
 ## Notifications
 
 **A review you send slides a strip out of the notch.** When a PR leaves your
@@ -296,6 +330,20 @@ count and alerts, while keeping them dimmed in Reviewing. A quiet request
 speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
+
+## The PR detail
+
+**A thread's code is parsed once, and shows only what the comment marks.** On
+a new file GitHub's `diffHunk` is the whole file down to the commented line,
+hundreds of lines. `DiffHunkView` used to split and highlight it in `init`, and
+since the detail observes the whole `AppModel`, every publish rebuilt every
+thread and highlighted every line again: about 10 ms per 300 lines in a debug
+build, per thread, per publish. `HunkCache` now keeps the parsed rows (cleared
+past 300 hunks), and a hunk shows what GitHub's own page shows: the comment's
+`startLine` through `line`, or the line and the 3 above it for a one-line
+comment, with the rest behind "Show N more lines", which turns into "Hide N lines" once open. The threads sit in a
+`LazyVStack` so off-screen ones are not built. `startLine` is fetched with the
+thread; threads cached before it decode with none.
 
 ## The PR map
 
@@ -387,11 +435,44 @@ paid Apple account. The icon must be a squircle on the official grid — 824
 artwork on a 1024 canvas — because macOS applies no mask of its own, and a
 circular corner radius reads visibly squarer than Apple's superellipse.
 
+**SwiftPM stamps the deployment target as the SDK.** `swift build` links with
+`sdk 14.0` in `LC_BUILD_VERSION` even when it compiled against the macOS 27
+SDK, and AppKit reads that field to decide whether an app gets Liquid Glass:
+below 26 it keeps the old controls, toolbar and sidebar in compatibility mode.
+`make app` rewrites the field with `vtool` to the SDK actually used, keeping
+`LSMinimumSystemVersion` as the minimum. `otool -l <binary> | grep -A4
+LC_BUILD_VERSION` shows what a build got.
+
 **Start at login registers this copy.** `SMAppService.mainApp` records the
 bundle that called it, at the path it ran from, so turning it on from a build
 in `build/` starts that build at login. Its status, not a stored setting, is
 the source of truth: removing Diple in System Settings → Login Items turns the
 switch off the next time Settings is shown.
+
+## Releasing
+
+**Actions are pinned to a commit, not a tag.** The release job can write to the
+repository and holds `TAP_TOKEN`, and a tag like `v2` can be moved to other
+code at any time, so every `uses:` names a commit with its version beside it.
+Dependabot opens one grouped `ci:` pull request a week when a newer version of
+any of them is out, which keeps the pins from going stale.
+
+## Filming
+
+**The film is the panel, not the screen.** `cacheDisplay` renders the panel's
+content view, so no Screen Recording permission is needed, and nothing outside
+the panel exists: no cursor, no menu bar, no camera cutout. The cursor, the
+cutout and the desktop are composited on afterwards (`FilmStage`). The cutout
+is drawn last, in pure black with rounded bottom corners, so a cursor entering
+it disappears the way it does on the hardware.
+
+**Time is the frame's, not the clock's.** Capturing is slower than real time
+at high frame rates, so a pointer driven by the wall clock would jump. The
+scripted pointer is placed from `frame / fps`, and each frame waits for its
+own deadline; SwiftUI animations still run on the wall clock, so if capture
+falls behind (the recorder says so) they look faster than the pointer. The
+pointer timer does not run while filming: each frame calls `followPointer()`,
+which is what the timer calls.
 
 ## Measuring
 
