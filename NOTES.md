@@ -297,9 +297,15 @@ as Everyone, so an empty team cannot silence everything.
 opens at 520pt (380 to 680). A row is the title with a short time (`7h`,
 `3d`) on the first line, and `repo #n`, the last commenter and a trail of
 indicators on the second: approvals, open threads, and a dot for the checks.
-In a stack the repository is in the section header, so a row shows only `#n`,
-and the order is a rail down the left instead of `1/4`, which read like an
-approval count next to `1/2`. Numbers go through `Text(verbatim:)`: a
+A stack is a card with sheets peeking below it, collapsed until its header
+is clicked (or a PR in it is selected): the header names the repository once,
+so its rows show only `#n`, and a rail down the left gives the order instead of
+`1/4`, which read like an approval count next to `1/2`. The base comes first
+and merges first (`groupedIntoStacks` reverses the chain from the tip). Rows in
+a card draw their own selection, since a custom row background hides the
+system one, and the sheets sit in a row of their own so a selected last row
+does not bleed into them. Reviews show as marks: approvals against the
+requirement, change requests in red, comment reviews in blue, open threads. Numbers go through `Text(verbatim:)`: a
 `LocalizedStringKey` groups them by locale, and Portuguese turned `#7966` into
 `#7.966`. The detail keeps its content to 780pt so long text has a measure,
 its badge says only Open, Draft or Approved (checks and threads have their

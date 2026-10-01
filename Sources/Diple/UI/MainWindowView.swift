@@ -195,6 +195,23 @@ struct MainWindowView: View {
         }
     }
 
+    @State private var openStacks: Set<String> = []
+
+    private func isOpen(_ stack: PRStack) -> Bool {
+        openStacks.contains(stack.id) || stack.prs.contains { $0.key == model.selected?.key }
+    }
+
+    private func toggle(_ stack: PRStack) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if isOpen(stack) {
+                openStacks.remove(stack.id)
+                if stack.prs.contains(where: { $0.key == model.selected?.key }) { model.selected = nil }
+            } else {
+                openStacks.insert(stack.id)
+            }
+        }
+    }
+
     private var queueShown: [PR] {
         let all = model.prs(model.tab)
         return onlyUnreviewed ? all.filter(\.hasNoReviews) : all
@@ -212,41 +229,86 @@ struct MainWindowView: View {
             }
             ForEach(queueShown.groupedIntoStacks()) { stack in
                 if stack.isStack {
-                    Section {
-                        ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
-                            PRRow(
-                                pr: pr,
-                                unread: model.unread.contains(pr.key),
-                                stack: (i + 1, stack.prs.count),
-                                required: model.requiredApprovals(for: pr)
-                            )
-                            .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
-                            .opacity(model.dims(pr) ? 0.45 : 1)
-                            .tag(pr.key)
-                        }
-                    } header: {
+                    let n = stack.prs.count
+                    let open = isOpen(stack)
+                    VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 6) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                                .rotationEffect(.degrees(open ? 90 : 0))
                             Image(systemName: "square.3.layers.3d.down.right")
                                 .font(.system(size: 10))
-                            Text("Stack of \(stack.prs.count)")
-                                .font(.system(size: 10.5, weight: .semibold))
-                            Text(stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
-                                .font(.system(size: 10.5, design: .monospaced))
+                            Text("Stack of \(n)")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(verbatim: stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
+                                .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text("read bottom to top")
+                            if !open, stack.prs.contains(where: { model.unread.contains($0.key) }) {
+                                Circle().fill(.orange).frame(width: 6, height: 6)
+                            }
+                            if !open, let worst = stack.prs.map(\.checks).first(where: { $0 == .failing }) ?? stack.prs.first?.checks {
+                                ChecksDot(state: worst)
+                            }
+                            Text(open ? "merges top first" : "")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
                         }
+                        .foregroundStyle(.secondary)
+                        if !open, let top = stack.prs.first {
+                            Text(verbatim: n > 1 ? "\(top.title)  +\(n - 1)" : top.title)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .padding(.leading, 21)
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, open ? 6 : 10)
+                    .contentShape(Rectangle())
+                    .onTapGesture { toggle(stack) }
+                    .help(open ? "Collapse this stack" : "Show the \(n) pull requests in this stack")
+                    .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(StackCard(index: 0, count: n + 2))
+                    .selectionDisabled()
+                    if open {
+                    ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
+                        PRRow(
+                            pr: pr,
+                            unread: model.unread.contains(pr.key),
+                            stack: (i + 1, n),
+                            required: model.requiredApprovals(for: pr),
+                            selected: model.selected?.key == pr.key
+                        )
+                        .padding(.horizontal, 10)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(StackCard(index: i + 1, count: n + 2, selected: model.selected?.key == pr.key))
+                        .opacity(model.dims(pr) ? 0.45 : 1)
+                        .tag(pr.key)
+                    }
+                    }
+                    Color.clear
+                        .frame(height: StackCard.radius + StackCard.sheets)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(StackCard(index: n + 1, count: n + 2))
+                        .selectionDisabled()
                 } else if let pr = stack.prs.first {
-                    PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr),
+                          selected: model.selected?.key == pr.key)
                         .opacity(model.dims(pr) ? 0.45 : 1)
                         .tag(pr.key)
                 }
             }
         }
         .navigationTitle(model.tab.title)
+        .onChange(of: model.selected?.key, initial: true) { _, key in
+            guard let key, let stack = queueShown.groupedIntoStacks().first(where: { $0.isStack && $0.prs.contains { $0.key == key } }) else { return }
+            openStacks.insert(stack.id)
+        }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Picker("", selection: $onlyUnreviewed) {
@@ -293,6 +355,7 @@ struct PRRow: View {
     let unread: Bool
     var stack: (index: Int, count: Int)? = nil
     var required: Int? = nil
+    var selected = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -338,17 +401,14 @@ struct PRRow: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
+                            .truncationMode(.tail)
                             .help(c.location.map { "\(c.author) at \($0)" } ?? c.author)
                     }
                     Spacer(minLength: 6)
-                    if let approvals = ApprovalCount(pr: pr, required: required) { approvals }
-                    if !pr.threads.isEmpty {
-                        Label("\(pr.threads.count)", systemImage: "bubble.left")
-                            .font(.system(size: 10.5).monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .help("\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")")
-                    }
-                    ChecksDot(state: pr.checks)
+                    ReviewMarks(pr: pr, required: required, selected: selected)
+                        .fixedSize()
+                        .layoutPriority(1)
+                    ChecksDot(state: pr.checks, selected: selected)
                 }
             }
         }
@@ -390,28 +450,63 @@ struct StackRail: View {
         }
         .frame(width: 12)
         .frame(maxHeight: .infinity, alignment: .top)
-        .help("\(index) of \(count), the bottom one merges first")
+        .help("\(index) of \(count); the top one merges first")
     }
 }
 
 struct ChecksDot: View {
     let state: CheckState
+    var selected = false
 
     var body: some View {
         switch state {
-        case .none:
-            EmptyView()
-        case .passing:
-            dot(.green, "Checks passing")
-        case .failing:
-            dot(.red, "A check failed")
-        case .running:
-            dot(.orange, "Checks running")
+        case .none: EmptyView()
+        case .passing: dot(.green, "Checks passing")
+        case .failing: dot(.red, "A check failed")
+        case .running: dot(.orange, "Checks running")
         }
     }
 
     private func dot(_ color: Color, _ help: String) -> some View {
-        Circle().fill(color).frame(width: 7, height: 7).help(help)
+        Circle()
+            .fill(color)
+            .overlay(Circle().strokeBorder(.white.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
+            .frame(width: 8, height: 8)
+            .help(help)
+    }
+}
+
+struct ReviewMarks: View {
+    let pr: PR
+    let required: Int?
+    var selected = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let a = ApprovalCount(pr: pr, required: required) {
+                mark(a.met ? "checkmark.circle.fill" : "checkmark.circle", a.text, a.met ? .green : .secondary,
+                     a.required.map { "\(a.approvals) of the \($0) approvals this branch needs" }
+                        ?? "\(a.approvals) approval\(a.approvals == 1 ? "" : "s")")
+            }
+            if let n = pr.changesRequested, n > 0 {
+                mark("arrow.uturn.backward.circle.fill", "\(n)", .red,
+                     "\(n) reviewer\(n == 1 ? "" : "s") asked for changes")
+            }
+            if let n = pr.commentReviews, n > 0 {
+                mark("text.bubble", "\(n)", .blue, "\(n) review\(n == 1 ? "" : "s") left comments")
+            }
+            if !pr.threads.isEmpty {
+                mark("bubble.left", "\(pr.threads.count)", .secondary,
+                     "\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")")
+            }
+        }
+    }
+
+    private func mark(_ icon: String, _ text: String, _ color: Color, _ help: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(selected ? Color.white : color)
+            .help(help)
     }
 }
 
@@ -456,5 +551,68 @@ struct ApprovalCount: View {
             .foregroundStyle(met ? Color.green : Color.secondary)
             .help(required.map { "\(approvals) of the \($0) approvals this branch needs" }
                   ?? "\(approvals) approval\(approvals == 1 ? "" : "s")")
+    }
+}
+
+struct StackCard: View {
+    let index: Int
+    let count: Int
+    var selected = false
+
+    static let sheets: CGFloat = 14
+    static let radius: CGFloat = 10
+
+    private var first: Bool { index == 0 }
+    private var last: Bool { index == count - 1 }
+
+    var body: some View {
+        GeometryReader { g in
+            let card = CGRect(x: 6, y: first ? 4 : 0, width: g.size.width - 12,
+                              height: g.size.height - (first ? 4 : 0) - (last ? Self.sheets : 0))
+            ZStack(alignment: .topLeading) {
+                if last {
+                    sheet(inset: 20, at: card.maxY - Self.radius + 10, opacity: 0.7)
+                        .frame(width: g.size.width)
+                    sheet(inset: 11, at: card.maxY - Self.radius + 5, opacity: 0.95)
+                        .frame(width: g.size.width)
+                }
+                UnevenRoundedRectangle(
+                    topLeadingRadius: first ? Self.radius : 0, bottomLeadingRadius: last ? Self.radius : 0,
+                    bottomTrailingRadius: last ? Self.radius : 0, topTrailingRadius: first ? Self.radius : 0,
+                    style: .continuous
+                )
+                .fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.background.secondary))
+                .overlay(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: first ? Self.radius : 0, bottomLeadingRadius: last ? Self.radius : 0,
+                        bottomTrailingRadius: last ? Self.radius : 0, topTrailingRadius: first ? Self.radius : 0,
+                        style: .continuous
+                    )
+                    .strokeBorder(.separator, lineWidth: 0.5)
+                )
+                .overlay(alignment: .top) {
+                    if !first {
+                        Rectangle()
+                            .fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.background.secondary))
+                            .frame(height: 1)
+                            .padding(.horizontal, 0.5)
+                    }
+                }
+                .shadow(color: .black.opacity(last ? 0.18 : 0), radius: 3, y: 2)
+                .frame(width: card.width, height: card.height)
+                .offset(x: card.minX, y: card.minY)
+            }
+        }
+    }
+
+    private func sheet(inset: CGFloat, at y: CGFloat, opacity: Double) -> some View {
+        RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+            .fill(.background.secondary)
+            .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.14), radius: 2, y: 1)
+            .opacity(opacity)
+            .frame(height: Self.radius + 2)
+            .padding(.horizontal, inset)
+            .offset(y: y)
     }
 }

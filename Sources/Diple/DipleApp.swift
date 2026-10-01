@@ -51,8 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 }
                 guard let pr = model.queue.all.first(where: { $0.key == key }) else { return }
                 model.tab = AppModel.Tab.allCases.first { model.prs($0).contains { $0.key == key } } ?? model.tab
-                model.selected = pr
                 Windows.shared.openMain(model)
+                try? await Task.sleep(for: .milliseconds(600))
+                model.selected = pr
             }
         }
 

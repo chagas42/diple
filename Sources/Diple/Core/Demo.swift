@@ -72,7 +72,9 @@ enum Demo {
             lastComment: last,
             askedYou: askedYou,
             approvals: approved ? required : number % 3 == 0 ? 1 : 0,
-            reviewedByOthers: approved || number % 3 == 0 || reply != nil
+            reviewedByOthers: approved || number % 3 == 0 || reply != nil,
+            changesRequested: number % 5 == 1 ? 1 : 0,
+            commentReviews: reply != nil ? 1 : 0
         )
     }
 

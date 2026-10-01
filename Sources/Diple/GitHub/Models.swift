@@ -141,6 +141,8 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
 
     let approvals: Int?
     let reviewedByOthers: Bool?
+    var changesRequested: Int? = nil
+    var commentReviews: Int? = nil
 
     var asksYouByName: Bool { askedYou == true }
     var hasNoReviews: Bool { reviewedByOthers == false }
@@ -190,7 +192,8 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         updatedAt: Date, createdAt: Date, draft: Bool, author: String, authorAvatar: URL?, isMine: Bool,
         headRef: String, baseRef: String, checks: CheckState, approved: Bool,
         threads: [ReviewThread], lastComment: HumanComment?, askedYou: Bool = false, head: String? = nil,
-        approvals: Int? = nil, reviewedByOthers: Bool? = nil
+        approvals: Int? = nil, reviewedByOthers: Bool? = nil,
+        changesRequested: Int? = nil, commentReviews: Int? = nil
     ) {
         self.id = id
         self.repo = repo
@@ -213,6 +216,8 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         self.askedYou = askedYou
         self.approvals = approvals
         self.reviewedByOthers = reviewedByOthers
+        self.changesRequested = changesRequested
+        self.commentReviews = commentReviews
     }
 
     var key: String { "\(repo)#\(number)" }
@@ -251,6 +256,8 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         let reviews = Self.counted(c.latestReviews, author: c.author?.login)
         approvals = reviews.map { $0.filter { $0 == "APPROVED" }.count }
         reviewedByOthers = reviews.map { !$0.isEmpty }
+        changesRequested = reviews.map { $0.filter { $0 == "CHANGES_REQUESTED" }.count }
+        commentReviews = reviews.map { $0.filter { $0 == "COMMENTED" }.count }
         askedYou = c.reviewRequests?.nodes.contains {
             $0?.requestedReviewer?.__typename == "User" && $0?.requestedReviewer?.login == meuLogin
         } ?? false
