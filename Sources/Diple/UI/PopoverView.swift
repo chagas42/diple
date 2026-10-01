@@ -143,7 +143,7 @@ struct PopoverView: View {
             }
             .buttonStyle(.borderless)
             .disabled(model.loading)
-            .help("Sincronizar now")
+            .help("Sync now")
         }
     }
 

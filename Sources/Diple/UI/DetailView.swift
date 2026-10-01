@@ -44,8 +44,10 @@ struct DetailView: View {
                     if pr.threads.isEmpty {
                         semThreads
                     } else {
-                        ForEach(pr.threads) { t in
-                            ThreadView(model: model, pr: pr, thread: t)
+                        LazyVStack(alignment: .leading, spacing: 18) {
+                            ForEach(pr.threads) { t in
+                                ThreadView(model: model, pr: pr, thread: t)
+                            }
                         }
                     }
                 case .map:
@@ -199,7 +201,7 @@ struct ThreadView: View {
             .background(.quaternary.opacity(0.4))
 
             if thread.showsCode, let h = thread.diffHunk {
-                DiffHunkView(hunk: h, path: thread.path)
+                DiffHunkView(hunk: h, path: thread.path, line: thread.line, startLine: thread.startLine)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
             } else if thread.outdated {

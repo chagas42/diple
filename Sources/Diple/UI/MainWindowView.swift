@@ -41,7 +41,7 @@ struct MainWindowView: View {
                     }
                 }
                 .disabled(model.loading)
-                .help("Sincronizar now")
+                .help("Sync now")
             }
         }
     }

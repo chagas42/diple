@@ -24,6 +24,7 @@ struct AppearanceSettings: View {
                 Toggle("Show the eye", isOn: $model.settings.showsEye)
                 Toggle("Blink", isOn: $model.settings.eyeBlinks)
                     .disabled(!model.settings.showsEye)
+                Toggle("Lean toward the pointer", isOn: $model.settings.liquidNotch)
                 Picker("Count", selection: $model.settings.countSide) {
                     ForEach(CountSide.allCases) { Text($0.title).tag($0) }
                 }
@@ -35,6 +36,18 @@ struct AppearanceSettings: View {
                 Text(rightIsCrowded
                      ? "Menu bar icons fill the space right of the notch, so the count and the eye share the left side."
                      : "The little eye follows your pointer from the side opposite the count.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Picker("Cover", selection: $model.settings.focusLook) {
+                    ForEach(FocusLook.allCases) { Text($0.title).tag($0) }
+                }
+            } header: {
+                Text("Focus")
+            } footer: {
+                Text("What covers the open notch while you are focused.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
