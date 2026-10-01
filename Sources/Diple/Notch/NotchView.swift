@@ -52,6 +52,7 @@ struct NotchView: View {
     var focusEnded: Date?
     var focusLook = FocusLook.terminal
     let eye: EyeState
+    var glowing: GlowState?
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
 
@@ -66,6 +67,10 @@ struct NotchView: View {
                     .clipShape(shape)
                     .id(state.kind)
                     .transition(stateChange)
+                if let glowing, state == .open {
+                    PointerGlowView(state: glowing, width: size.width, height: size.height,
+                                    cutout: CGSize(width: notchWidth, height: notchHeight))
+                }
             }
             .frame(width: size.width, height: size.height)
             .contentShape(shape)

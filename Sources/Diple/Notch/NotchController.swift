@@ -28,6 +28,7 @@ final class NotchController: ObservableObject {
     private var holdRelease: Task<Void, Never>?
     var holdsAtMost: Duration = .seconds(20)
     let eye = EyeState()
+    let glowing = GlowState()
 
     private let panel = NotchPanel()
 
@@ -465,6 +466,16 @@ final class NotchController: ObservableObject {
         checkPointer()
         aim()
         pullTowardPointer()
+        trackGlow()
+    }
+
+    func trackGlow() {
+        let g = NotchGeometry.current()
+        guard state == .open, g.hasNotch else {
+            glowing.show(.off)
+            return
+        }
+        glowing.show(Glow.target(pointer: pointer(), cutout: g.rect(g.closed)))
     }
 
     func checkPointer() {
@@ -648,6 +659,7 @@ final class NotchController: ObservableObject {
                 focusEnded: notch.focusEnded,
                 focusLook: model.settings.focusLook,
                 eye: notch.eye,
+                glowing: notch.glowing,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }
             )

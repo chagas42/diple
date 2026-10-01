@@ -4,7 +4,9 @@ import AppKit
 
 @MainActor
 final class AppModel: ObservableObject {
-    static let shared = AppModel()
+    static let shared = Demo.isOn
+        ? AppModel(store: Demo.store(), answer: Demo.answer)
+        : AppModel()
 
     var onEvent: ((Event) -> Void)?
     var onCountChange: (() -> Void)?
@@ -21,19 +23,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var following: Set<String> = []
 
     var team: [Person] {
-        if Demo.isOn { return Demo.team }
         return teamObserver?.data ?? teamQuery.flatMap { queries.peek($0) } ?? []
     }
 
     var ranking: [RankRow] {
-        if Demo.isOn { return Demo.ranking(rankPeriod) }
         let rows = rankingObserver?.data ?? rankingQuery.flatMap { queries.peek($0) } ?? []
         let people = Dictionary(team.map { ($0.login, $0) }, uniquingKeysWith: { first, _ in first })
         return rows.map { RankRow(person: people[$0.person.login] ?? $0.person, reviews: $0.reviews) }
     }
 
     var activity: [ActivityDay] {
-        if Demo.isOn { return Demo.activity }
         return (activityObserver?.data ?? activityQuery.flatMap { queries.peek($0) })?.days ?? []
     }
 
@@ -187,12 +186,9 @@ final class AppModel: ObservableObject {
     private var reposObserver: QueryObserver<[RepoRef]>?
     private var repoObserver: QueryObserver<[PR]>?
 
-    var repos: [RepoRef] { Demo.isOn ? Demo.repos : reposObserver?.data ?? queries.peek(reposQuery) ?? [] }
+    var repos: [RepoRef] { reposObserver?.data ?? queries.peek(reposQuery) ?? [] }
 
-    var repoPRs: [PR] {
-        guard Demo.isOn else { return repoObserver?.data ?? [] }
-        return Demo.queue.all.filter { $0.repo == selectedRepo }
-    }
+    var repoPRs: [PR] { repoObserver?.data ?? [] }
 
     var loadingRepo: Bool { repoObserver?.isFetching ?? false }
     @Published var repoShowsDraft = false
@@ -235,10 +231,6 @@ final class AppModel: ObservableObject {
     }
 
     func loadRepos() {
-        if Demo.isOn {
-            watching = ["acme/orders-api"]
-            return
-        }
         queries.prefetch(reposQuery)
     }
 
@@ -339,7 +331,7 @@ final class AppModel: ObservableObject {
     func toggleWatch(_ repo: String) {
         store.toggleWatch(repo)
         watching = store.state.watching ?? []
-        guard lastSync != nil, isOnline, !Demo.isOn else { return }
+        guard lastSync != nil, canFetch else { return }
         bindQueue()
     }
 
@@ -361,13 +353,14 @@ final class AppModel: ObservableObject {
         client: GitHubClient = GitHubClient(),
         store: Store = Store(),
         fetchRefs: Prefetcher.FetchRefs? = nil,
-        telemetry: Telemetry = .shared
+        telemetry: Telemetry = .shared,
+        answer: QueryClient.Answer? = nil
     ) {
         self.telemetry = telemetry
         self.notificador.telemetry = telemetry
         self.client = client
         self.store = store
-        let queries = QueryClient(github: client, store: store, decoders: Queries.savedDecoders)
+        let queries = QueryClient(github: client, store: store, decoders: Queries.savedDecoders, answer: answer)
         self.queries = queries
         self.sync = SyncEngine(client: client)
         self.prefetcher = fetchRefs.map { Prefetcher(queries: queries, fetchRefs: $0) } ?? Prefetcher(queries: queries)
@@ -396,14 +389,14 @@ final class AppModel: ObservableObject {
     }
 
     private func schedulePreload() {
-        guard preloadsTabs, !Demo.isOn, !Bench.isOn, isOnline else { return }
+        guard preloadsTabs, !Bench.isOn, canFetch else { return }
         guard !ProcessInfo.processInfo.isLowPowerModeEnabled, let teamQuery else { return }
         queries.prefetch(teamQuery) { [weak self] team in self?.rankingQuery(for: team) }
         if let activityQuery { queries.prefetch(activityQuery) }
     }
 
     private func schedulePrefetch() {
-        guard !Demo.isOn, !Bench.isOn, isOnline, !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        guard !queries.answersLocally, !Bench.isOn, isOnline, !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
         guard prefetchTask == nil else { return }
         let targets = prefetchTargets()
         guard !targets.isEmpty else { return }
@@ -419,6 +412,8 @@ final class AppModel: ObservableObject {
     private(set) var failures = 0
     private(set) var partialFailures = 0
     private var queueObserver: QueryObserver<SyncOutcome>?
+
+    private var canFetch: Bool { isOnline || queries.answersLocally }
     private var notchOpen = false
 
     private var started = false
@@ -532,7 +527,7 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
         following = store.state.following
         watching = store.state.watching ?? []
-        if !Demo.isOn, let cached = store.state.cache.queue, queue.all.isEmpty {
+        if let cached = store.state.cache.queue, queue.all.isEmpty {
             queue = cached
             pendingSeed = cached
             onCountChange?()
@@ -591,21 +586,13 @@ final class AppModel: ObservableObject {
     }
 
     private func refetchShown(force: Bool = false) {
-        guard isOnline, !Demo.isOn else { return }
+        guard canFetch else { return }
         queries.refetchObserved(force: force, except: .queue)
     }
 
     func refresh(full: Bool = false) async {
-        if Demo.isOn {
-            queue = Demo.queue
-            unread = Demo.unread
-            lastSync = Date()
-            errorMessage = nil
-            onCountChange?()
-            return
-        }
         if full { await sync.requestFull() }
-        guard isOnline else { return }
+        guard canFetch else { return }
         if let seed = pendingSeed {
             pendingSeed = nil
             await sync.seed(seed, watching: watching)
@@ -695,7 +682,7 @@ final class AppModel: ObservableObject {
         store.toggleFollow(login)
         following = store.state.following
         syncScreens()
-        if isOnline, !Demo.isOn, let rankingQuery { queries.prefetch(rankingQuery) }
+        if canFetch, let rankingQuery { queries.prefetch(rankingQuery) }
     }
 
     func loadTab(_ tab: NotchTab) {
@@ -731,7 +718,7 @@ final class AppModel: ObservableObject {
     }
 
     private func syncScreens() {
-        guard !Demo.isOn, !syncingScreens else { return }
+        guard !syncingScreens else { return }
         syncingScreens = true
         defer { syncingScreens = false }
         let tab = shownTab
@@ -1174,7 +1161,7 @@ final class AppModel: ObservableObject {
     static let mostWatched = 3
 
     func watchForReview(_ pr: PR) {
-        guard settings.showsReviews, !Demo.isOn, pr.author != queue.viewer else { return }
+        guard settings.showsReviews, !queries.answersLocally, pr.author != queue.viewer else { return }
         let key = pr.key
         watches[key]?.task.cancel()
         watchOrder.removeAll { $0 == key }
@@ -1242,6 +1229,28 @@ final class AppModel: ObservableObject {
     }
 
     func count(_ tab: Tab) -> Int { prs(tab).count }
+
+    @Published private(set) var requirements: [String: Int] = [:]
+
+    static func requirementKey(_ pr: PR) -> String { "\(pr.repo)@\(pr.baseRef)" }
+
+    func requiredApprovals(for pr: PR) -> Int? { requirements[Self.requirementKey(pr)] }
+
+    func loadRequirements(for prs: [PR]) {
+        guard !Demo.isOn else {
+            requirements = Dictionary(prs.map { (Self.requirementKey($0), Demo.required) }, uniquingKeysWith: { a, _ in a })
+            return
+        }
+        let wanted = Dictionary(prs.filter { !$0.draft }.map { (Self.requirementKey($0), $0) }, uniquingKeysWith: { a, _ in a })
+        for (key, pr) in wanted where requirements[key] == nil {
+            let q = Queries.requiredApprovals(repo: pr.repo, branch: pr.baseRef)
+            queries.prefetch(q)
+            Task { [weak self] in
+                guard let found = try? await self?.queries.fetch(q) else { return }
+                if let n = found.count { self?.requirements[key] = n }
+            }
+        }
+    }
 
     func reply(thread: String, text: String) async -> String? {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)

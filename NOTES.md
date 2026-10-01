@@ -260,6 +260,19 @@ white track down the side of the lists, where the system scroller is still
 used (`ThinScrollView` on macOS 14). The app's windows are not forced and
 follow the system.
 
+**The pointer glows where the cutout hides it.** The camera housing has no
+pixels, so the pointer vanishes inside it while the panel is open. The pointer
+is a light source: a thin rim around the cutout and a faint spill into the
+panel, both lit by a radial light centred on the pointer, so there is no
+bottom or side sprite to flip between. The rim fades in as the pointer comes
+within 40pt, so it never switches on at the edge. The light's reach grows by
+the pointer's distance to the nearest visible edge, so a pointer hugging the
+top of the screen still lights the rim. `CGRect.contains` excludes the max
+edge, and the cutout's top is the screen's, so the top pixel is counted as
+inside by hand. The glow lives in its own observable object, like the eye, so
+the 30 Hz updates redraw only the glow; with Reduce Motion it moves without
+animating.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
@@ -344,6 +357,53 @@ count and alerts, while keeping them dimmed in Reviewing. A quiet request
 speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
+
+## The main window
+
+**The list opens wide, and a row says one thing per line.** The list column
+opens at 520pt (380 to 680). A row is the title with a short time (`7h`,
+`3d`) on the first line, and `repo #n`, the last commenter and a trail of
+indicators on the second: approvals, open threads, and a dot for the checks.
+A stack is one card, collapsed until its header is clicked (or a PR in it is
+selected), with a sheet peeking below it for each branch it hides (up to 3). The
+whole stack is a single `List` row that draws its own branches: as list rows,
+a custom background hid the system selection but left the text white, and the
+selection fought the card. Selection in a card is a light accent tint with a
+bar. Opening does not animate, since a `List` row animating its height drew the
+old and new content over each other; only the chevron turns. The header names
+the repository once, so the rows show only `#n`, and a rail gives the order
+instead of `1/4`, which read like an approval count next to `1/2`. The base
+comes first and merges first (`groupedIntoStacks` reverses the chain from the
+tip). The list's selection binding skips stacked PRs, so it never clears a
+selection it has no row for. Reviews show as marks: approvals against the
+requirement, change requests in red, comment reviews in blue, open threads. Numbers go through `Text(verbatim:)`: a
+`LocalizedStringKey` groups them by locale, and Portuguese turned `#7966` into
+`#7.966`. The detail keeps its content to 780pt so long text has a measure,
+its badge says only Open, Draft or Approved (checks and threads have their
+own pills), and an empty conversation is a centered card. `--select repo#n`
+opens the window on a PR, which is how its screenshots are taken in `--demo`.
+
+## Approvals
+
+**A row shows its approvals against what the branch needs.** Approvals come
+from `latestReviews` in the queue's own query (one review per person, bots and
+the author left out), so they cost no extra request. What the base branch needs
+is looked up once per repository and branch and cached for 6 hours: the strictest
+`pull_request` rule from `GET /repos/{repo}/rules/branches/{branch}` (rulesets,
+readable with read access) and classic branch protection's
+`requiredApprovingReviewCount` over GraphQL, which GitHub hides from anyone below
+maintain. A reader therefore sees rulesets only: `1/2` when a rule is known,
+`1` when it is not, nothing for a PR nobody approved and no rule. It is only
+looked up while the main window shows a list, since the notch never shows the
+count: running it on every sync cost requests nobody saw, and the extra work on
+the main actor right after a sync was enough to make two tab-loading tests miss
+their wait on CI. The lookup
+never throws, so a repository that errors is not asked again every sync, and it
+goes through `QueryClient.prefetch` so the cache can settle it. Holding a key
+before its first fetch makes an entry with no staleness and refetches it
+forever, which is why there is no `hold` here. "No reviews yet" lists PRs with
+no approval, change request or comment review from anyone but the author and
+bots.
 
 ## The PR detail
 
@@ -487,6 +547,15 @@ own deadline; SwiftUI animations still run on the wall clock, so if capture
 falls behind (the recorder says so) they look faster than the pointer. The
 pointer timer does not run while filming: each frame calls `followPointer()`,
 which is what the timer calls.
+
+**Updating through Homebrew refreshes the tap first.** `brew upgrade` only
+refreshes taps when its last refresh is older than a day, so right after a
+release it can see no new version and exit 0 having done nothing. The update
+runs `brew update` first. Homebrew quits a running cask app before replacing
+it and reopens it after, so Diple does not kill itself; a final `open` covers
+a run where it did not. If the command ends and this Diple is still running,
+the version on disk decides: newer means relaunch into it, unchanged means
+the install failed and Settings says so, instead of spinning forever.
 
 ## Measuring
 

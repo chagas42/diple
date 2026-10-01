@@ -49,4 +49,29 @@ struct ReleaseNotesTests {
     @Test func aBuildOutsideApplicationsDoesNotInstallItself() {
         #expect(!Updates().canInstall)
     }
+
+    static let page = URL(string: "https://github.com/chagas42/diple/releases/tag/v1.30.0")!
+
+    @Test func homebrewRefreshesItsTapBeforeUpgrading() {
+        let c = Updates.homebrewCommand(brew: "/opt/homebrew/bin/brew", app: "/Applications/Diple.app")
+        let update = c.range(of: "update --quiet")!, upgrade = c.range(of: "upgrade --cask diple")!
+        #expect(update.lowerBound < upgrade.lowerBound)
+        #expect(!c.contains("pkill"))
+        #expect(c.hasPrefix("set -e"))
+    }
+
+    @Test func anInstallThatLeftTheOldVersionOnDiskFailed() {
+        let s = Updates.afterInstall(status: 0, onDisk: "1.29.2", installed: "1.29.2", version: "1.30.0", page: Self.page)
+        #expect(s == .installFailed(version: "1.30.0", page: Self.page))
+    }
+
+    @Test func aFailingCommandFailed() {
+        let s = Updates.afterInstall(status: 1, onDisk: "1.30.0", installed: "1.29.2", version: "1.30.0", page: Self.page)
+        #expect(s == .installFailed(version: "1.30.0", page: Self.page))
+    }
+
+    @Test func aNewerVersionOnDiskIsInstalled() {
+        let s = Updates.afterInstall(status: 0, onDisk: "1.30.0", installed: "1.29.2", version: "1.30.0", page: Self.page)
+        #expect(s == .installing(version: "1.30.0"))
+    }
 }
