@@ -341,7 +341,11 @@ is looked up once per repository and branch and cached for 6 hours: the strictes
 readable with read access) and classic branch protection's
 `requiredApprovingReviewCount` over GraphQL, which GitHub hides from anyone below
 maintain. A reader therefore sees rulesets only: `1/2` when a rule is known,
-`1` when it is not, nothing for a PR nobody approved and no rule. The lookup
+`1` when it is not, nothing for a PR nobody approved and no rule. It is only
+looked up while the main window shows a list, since the notch never shows the
+count: running it on every sync cost requests nobody saw, and the extra work on
+the main actor right after a sync was enough to make two tab-loading tests miss
+their wait on CI. The lookup
 never throws, so a repository that errors is not asked again every sync, and it
 goes through `QueryClient.prefetch` so the cache can settle it. Holding a key
 before its first fetch makes an entry with no staleness and refetches it

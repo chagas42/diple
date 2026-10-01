@@ -247,6 +247,7 @@ struct MainWindowView: View {
             }
         }
         .navigationTitle(model.tab.title)
+        .task(id: model.queue.all.map(\.key)) { model.loadRequirements(for: model.queue.all) }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Picker("", selection: $onlyUnreviewed) {

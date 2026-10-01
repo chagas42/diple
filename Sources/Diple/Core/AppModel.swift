@@ -598,7 +598,6 @@ final class AppModel: ObservableObject {
     func refresh(full: Bool = false) async {
         if Demo.isOn {
             queue = Demo.queue
-            loadRequirements(for: queue.all)
             unread = Demo.unread
             lastSync = Date()
             errorMessage = nil
@@ -652,7 +651,6 @@ final class AppModel: ObservableObject {
         if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
         queue = nova
         store.saveQueue(nova)
-        loadRequirements(for: nova.all)
         reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
         confirmReviews(candidates)
         if let s = selected {
