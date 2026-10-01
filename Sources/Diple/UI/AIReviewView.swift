@@ -5,8 +5,8 @@ struct AIReviewView: View {
     @ObservedObject var model: AppModel
     let pr: PR
 
-    private var result: ReviewResult? { model.reviewResults[pr.key] }
-    private var context: ReviewContext? { model.reviewContexts[pr.key] }
+    private var result: ReviewResult? { model.aiReview(pr)?.result }
+    private var context: ReviewContext? { model.aiReview(pr)?.context }
     private var running: Bool { model.isReviewing(pr.key) }
     private var steps: [ProgressLine] { model.run(pr.key)?.progress ?? [] }
 
@@ -32,6 +32,10 @@ struct AIReviewView: View {
     }
 
     var body: some View {
+        content.task(id: model.resultIDs(pr)) { await model.holdResults(for: pr) }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
 

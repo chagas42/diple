@@ -8,6 +8,7 @@ enum Query {
       updatedAt
       isDraft
       headRefName
+      headRefOid
       baseRefName
       repository { nameWithOwner }
       author { login __typename avatarUrl(size: 64) }

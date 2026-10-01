@@ -27,7 +27,7 @@ actor StoreWriter {
         guard timer == nil else { return }
         timer = Task { [debounce] in
             try? await Task.sleep(for: debounce)
-            await self.flush()
+            self.flush()
         }
     }
 

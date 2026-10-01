@@ -131,6 +131,18 @@ enum Demo {
         ["acme/orders-api#7842", "acme/orders-api#7841", "acme/orders-api#7880"]
     }
 
+    static var repos: [RepoRef] {
+        team.isEmpty ? [] : [
+            RepoRef(nameWithOwner: "acme/orders-api", owner: "acme", isOrg: true, isPrivate: true),
+            RepoRef(nameWithOwner: "acme/console", owner: "acme", isOrg: true, isPrivate: true),
+            RepoRef(nameWithOwner: "acme/notifier", owner: "acme", isOrg: true, isPrivate: true),
+            RepoRef(nameWithOwner: "acme/mobile", owner: "acme", isOrg: true, isPrivate: true),
+            RepoRef(nameWithOwner: "acme/warehouse", owner: "acme", isOrg: true, isPrivate: true),
+            RepoRef(nameWithOwner: "chagas42/diple", owner: "you", isOrg: false, isPrivate: true),
+            RepoRef(nameWithOwner: "chagas42/jsonl-inspect", owner: "you", isOrg: false, isPrivate: false),
+        ]
+    }
+
     static let team: [Person] = [
         Person(login: "rafa-mendes", name: "Rafa Mendes", avatar: URL(string: "about:blank")!),
         Person(login: "bea-nunes", name: "Bea Nunes", avatar: URL(string: "about:blank")!),

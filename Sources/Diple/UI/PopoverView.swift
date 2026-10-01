@@ -134,7 +134,7 @@ struct PopoverView: View {
             if model.loading {
                 ProgressView().controlSize(.small)
             } else {
-                Button { Task { await model.refresh() } } label: {
+                Button { Task { await model.refreshVisible() } } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
