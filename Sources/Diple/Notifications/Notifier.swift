@@ -10,6 +10,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
     var onChange: (() async -> Void)?
 
     var settings = Settings()
+    var quiet: @MainActor () -> Bool = { false }
     var telemetry: Telemetry = .shared
 
     private enum Cat {
@@ -83,6 +84,10 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
         if let sound = force ? (settings.sounds[e.kind.rawValue] ?? e.kind.sound) ?? e.kind.sound
                                : settings.sound(e.kind) {
             c.sound = UNNotificationSound(named: UNNotificationSoundName("\(sound).aiff"))
+        }
+        if !force, quiet() {
+            c.sound = nil
+            c.interruptionLevel = .passive
         }
         if settings.stackPerPR { c.threadIdentifier = e.key }
         c.categoryIdentifier = e.threadId == nil ? Cat.simples : Cat.thread
