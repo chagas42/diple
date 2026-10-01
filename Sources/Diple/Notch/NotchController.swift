@@ -592,6 +592,7 @@ final class NotchController: ObservableObject {
         guard !eye.sore else { return }
         finishWaking()
         eye.pokes += 1
+        eye.complaining = true
         eye.sore = true
         eye.lidSpeed = 0.05
         eye.lid = 0.1
@@ -600,7 +601,8 @@ final class NotchController: ObservableObject {
         eye.lidSpeed = 0.3
         eye.lid = 1
         eye.sore = false
-        await nap(.milliseconds(300))
+        await nap(.milliseconds(450))
+        eye.complaining = false
         eye.lidSpeed = 0.4
     }
 

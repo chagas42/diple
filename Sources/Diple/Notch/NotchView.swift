@@ -222,6 +222,7 @@ struct NotchView: View {
     private var open: some View {
         VStack(spacing: 0) {
             topStrip
+                .zIndex(1)
             openBody
                 .overlay {
                     if let since = focusedSince {
@@ -241,6 +242,11 @@ struct NotchView: View {
                         .frame(width: 22, height: 26)
                         .contentShape(Rectangle())
                         .onTapGesture { onEyeTap?() }
+                        .overlay(alignment: .topLeading) {
+                            Complaint(eye: eye)
+                                .fixedSize()
+                                .offset(x: 14, y: 20)
+                        }
                         .help(eye.focused ? "Focused. Click to stop." : "Click to focus.")
                         .transition(eyeToggle)
                 }

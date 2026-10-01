@@ -30,6 +30,11 @@ final class EyeState: ObservableObject {
     @Published var focused = false
     @Published var sore = false
     @Published var pokes = 0
+    @Published var complaining = false
+
+    static let complaints = ["ow!", "hey!", "my eye!", "rude.", "ouch!", "why?!"]
+
+    var complaint: String { Self.complaints[(pokes - 1 + Self.complaints.count) % Self.complaints.count] }
     var lidSpeed: Double = 0.4
 
     func look(at next: CGPoint) {
@@ -93,5 +98,34 @@ struct EyeView: View {
             }
         }
         .animation(.spring(response: 0.24, dampingFraction: 0.6), value: gaze)
+    }
+}
+
+struct Complaint: View {
+    @ObservedObject var eye: EyeState
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if eye.complaining {
+                HStack(spacing: 3) {
+                    Text("💢").font(.system(size: 9))
+                    Text(eye.complaint)
+                        .font(.system(size: 10.5, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.black)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(.white))
+                .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.4, anchor: .topLeading).combined(with: .opacity)
+                            .animation(.spring(response: 0.28, dampingFraction: 0.55)),
+                        removal: .opacity.combined(with: .offset(y: -4)).animation(.easeIn(duration: 0.2))
+                    )
+                )
+            }
+        }
+        .allowsHitTesting(false)
     }
 }

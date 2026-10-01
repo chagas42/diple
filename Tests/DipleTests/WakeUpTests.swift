@@ -184,14 +184,21 @@ import Testing
     @Test func aPokeSquintsSoreAndReopens() async {
         let log = Log()
         var squinted = false
-        let n = notch(log: log) { n, _ in if n.eye.sore && n.eye.lid < 0.2 { squinted = true } }
+        var complained = false
+        let n = notch(log: log) { n, _ in
+            if n.eye.sore && n.eye.lid < 0.2 { squinted = true }
+            if n.eye.complaining { complained = true }
+        }
         n.settleBeforeFirstFrame()
         n.fallAsleep()
 
         await n.ouch()
 
         #expect(squinted)
+        #expect(complained)
         #expect(n.eye.pokes == 1)
+        #expect(n.eye.complaint == EyeState.complaints[0])
+        #expect(!n.eye.complaining)
         #expect(!n.eye.sore)
         #expect(n.eye.lid == 1)
         #expect(!n.waking)

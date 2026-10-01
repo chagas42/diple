@@ -235,8 +235,9 @@ until the macOS Focus ends, and the next one is followed again. The eye in the o
 follows the pointer from where it sits (top left, 41pt in, halfway down the
 menu bar), over a shorter range than the idle eye. The click hurts: the eye
 squints shut, turns pink and shakes for about half a second, then opens into
-the new state. Settings → Notifications → Focus turns following macOS off. `--scene focus` films the terminal cover coming and going, `--scene
-focus-covers` the other two; film them at `--fps 8`, since the cover's typing
+the new state, while a bubble below it complains (`💢 ow!`, `hey!`, `my eye!`,
+`rude.`, `ouch!`, `why?!`, in turn) for about a second. Settings → Notifications → Focus turns following macOS off. `--scene focus` films the terminal cover coming and going, and
+`focus-breathing` and `focus-pomodoro` the other two; film them at `--fps 8`, since the cover's typing
 and the poke run on the wall clock and a 60 fps capture falls behind them.
 Films and benches never ask: they run
 the binary straight from a shell, so TCC holds the shell responsible, finds no
