@@ -93,6 +93,7 @@ struct RawPR: Decodable, Sendable {
         let isOutdated: Bool?
         let path: String?
         let line: Int?
+        let startLine: Int?
         let comments: RawComments
     }
     struct RawCommits: Decodable, Sendable { let nodes: [RawCommitNode?] }
@@ -149,6 +150,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         let id: String
         let path: String
         let line: Int?
+        var startLine: Int? = nil
         let diffHunk: String?
         let outdated: Bool
         let comments: [ThreadComment]
@@ -300,6 +302,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
                     id: t.id,
                     path: t.path ?? "?",
                     line: t.line,
+                    startLine: t.startLine,
                     diffHunk: t.comments.nodes.compactMap { $0?.diffHunk }.first,
                     outdated: t.isOutdated ?? false,
                     comments: falas

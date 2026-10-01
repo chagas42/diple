@@ -3,6 +3,8 @@ import SwiftUI
 struct DiffHunkView: View {
     let hunk: String
     var path: String = ""
+    var line: Int?
+    var startLine: Int?
 
     @Environment(\.codeTheme) private var theme
 
@@ -15,17 +17,50 @@ struct DiffHunkView: View {
         var isHeader: Bool { mark == "@" }
     }
 
-    private let rows: [Row]
+    @State private var expanded = false
 
-    init(hunk: String, path: String = "") {
+    static let contextAbove = 3
+
+    init(hunk: String, path: String = "", line: Int? = nil, startLine: Int? = nil) {
         self.hunk = hunk
         self.path = path
-        self.rows = Self.parse(hunk, highlighter: Highlighter(language: .of(path: path)))
+        self.line = line
+        self.startLine = startLine
+    }
+
+    static func visible(_ rows: [Row], expanded: Bool, line: Int? = nil, startLine: Int? = nil) -> (hidden: Int, rows: ArraySlice<Row>) {
+        let code = rows.drop { $0.isHeader }
+        guard !expanded else { return (0, rows[...]) }
+        let end = line.flatMap { l in code.lastIndex { $0.number == l } } ?? code.indices.last
+        guard let end else { return (0, rows[...]) }
+        let first = startLine ?? (code[end].number.map { $0 - contextAbove })
+        let start = first.flatMap { f in code[...end].firstIndex { ($0.number ?? .min) >= f } }
+            ?? code.index(end, offsetBy: -contextAbove, limitedBy: code.startIndex) ?? code.startIndex
+        let shown = code[start...end]
+        let hidden = code.count - shown.count
+        return hidden > 1 ? (hidden, shown) : (0, rows[...])
     }
 
     var body: some View {
+        let all = HunkCache.rows(for: hunk, path: path)
+        let folds = Self.visible(all, expanded: false, line: line, startLine: startLine).hidden
+        let shown = Self.visible(all, expanded: expanded, line: line, startLine: startLine)
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(rows) { row in
+            if folds > 0 {
+                Button { expanded.toggle() } label: {
+                    Label(expanded ? "Hide \(folds) lines" : "Show \(folds) more lines",
+                          systemImage: expanded ? "arrow.down.and.line.horizontal.and.arrow.up"
+                                                : "arrow.up.and.line.horizontal.and.arrow.down")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(theme.comment)
+                        .padding(.horizontal, 14).padding(.vertical, 5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(theme.gutter.opacity(0.10))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(shown.rows) { row in
                 if row.isHeader {
                     Text(row.text)
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
@@ -114,5 +149,22 @@ struct DiffHunkView: View {
             }
         }
         return out
+    }
+}
+
+@MainActor
+enum HunkCache {
+    private static var store: [String: [DiffHunkView.Row]] = [:]
+    static let keeps = 300
+    private(set) static var parses = 0
+
+    static func rows(for hunk: String, path: String) -> [DiffHunkView.Row] {
+        let key = path + "\u{0}" + hunk
+        if let hit = store[key] { return hit }
+        if store.count >= keeps { store.removeAll(keepingCapacity: true) }
+        parses += 1
+        let rows = DiffHunkView.parse(hunk, highlighter: Highlighter(language: .of(path: path)))
+        store[key] = rows
+        return rows
     }
 }

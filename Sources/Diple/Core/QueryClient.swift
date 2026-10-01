@@ -38,6 +38,8 @@ struct CacheQuery<T: Sendable>: Sendable {
     var staleAfter: Duration
     var forgetAfter: Duration = .seconds(300)
     var persists = false
+    var persistFor: Duration = .seconds(30 * 24 * 3600)
+    var retryDelays: [Duration] = []
     var onSuccess: (@MainActor @Sendable (T) async -> Void)? = nil
     var onError: (@MainActor @Sendable (Error) -> Void)? = nil
     let fetch: @Sendable (GitHubClient, T?) async throws -> T
@@ -47,13 +49,14 @@ extension CacheQuery {
     init(
         key: QueryKey, tags: [QueryTag] = [], staleAfter: Duration, forgetAfter: Duration = .seconds(300),
         persists: Bool = false,
+        persistFor: Duration = .seconds(30 * 24 * 3600),
         onSuccess: (@MainActor @Sendable (T) async -> Void)? = nil,
         onError: (@MainActor @Sendable (Error) -> Void)? = nil,
         fetch: @escaping @Sendable (GitHubClient) async throws -> T
     ) {
         self.init(
             key: key, tags: tags, staleAfter: staleAfter, forgetAfter: forgetAfter, persists: persists,
-            onSuccess: onSuccess, onError: onError
+            persistFor: persistFor, onSuccess: onSuccess, onError: onError
         ) { github, _ in try await fetch(github) }
     }
 }
@@ -75,6 +78,7 @@ final class QueryObserver<T: Sendable>: ObservableObject {
     var data: T? { fetched ?? placeholder }
     var isLoading: Bool { isFetching && fetched == nil }
 
+    fileprivate let token = UUID()
     private let client: QueryClient
     private let query: CacheQuery<T>
 
@@ -96,13 +100,14 @@ final class QueryObserver<T: Sendable>: ObservableObject {
     }
 
     deinit {
-        let (client, key, id) = (client, query.key, ObjectIdentifier(self))
-        Task { @MainActor in client.stopObserving(key, id) }
+        let (client, key, token) = (client, query.key, token)
+        Task { @MainActor in client.stopObserving(key, token) }
     }
 }
 
 @MainActor
 final class QueryHold {
+    fileprivate let token = UUID()
     private let client: QueryClient
     private let key: QueryKey
 
@@ -112,8 +117,8 @@ final class QueryHold {
     }
 
     deinit {
-        let (client, key, id) = (client, key, ObjectIdentifier(self))
-        Task { @MainActor in client.stopObserving(key, id) }
+        let (client, key, token) = (client, key, token)
+        Task { @MainActor in client.stopObserving(key, token) }
     }
 }
 
@@ -127,9 +132,10 @@ private final class AnyEntry {
     var invalidated = false
     var tags: [QueryTag] = []
     var persists = false
+    var persistFor: Duration = .zero
     var staleAfter: Duration = .zero
     var forgetAfter: Duration = .zero
-    var observers: [ObjectIdentifier: (AnyEntry) -> Void] = [:]
+    var observers: [UUID: (AnyEntry) -> Void] = [:]
     var refetch: ((_ force: Bool) -> Void)?
     var forget: Task<Void, Never>?
 
@@ -147,22 +153,32 @@ final class QueryClient {
     private let now: () -> Date
     private var entries: [QueryKey: AnyEntry] = [:]
     private var background: [UUID: Task<Void, Never>] = [:]
+    private var decoded: [String: any Sendable] = [:]
+    private var decoding: Task<Void, Never>?
+
+    typealias Decode = @Sendable (Data) throws -> any Sendable
 
     var onChange: (() -> Void)?
 
-    init(github: GitHubClient, store: Store? = nil, now: @escaping () -> Date = Date.init) {
+    init(
+        github: GitHubClient, store: Store? = nil, now: @escaping () -> Date = Date.init,
+        decoders: [String: Decode] = [:]
+    ) {
         self.github = github
         self.store = store
         self.now = now
         pruneExpired()
+        decodeSaved(with: decoders)
     }
+
+    func savedDecoded() async { await decoding?.value }
 
     func observe<T: Sendable>(_ q: CacheQuery<T>, placeholder: T? = nil, fetching: Bool = true) -> QueryObserver<T> {
         let entry = entry(for: q)
         let observer = QueryObserver(client: self, query: q, placeholder: placeholder)
         entry.forget?.cancel()
         entry.forget = nil
-        entry.observers[ObjectIdentifier(observer)] = { [weak observer] in observer?.show($0) }
+        entry.observers[observer.token] = { [weak observer] in observer?.show($0) }
         if fetching { prefetch(q) }
         observer.show(entry)
         return observer
@@ -174,7 +190,7 @@ final class QueryClient {
         entries[key] = entry
         entry.forget?.cancel()
         entry.forget = nil
-        entry.observers[ObjectIdentifier(hold)] = { _ in }
+        entry.observers[hold.token] = { _ in }
         return hold
     }
 
@@ -261,7 +277,7 @@ final class QueryClient {
         }
     }
 
-    fileprivate func stopObserving(_ key: QueryKey, _ observer: ObjectIdentifier) {
+    fileprivate func stopObserving(_ key: QueryKey, _ observer: UUID) {
         guard let entry = entries[key] else { return }
         entry.observers[observer] = nil
         forgetIfUnobserved(key, entry)
@@ -282,11 +298,12 @@ final class QueryClient {
         let entry = AnyEntry()
         entry.tags = q.tags
         entry.persists = q.persists
+        entry.persistFor = q.persistFor
         entry.staleAfter = q.staleAfter
         entry.forgetAfter = q.forgetAfter
         if q.persists, let stored = store?.state.cache.queries?[q.key.id],
-           let decoded = Self.decode(T.self, stored.data) {
-            entry.data = decoded
+           let value = (decoded.removeValue(forKey: q.key.id) as? T) ?? Self.decode(T.self, stored.data) {
+            entry.data = value
             entry.fetchedAt = stored.at
         }
         entry.refetch = { [weak self] force in
@@ -309,7 +326,7 @@ final class QueryClient {
         let previous = entry.data as? T
         let task = Task<any Sendable, Error> { @MainActor [weak self] in
             do {
-                let value = try await q.fetch(github, previous)
+                let value = try await Self.fetching(q, github, previous) { entry.version == version }
                 guard entry.version == version else { throw Superseded() }
                 let old = entry.data as? T
                 let unchanged = Self.same(value, old)
@@ -342,6 +359,20 @@ final class QueryClient {
         return task
     }
 
+    private static func fetching<T>(
+        _ q: CacheQuery<T>, _ github: GitHubClient, _ previous: T?, stillWanted: () -> Bool
+    ) async throws -> T {
+        var delays = q.retryDelays[...]
+        while true {
+            do {
+                return try await q.fetch(github, previous)
+            } catch let error as URLError where error.code != .cancelled {
+                guard let delay = delays.popFirst(), stillWanted() else { throw error }
+                try await Task.sleep(for: delay)
+            }
+        }
+    }
+
     private func changed(_ entry: AnyEntry) {
         entry.notify()
         onChange?()
@@ -350,6 +381,7 @@ final class QueryClient {
     private func expire(_ entry: AnyEntry) {
         entry.version += 1
         entry.invalidated = true
+        entry.task?.cancel()
         entry.task = nil
     }
 
@@ -367,9 +399,6 @@ final class QueryClient {
             guard !Task.isCancelled, let self, self.entries[key] === entry,
                   entry.observers.isEmpty, entry.task == nil else { return }
             self.entries[key] = nil
-            if self.store?.state.cache.queries?[key.id] != nil {
-                self.store?.updateCache { $0.queries?[key.id] = nil }
-            }
             self.onChange?()
         }
     }
@@ -382,8 +411,28 @@ final class QueryClient {
         if unchanged, recent { return }
         guard let data = try? Self.encoder.encode(value) else { return }
         if stored?.data == data, recent { return }
-        let row = StoredQuery(data: data, at: at, forgetAt: at.addingTimeInterval(entry.forgetAfter.seconds))
+        decoded[key.id] = nil
+        let row = StoredQuery(data: data, at: at, forgetAt: at.addingTimeInterval(entry.persistFor.seconds))
         store.updateCache { $0.queries = ($0.queries ?? [:]).merging([key.id: row]) { $1 } }
+    }
+
+    private func decodeSaved(with decoders: [String: Decode]) {
+        guard !decoders.isEmpty, let rows = store?.state.cache.queries else { return }
+        let work = rows.compactMap { id, row in
+            decoders[String(id.prefix { $0 != "/" })].map { (id, row.data, $0) }
+        }
+        guard !work.isEmpty else { return }
+        decoding = Task { [weak self] in
+            let values = await Task.detached(priority: .userInitiated) {
+                var out: [String: any Sendable] = [:]
+                for (id, data, decode) in work { out[id] = try? decode(data) }
+                return out
+            }.value
+            guard let self else { return }
+            for (id, value) in values where self.entries.keys.allSatisfy({ $0.id != id }) {
+                self.decoded[id] = value
+            }
+        }
     }
 
     private func pruneExpired() {

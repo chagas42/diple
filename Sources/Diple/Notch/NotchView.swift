@@ -44,6 +44,13 @@ struct NotchView: View {
     var tick: ReviewTick?
     var tickStart = Date()
     var heldCount: Int?
+    var onEyeTap: (() -> Void)?
+    var onFocusToggle: (() -> Void)?
+
+    private var isFocused: Bool { focusedSince != nil && focusEnded == nil }
+    var focusedSince: Date?
+    var focusEnded: Date?
+    var focusLook = FocusLook.terminal
     let eye: EyeState
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
@@ -71,11 +78,14 @@ struct NotchView: View {
             .offset(x: shift)
             .contextMenu {
                 if case .available(let version, let page) = updates.state {
-                    Button("Update to \(version)…") { NSWorkspace.shared.open(page) }
+                    Button("Update to \(version)…") {
+                        if updates.canInstall { updates.install() } else { NSWorkspace.shared.open(page) }
+                    }
                     Divider()
                 }
                 Button("Settings…") { Windows.shared.openSettings(model) }
                 Button("Main Window") { Windows.shared.openMain(model) }
+                Button(isFocused ? "Stop Focusing" : "Focus") { onFocusToggle?() }
                 if let onNap {
                     Menu("Rehearse Nap") {
                         Button("Short") { onNap(.short) }
@@ -122,10 +132,7 @@ struct NotchView: View {
     }
 
     private var eyeCenter: CGPoint {
-        let x = wings.crowded ? -notchWidth / 2 - wings.left / 2 - 10
-            : wings.countOnLeft ? notchWidth / 2 + wings.right / 2
-            : -notchWidth / 2 - wings.left / 2
-        return CGPoint(x: x, y: notchHeight / 2)
+        CGPoint(x: wings.eyeX(notchWidth: notchWidth), y: notchHeight / 2)
     }
 
     private var shape: PanelShape {
@@ -221,7 +228,16 @@ struct NotchView: View {
     private var open: some View {
         VStack(spacing: 0) {
             topStrip
+                .zIndex(1)
             openBody
+                .overlay {
+                    if let since = focusedSince {
+                        FocusCover(since: since, ended: focusEnded, look: focusLook,
+                                   comeBack: model.settings.showsEye ? "click the eye" : "click the moon")
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.4), value: focusedSince == nil)
         }
     }
 
@@ -230,8 +246,24 @@ struct NotchView: View {
             HStack(spacing: 6) {
                 if model.settings.showsEye {
                     EyeView(eye: eye, width: 15)
-                        .padding(.trailing, 2)
+                        .frame(width: 22, height: 26)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onEyeTap?() }
+                        .overlay(alignment: .topLeading) {
+                            Complaint(eye: eye)
+                                .fixedSize()
+                                .offset(x: 14, y: 20)
+                        }
+                        .help(eye.focused ? "Focused. Click to stop." : "Click to focus.")
                         .transition(eyeToggle)
+                } else {
+                    Image(systemName: isFocused ? "moon.fill" : "moon")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(isFocused ? FocusCover.indigo : .white.opacity(0.42))
+                        .frame(width: 30, height: 26)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onFocusToggle?() }
+                        .help(isFocused ? "Focused. Click to stop." : "Focus")
                 }
                 ForEach(AppModel.NotchTab.allCases) { tab in
                     Button { model.notchTab = tab } label: {
@@ -428,7 +460,7 @@ struct NotchView: View {
                 if let problem = model.syncProblem {
                     problemStrip(problem)
                 }
-                ScrollView {
+                ThinScrollView {
                     VStack(spacing: 0) {
                         ForEach(Array(model.prs(model.tab).enumerated()), id: \.element.id) { i, pr in
                             if i > 0 {
@@ -470,7 +502,6 @@ struct NotchView: View {
                         }
                     }
                 }
-                .scrollIndicators(.visible)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

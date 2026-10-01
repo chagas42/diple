@@ -56,6 +56,8 @@ final class Windows: NSObject, NSWindowDelegate {
             content: FeedbackView(model: model, feature: feature) { [weak self] in self?.feedback?.close() },
             resizable: false
         )
+        j.titlebarAppearsTransparent = true
+        j.titleVisibility = .hidden
         j.delegate = self
         feedback = j
         j.center()
@@ -72,7 +74,7 @@ final class Windows: NSObject, NSWindowDelegate {
         }
         let j = make(
             title: "Diple Settings",
-            size: NSSize(width: 620, height: 472),
+            size: NSSize(width: 860, height: 620),
             content: SettingsView(model: model)
         )
         j.contentMinSize = SettingsView.minimum
@@ -88,7 +90,9 @@ final class Windows: NSObject, NSWindowDelegate {
         let content = MapWindowView(model: model, pr: pr)
         if let j = map {
             j.title = "Map · \(pr.key)"
-            j.contentView = NSHostingView(rootView: content)
+            let frame = j.frame
+            j.contentViewController = NSHostingController(rootView: content)
+            j.setFrame(frame, display: true)
             j.makeKeyAndOrderFront(nil)
             syncDockPolicy()
             return
@@ -117,8 +121,9 @@ final class Windows: NSObject, NSWindowDelegate {
             defer: false
         )
         j.title = title
-        j.titlebarAppearsTransparent = false
-        j.contentView = NSHostingView(rootView: content)
+        j.toolbarStyle = .unified
+        j.contentViewController = NSHostingController(rootView: content)
+        j.setContentSize(size)
         j.isReleasedWhenClosed = false
         j.center()
         return j

@@ -185,9 +185,24 @@ make run        # build, bundle, launch — the fast loop
 make install    # /Applications/Diple (Dev).app; use this when testing notifications
 make tools      # show which binaries were found, and where
 make probe      # print the queue in the terminal, no UI
-make film       # run a scripted take over the demo fixtures
+make film       # record a scripted take over the demo fixtures (see below)
 make stop
 ```
+
+`make film` records the notch without Screen Recording permission. With `VIDEO`
+it writes a 60 fps H.264 file that can be shared as is: a real arrow cursor
+follows a hand-like path, the camera cutout hides it like the hardware does,
+and the panel sits over a desktop backdrop.
+
+```bash
+make film                                       # the tour, as PNG frames in build/film
+make film SCENE=approach VIDEO=build/film.mp4   # pointer comes up and hovers it open
+make film SCENE=tour VIDEO=out.mp4 CROP=notch FPS=30
+```
+
+Scenes live in `Sources/Diple/Core/Film.swift`: a scene is a list of beats, and
+a beat can carry a `HumanPath` for the pointer. `CROP` is `notch`, `panel` or
+`full`.
 
 `--demo` serves fixtures instead of GitHub, so the app can be demonstrated with
 a queue in it. `--alert <kind>` fires one notification and exits:

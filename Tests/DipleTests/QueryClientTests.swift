@@ -186,6 +186,95 @@ final class Source: @unchecked Sendable {
         #expect(try await client.fetch(q) == 2)
     }
 
+    @Test func aReplacedObserverNeverUnsubscribesItsSuccessor() async throws {
+        let client = QueryClient(github: Self.github)
+        let q = Self.query(Source([1]), forgetAfter: .milliseconds(10))
+        var kept: [QueryObserver<Int>] = []
+        for _ in 0..<200 {
+            var gone: QueryObserver<Int>? = client.observe(q)
+            gone = nil
+            _ = gone
+            kept = [client.observe(q)]
+        }
+        try await Self.until { client.cached(.repos, as: Int.self) == 1 }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(client.cached(.repos, as: Int.self) == 1)
+        withExtendedLifetime(kept) {}
+    }
+
+    @Test func aForcedRefetchCancelsTheRequestItReplaces() async throws {
+        let client = QueryClient(github: Self.github)
+        let cancelled = Locked(false)
+        let calls = Locked(0)
+        let q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
+            calls.value += 1
+            do { try await Task.sleep(for: .seconds(5)) } catch { cancelled.value = true; throw error }
+            return 1
+        }
+        client.prefetch(q)
+        try await Self.until { calls.value == 1 }
+        let forced = Task { try? await client.fetch(q, force: true) }
+        try await Self.until { cancelled.value }
+        #expect(cancelled.value)
+        forced.cancel()
+    }
+
+    @Test func aForgottenEntryIsStillOnDiskAndComesBack() async throws {
+        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics(), debounce: .milliseconds(10))
+        let client = QueryClient(github: Self.github, store: store)
+        let source = Source([7, 8])
+        let q = Self.query(source, forgetAfter: .milliseconds(10), persists: true)
+        _ = try await client.fetch(q)
+        try await Self.until { client.cached(.repos, as: Int.self) == nil }
+        #expect(store.state.cache.queries?[QueryKey.repos.id] != nil)
+        #expect(client.peek(q) == 7)
+        #expect(source.count == 1)
+    }
+
+    @Test func aDroppedConnectionIsRetriedWithBackoff() async throws {
+        let client = QueryClient(github: Self.github)
+        let calls = Locked(0)
+        var q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
+            calls.value += 1
+            if calls.value < 3 { throw URLError(.networkConnectionLost) }
+            return 1
+        }
+        q.retryDelays = [.milliseconds(5), .milliseconds(5)]
+        #expect(try await client.fetch(q) == 1)
+        #expect(calls.value == 3)
+    }
+
+    @Test func retriesStopWhenTheyRunOut() async throws {
+        let client = QueryClient(github: Self.github)
+        let calls = Locked(0)
+        var q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
+            calls.value += 1
+            throw URLError(.timedOut)
+        }
+        q.retryDelays = [.milliseconds(5)]
+        await #expect(throws: URLError.self) { try await client.fetch(q) }
+        #expect(calls.value == 2)
+    }
+
+    @Test func savedRowsAreDecodedOffTheMainActorAtLaunch() async throws {
+        let dir = StoreDiffTests.tempDirectory()
+        let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
+        _ = try await QueryClient(github: Self.github, store: store).fetch(Self.query(Source([7]), persists: true))
+        await store.settle()
+
+        let onMain = Locked<Bool?>(nil)
+        let relaunched = QueryClient(
+            github: Self.github, store: Store(directory: dir, metrics: Metrics()),
+            decoders: ["repos": { data in
+                onMain.value = Thread.isMainThread
+                return try JSONDecoder().decode(Int.self, from: data)
+            }]
+        )
+        await relaunched.savedDecoded()
+        #expect(onMain.value == false)
+        #expect(relaunched.peek(Self.query(Source([0]), persists: true)) == 7)
+    }
+
     @Test func persistedDataIsReadBackAtLaunch() async throws {
         let dir = StoreDiffTests.tempDirectory()
         let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
@@ -242,7 +331,9 @@ final class Source: @unchecked Sendable {
         let dir = StoreDiffTests.tempDirectory()
         let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
         let client = QueryClient(github: Self.github, store: store)
-        _ = try await client.fetch(Self.query(Source([7]), key: .team(org: "old"), forgetAfter: .seconds(1), persists: true))
+        var q = Self.query(Source([7]), key: .team(org: "old"), persists: true)
+        q.persistFor = .seconds(1)
+        _ = try await client.fetch(q)
         await store.settle()
         #expect(store.state.cache.queries?[QueryKey.team(org: "old").id] != nil)
 

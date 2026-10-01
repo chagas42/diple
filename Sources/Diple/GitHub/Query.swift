@@ -29,6 +29,7 @@ enum Query {
           isOutdated
           path
           line
+          startLine
           comments(last: 10) {
             nodes { author { login __typename } createdAt bodyText diffHunk }
           }

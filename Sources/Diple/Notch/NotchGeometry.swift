@@ -188,4 +188,10 @@ struct Wings: Equatable {
 
     var eye: CGFloat { crowded ? 0 : countOnLeft ? right : left }
     var shift: CGFloat { (right - left) / 2 }
+
+    func eyeX(notchWidth: CGFloat) -> CGFloat {
+        crowded ? -notchWidth / 2 - left / 2 - 10
+            : countOnLeft ? notchWidth / 2 + right / 2
+            : -notchWidth / 2 - left / 2
+    }
 }
