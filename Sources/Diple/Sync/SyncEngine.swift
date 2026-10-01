@@ -13,6 +13,8 @@ actor SyncEngine {
     private var lastFull: Date?
     private var lastQueue: Queue?
     private var retryFull = false
+    private var fullRequested = false
+    private var running: Task<SyncOutcome, Error>?
     private(set) var lastKind: Kind?
 
     init(
@@ -25,8 +27,9 @@ actor SyncEngine {
         self.now = now
     }
 
-    func seed(_ queue: Queue) {
+    func seed(_ queue: Queue, watching: Set<String>? = nil) {
         guard known.isEmpty, !queue.all.isEmpty else { return }
+        if let watching { self.watching = watching }
         remember(queue)
         lastQueue = queue
         lastFull = now()
@@ -36,8 +39,26 @@ actor SyncEngine {
 
     func setWatching(_ w: Set<String>) { watching = w }
 
-    func sync(full: Bool = false) async throws -> SyncOutcome {
-        if full || needsReconcile {
+    func requestFull() { fullRequested = true }
+
+    var fullPending: Bool { fullRequested }
+
+    func sync(full: Bool = false, watching w: Set<String>? = nil) async throws -> SyncOutcome {
+        let previous = running
+        let task = Task {
+            _ = try? await previous?.value
+            return try await self.run(full: full, watching: w)
+        }
+        running = task
+        return try await task.value
+    }
+
+    private func run(full: Bool, watching w: Set<String>?) async throws -> SyncOutcome {
+        if let w, w != watching {
+            watching = w
+            if !known.isEmpty { fullRequested = true }
+        }
+        if full || fullRequested || needsReconcile {
             return try await fullSync()
         }
         let beat = try await client.fetchHeartbeat()
@@ -81,6 +102,7 @@ actor SyncEngine {
         known = [:]
         remember(queue)
         lastQueue = queue
+        fullRequested = false
         retryFull = !failed.isEmpty
         if failed.isEmpty { lastFull = now() }
         lastKind = .full

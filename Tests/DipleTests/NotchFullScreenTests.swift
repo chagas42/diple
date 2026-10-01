@@ -57,6 +57,11 @@ import Testing
         #expect(!reveals(1080, x: 500, shown: false))
     }
 
+    final class Spot {
+        var at: CGPoint
+        init(_ at: CGPoint) { self.at = at }
+    }
+
     final class Flag {
         var on: Bool
         init(_ on: Bool) { self.on = on }
@@ -90,34 +95,34 @@ import Testing
 
     @Test func revealingTheMenuBarBringsTheNotchBackUntilThePointerLeavesIt() {
         let top = NotchGeometry.current().screen.frame
-        var at = Self.away
-        let n = notch(fullScreen: Flag(true)) { at }
+        let spot = Spot(Self.away)
+        let n = notch(fullScreen: Flag(true)) { spot.at }
         n.refreshIdle()
         #expect(n.state == .hidden)
 
-        at = CGPoint(x: top.minX + 40, y: top.maxY)
+        spot.at = CGPoint(x: top.minX + 40, y: top.maxY)
         n.checkPointer()
         #expect(n.state == .active)
 
-        at.y -= 20
+        spot.at.y -= 20
         n.checkPointer()
         #expect(n.state == .active)
 
-        at.y = top.midY
+        spot.at.y = top.midY
         n.checkPointer()
         #expect(n.state == .hidden)
     }
 
     @Test func hoveringTheHiddenNotchStillOpensItAndLeavingHidesItAgain() async throws {
-        var at = Self.away
-        let n = notch(fullScreen: Flag(true)) { at }
+        let spot = Spot(Self.away)
+        let n = notch(fullScreen: Flag(true)) { spot.at }
         n.refreshIdle()
 
-        at = notchCenter
+        spot.at = notchCenter
         n.checkPointer()
         #expect(n.state == .open)
 
-        at = Self.away
+        spot.at = Self.away
         for _ in 0..<40 where n.state == .open {
             n.checkPointer()
             try await Task.sleep(for: .milliseconds(20))

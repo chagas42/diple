@@ -12,7 +12,8 @@ Activity grid. The grid pages `reviewed-by:` search instead, one point per 100
 PRs, in non-overlapping 30-day `updated:` windows because a search stops at
 1000 results. A PR shows up in the window of its last update, and only its
 reviews submitted inside the grid count. The full six months is fetched once;
-after that only the last two days are, and older days come from the cache.
+after that only the last two days are, and older days come from the saved
+query, which lives on disk for the six months it covers.
 
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
@@ -62,6 +63,42 @@ sync does one full fetch anyway, so anything GitHub changes without moving
 **Three small searches beat one aggregated one.** GitHub runs aliased searches
 one after another; three requests in parallel return in ~1.4 s instead of
 ~2.4 s, for 3 points a cycle instead of 1 — about 180 of the 5000 an hour.
+
+## The query cache
+
+Everything read from GitHub goes through `QueryClient`, modelled on React Query:
+a key holds every input the data depends on, identical requests share one
+fetch, and a reply that lands after its entry was cleared is dropped.
+
+**Changing an input means asking for a different key.** The ranking key carries
+the period and the picked logins, per-PR data carries the PR's last update, and
+AI reviews and maps carry its head commit. Nothing is cleared by hand; old keys
+are forgotten once nobody has looked at them for their `forgetAfter`.
+
+**Observers are the screens on screen.** The notch tab, the main window's
+repositories and an open review or map hold their queries; everything else
+reads the cache directly. Opening the notch, reconnecting, focusing the window
+or a refresh button refetch only what is observed, which keeps the request
+budget where it was.
+
+**The queue query only syncs.** `SyncEngine` runs one sync at a time, owns the
+pending full re-read and takes the watch list from the key. The diff,
+notifications and saving run in `onSuccess`, once per result and only for the
+current watch list, so a sync that finishes after the list changed is ignored.
+
+**AI reviews and maps follow the head commit, not the update time.** A comment
+bumps `updatedAt`; keyed by it, a finished review vanished the moment a
+teammate replied. A push is what makes a review or a map out of date.
+
+**Memory and disk forget on different clocks.** `forgetAfter` drops an unused
+entry from memory only; the saved row stays and is read back the next time the
+key is asked for. Saved rows have their own `persistFor` (30 days, six months
+for activity) and are pruned at launch once past it, since forget timers live
+only in memory. TanStack's persister keeps the same split with `maxAge`.
+
+**Saved queries write only when something changed.** An unchanged refetch
+writes nothing unless the saved copy is already stale, so a relaunch can trust
+its time.
 
 ## The notch panel
 
@@ -208,6 +245,13 @@ retargeted spring keeps its velocity, so a new sample never shows as a step.
 The spring is critically damped because a negative bulge dents the notch
 upward and shows the cutout's edge. The pull lives in its own observable
 object, like the eye, so only the fill redraws.
+
+**Reduce Motion turns movement into fades.** With the system setting on,
+springs become short ease-in-outs without bounce, slides and scale-ins become
+cross-fades, the count swaps digits instead of rolling them, and the flame
+stands still. The eye stops following the pointer, blinking and looking
+around on its own. Views read `accessibilityReduceMotion`; the controller,
+which drives the eye outside SwiftUI, reads `Motion.reduced`.
 
 **The panel is always dark.** It is black whatever the system appearance, so
 it sets `darkAqua` on itself; without it a light system appearance draws the
