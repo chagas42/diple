@@ -96,45 +96,13 @@ enum RankPeriod: String, CaseIterable, Codable, Sendable, Identifiable {
 }
 
 struct Cache: Codable, Sendable, Equatable {
-    var team: [Person] = []
-    var ranking: [RankRow] = []
-    var activity: [ActivityDay] = []
-    var teamAt: Date?
-    var rankingAt: Date?
-    var activityAt: Date?
-    var activityFrom: Date?
     var scoreShownOn: Date?
-    var repos: [RepoRef]? = nil
-    var reposAt: Date? = nil
-    var rankByPeriod: [String: [RankRow]]? = nil
-    var rankAtByPeriod: [String: Date]? = nil
     var lastQueue: Lenient<Queue>? = nil
+    var queries: [String: StoredQuery]? = nil
 
     var queue: Queue? {
         get { lastQueue?.value }
         set { lastQueue = newValue.map(Lenient.init) }
-    }
-
-    func rank(_ p: RankPeriod) -> [RankRow] { rankByPeriod?[p.rawValue] ?? [] }
-    func rankAt(_ p: RankPeriod) -> Date? { rankAtByPeriod?[p.rawValue] }
-
-    mutating func setRank(_ rows: [RankRow], for p: RankPeriod) {
-        var byP = rankByPeriod ?? [:]
-        byP[p.rawValue] = rows
-        rankByPeriod = byP
-        var atP = rankAtByPeriod ?? [:]
-        atP[p.rawValue] = Date()
-        rankAtByPeriod = atP
-    }
-
-    mutating func dropRanks() {
-        rankByPeriod = nil
-        rankAtByPeriod = nil
-    }
-
-    func isStale(_ at: Date?, after seconds: TimeInterval) -> Bool {
-        guard let at else { return true }
-        return Date().timeIntervalSince(at) > seconds
     }
 
     init() {}
@@ -142,19 +110,9 @@ struct Cache: Codable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         var d = Cache()
-        d.team = try c.decodeIfPresent([Person].self, forKey: .team) ?? d.team
-        d.ranking = try c.decodeIfPresent([RankRow].self, forKey: .ranking) ?? d.ranking
-        d.activity = try c.decodeIfPresent([ActivityDay].self, forKey: .activity) ?? d.activity
-        d.teamAt = try c.decodeIfPresent(Date.self, forKey: .teamAt)
-        d.rankingAt = try c.decodeIfPresent(Date.self, forKey: .rankingAt)
-        d.activityAt = try c.decodeIfPresent(Date.self, forKey: .activityAt)
-        d.activityFrom = try c.decodeIfPresent(Date.self, forKey: .activityFrom)
         d.scoreShownOn = try c.decodeIfPresent(Date.self, forKey: .scoreShownOn)
-        d.repos = try c.decodeIfPresent([RepoRef].self, forKey: .repos)
-        d.reposAt = try c.decodeIfPresent(Date.self, forKey: .reposAt)
-        d.rankByPeriod = try c.decodeIfPresent([String: [RankRow]].self, forKey: .rankByPeriod)
-        d.rankAtByPeriod = try c.decodeIfPresent([String: Date].self, forKey: .rankAtByPeriod)
         d.lastQueue = try? c.decodeIfPresent(Lenient<Queue>.self, forKey: .lastQueue)
+        d.queries = try? c.decodeIfPresent([String: StoredQuery].self, forKey: .queries)
         self = d
     }
 
@@ -264,13 +222,6 @@ final class Store {
     func markRead(_ key: String) {
         state.unread.remove(key)
         state.unreadReasons[key] = nil
-        save()
-    }
-
-    func saveCache(_ c: Cache) {
-        var c = c
-        c.queue = state.cache.queue
-        state.cache = c
         save()
     }
 
