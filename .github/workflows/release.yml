@@ -86,16 +86,14 @@ jobs:
   release:
     needs: decide
     if: needs.decide.outputs.release == 'true'
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 0 }
 
-      - name: Use the newest Xcode on the runner
+      - name: Use Xcode 26.6
         run: |
-          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
-          echo "using $latest"
-          sudo xcode-select -s "$latest"
+          sudo xcode-select -s /Applications/Xcode_26.6.app
           swift --version
 
       - name: Build
