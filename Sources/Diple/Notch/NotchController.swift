@@ -53,6 +53,9 @@ final class NotchController: ObservableObject {
     private var showsEye = true
     private var countOnLeft = false
     private var wingSettings: AnyCancellable?
+    private var focusWatch: AnyCancellable?
+    @Published private(set) var focusedSince: Date?
+    @Published private(set) var focusEnded: Date?
     var clock: @MainActor () -> Date = Date.init
     static let longestSwitch: TimeInterval = 1.5
     private var arrivingSince: Date?
@@ -67,6 +70,10 @@ final class NotchController: ObservableObject {
         wingSettings = model.$settings
             .removeDuplicates { $0.showsEye == $1.showsEye && $0.countSide == $1.countSide }
             .sink { [weak self] s in self?.arrange(showsEye: s.showsEye, countOnLeft: s.countSide == .left) }
+        focusWatch = model.focus.$byHand.combineLatest(model.focus.$system, model.focus.$setAside)
+            .map { $0 || ($1 && !$2) }
+            .removeDuplicates()
+            .sink { [weak self] on in self?.focus(on) }
         settleBeforeFirstFrame()
         fallAsleep()
         measure()
@@ -505,6 +512,8 @@ final class NotchController: ObservableObject {
         }
     }
 
+    static let openEyeX: CGFloat = 14 + 16 + 11
+
     lazy var leans: @MainActor () -> Bool = { [weak self] in
         (self?.model?.settings.liquidNotch ?? false) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
@@ -530,20 +539,71 @@ final class NotchController: ObservableObject {
     }
 
     private func aim() {
-        guard showsEye, !waking, state == .hidden || state == .active else { return }
+        guard showsEye, !waking, !eye.sore else { return }
         let g = NotchGeometry.current()
         let f = g.rect(size, shift: shift)
         let m = pointer()
-        let range: CGFloat = 300
-        let dx = max(-1, min(1, (m.x - f.midX) / range))
-        let dy = max(-1, min(1, (f.midY - m.y) / range))
+        let from: CGPoint
+        let range: CGFloat
+        switch state {
+        case .hidden, .active:
+            from = CGPoint(x: f.midX, y: f.midY)
+            range = 300
+        case .open:
+            from = CGPoint(x: f.minX + Self.openEyeX, y: f.maxY - notchHeight / 2)
+            range = 160
+        case .alert:
+            return
+        }
+        let dx = max(-1, min(1, (m.x - from.x) / range))
+        let dy = max(-1, min(1, (from.y - m.y) / range))
         let next = CGPoint(x: dx, y: dy)
         eye.look(at: next)
     }
 
     private var blinks: Bool {
         guard let s = model?.settings else { return true }
-        return s.showsEye && s.eyeBlinks
+        return s.showsEye && s.eyeBlinks && !eye.focused
+    }
+
+    func focus(_ on: Bool) {
+        eye.focused = on
+        if on {
+            focusEnded = nil
+            focusedSince = Date()
+            return
+        }
+        guard focusedSince != nil else { return }
+        let ended = Date()
+        focusEnded = ended
+        Task { [weak self] in
+            try? await Task.sleep(for: FocusCover.lingers)
+            guard let self, self.focusEnded == ended else { return }
+            self.focusedSince = nil
+            self.focusEnded = nil
+        }
+    }
+
+    func poke() {
+        Task { [weak self] in await self?.ouch() }
+    }
+
+    func ouch() async {
+        guard !eye.sore else { return }
+        finishWaking()
+        eye.pokes += 1
+        eye.complaining = true
+        eye.sore = true
+        eye.lidSpeed = 0.05
+        eye.lid = 0.1
+        await nap(.milliseconds(480))
+        model?.focus.toggle()
+        eye.lidSpeed = 0.3
+        eye.lid = 1
+        eye.sore = false
+        await nap(.milliseconds(450))
+        eye.complaining = false
+        eye.lidSpeed = 0.4
     }
 
     private func blinkOccasionally() {
@@ -582,6 +642,10 @@ final class NotchController: ObservableObject {
                 tick: notch.tick,
                 tickStart: notch.tickStart,
                 heldCount: notch.heldCount,
+                onEyeTap: { notch.poke() },
+                focusedSince: notch.focusedSince,
+                focusEnded: notch.focusEnded,
+                focusLook: model.settings.focusLook,
                 eye: notch.eye,
                 onNap: DevBuild.isOn ? { notch.rehearse($0) } : nil,
                 onClose: { notch.closeNow() }

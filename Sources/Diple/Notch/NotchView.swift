@@ -44,6 +44,10 @@ struct NotchView: View {
     var tick: ReviewTick?
     var tickStart = Date()
     var heldCount: Int?
+    var onEyeTap: (() -> Void)?
+    var focusedSince: Date?
+    var focusEnded: Date?
+    var focusLook = FocusLook.terminal
     let eye: EyeState
     var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
@@ -122,10 +126,7 @@ struct NotchView: View {
     }
 
     private var eyeCenter: CGPoint {
-        let x = wings.crowded ? -notchWidth / 2 - wings.left / 2 - 10
-            : wings.countOnLeft ? notchWidth / 2 + wings.right / 2
-            : -notchWidth / 2 - wings.left / 2
-        return CGPoint(x: x, y: notchHeight / 2)
+        CGPoint(x: wings.eyeX(notchWidth: notchWidth), y: notchHeight / 2)
     }
 
     private var shape: PanelShape {
@@ -221,7 +222,15 @@ struct NotchView: View {
     private var open: some View {
         VStack(spacing: 0) {
             topStrip
+                .zIndex(1)
             openBody
+                .overlay {
+                    if let since = focusedSince {
+                        FocusCover(since: since, ended: focusEnded, look: focusLook)
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.4), value: focusedSince == nil)
         }
     }
 
@@ -230,7 +239,15 @@ struct NotchView: View {
             HStack(spacing: 6) {
                 if model.settings.showsEye {
                     EyeView(eye: eye, width: 15)
-                        .padding(.trailing, 2)
+                        .frame(width: 22, height: 26)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onEyeTap?() }
+                        .overlay(alignment: .topLeading) {
+                            Complaint(eye: eye)
+                                .fixedSize()
+                                .offset(x: 14, y: 20)
+                        }
+                        .help(eye.focused ? "Focused. Click to stop." : "Click to focus.")
                         .transition(eyeToggle)
                 }
                 ForEach(AppModel.NotchTab.allCases) { tab in
