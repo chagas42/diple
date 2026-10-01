@@ -46,7 +46,8 @@ enum Queries {
     static func activity(org: String, login: String) -> CacheQuery<ActivityLog> {
         CacheQuery(
             key: .activity(org: org, login: login), tags: [.team],
-            staleAfter: .seconds(3600), forgetAfter: .seconds(7 * 24 * 3600), persists: true
+            staleAfter: .seconds(3600), forgetAfter: .seconds(7 * 24 * 3600), persists: true,
+            persistFor: .seconds(Double(ActivityHistory.days) * 24 * 3600)
         ) { github, old in
             let today = Date()
             let from = ActivityHistory.refetchFrom(today: today, cachedFrom: old?.from)

@@ -36,6 +36,7 @@ struct CacheQuery<T: Sendable>: Sendable {
     var staleAfter: Duration
     var forgetAfter: Duration = .seconds(300)
     var persists = false
+    var persistFor: Duration = .seconds(30 * 24 * 3600)
     var onSuccess: (@MainActor @Sendable (T) async -> Void)? = nil
     var onError: (@MainActor @Sendable (Error) -> Void)? = nil
     let fetch: @Sendable (GitHubClient, T?) async throws -> T
@@ -45,13 +46,14 @@ extension CacheQuery {
     init(
         key: QueryKey, tags: [QueryTag] = [], staleAfter: Duration, forgetAfter: Duration = .seconds(300),
         persists: Bool = false,
+        persistFor: Duration = .seconds(30 * 24 * 3600),
         onSuccess: (@MainActor @Sendable (T) async -> Void)? = nil,
         onError: (@MainActor @Sendable (Error) -> Void)? = nil,
         fetch: @escaping @Sendable (GitHubClient) async throws -> T
     ) {
         self.init(
             key: key, tags: tags, staleAfter: staleAfter, forgetAfter: forgetAfter, persists: persists,
-            onSuccess: onSuccess, onError: onError
+            persistFor: persistFor, onSuccess: onSuccess, onError: onError
         ) { github, _ in try await fetch(github) }
     }
 }
@@ -127,6 +129,7 @@ private final class AnyEntry {
     var invalidated = false
     var tags: [QueryTag] = []
     var persists = false
+    var persistFor: Duration = .zero
     var staleAfter: Duration = .zero
     var forgetAfter: Duration = .zero
     var observers: [UUID: (AnyEntry) -> Void] = [:]
@@ -282,6 +285,7 @@ final class QueryClient {
         let entry = AnyEntry()
         entry.tags = q.tags
         entry.persists = q.persists
+        entry.persistFor = q.persistFor
         entry.staleAfter = q.staleAfter
         entry.forgetAfter = q.forgetAfter
         if q.persists, let stored = store?.state.cache.queries?[q.key.id],
@@ -368,9 +372,6 @@ final class QueryClient {
             guard !Task.isCancelled, let self, self.entries[key] === entry,
                   entry.observers.isEmpty, entry.task == nil else { return }
             self.entries[key] = nil
-            if self.store?.state.cache.queries?[key.id] != nil {
-                self.store?.updateCache { $0.queries?[key.id] = nil }
-            }
             self.onChange?()
         }
     }
@@ -383,7 +384,7 @@ final class QueryClient {
         if unchanged, recent { return }
         guard let data = try? Self.encoder.encode(value) else { return }
         if stored?.data == data, recent { return }
-        let row = StoredQuery(data: data, at: at, forgetAt: at.addingTimeInterval(entry.forgetAfter.seconds))
+        let row = StoredQuery(data: data, at: at, forgetAt: at.addingTimeInterval(entry.persistFor.seconds))
         store.updateCache { $0.queries = ($0.queries ?? [:]).merging([key.id: row]) { $1 } }
     }
 

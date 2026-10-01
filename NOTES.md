@@ -12,7 +12,8 @@ Activity grid. The grid pages `reviewed-by:` search instead, one point per 100
 PRs, in non-overlapping 30-day `updated:` windows because a search stops at
 1000 results. A PR shows up in the window of its last update, and only its
 reviews submitted inside the grid count. The full six months is fetched once;
-after that only the last two days are, and older days come from the cache.
+after that only the last two days are, and older days come from the saved
+query, which lives on disk for the six months it covers.
 
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
@@ -89,10 +90,15 @@ current watch list, so a sync that finishes after the list changed is ignored.
 bumps `updatedAt`; keyed by it, a finished review vanished the moment a
 teammate replied. A push is what makes a review or a map out of date.
 
+**Memory and disk forget on different clocks.** `forgetAfter` drops an unused
+entry from memory only; the saved row stays and is read back the next time the
+key is asked for. Saved rows have their own `persistFor` (30 days, six months
+for activity) and are pruned at launch once past it, since forget timers live
+only in memory. TanStack's persister keeps the same split with `maxAge`.
+
 **Saved queries write only when something changed.** An unchanged refetch
 writes nothing unless the saved copy is already stale, so a relaunch can trust
-its time; rows past their `forgetAt` are pruned at launch, since forget timers
-live only in memory.
+its time.
 
 ## The notch panel
 
