@@ -412,6 +412,14 @@ in `build/` starts that build at login. Its status, not a stored setting, is
 the source of truth: removing Diple in System Settings → Login Items turns the
 switch off the next time Settings is shown.
 
+## Releasing
+
+**Actions are pinned to a commit, not a tag.** The release job can write to the
+repository and holds `TAP_TOKEN`, and a tag like `v2` can be moved to other
+code at any time, so every `uses:` names a commit with its version beside it.
+Dependabot opens one grouped `ci:` pull request a week when a newer version of
+any of them is out, which keeps the pins from going stale.
+
 ## Filming
 
 **The film is the panel, not the screen.** `cacheDisplay` renders the panel's
