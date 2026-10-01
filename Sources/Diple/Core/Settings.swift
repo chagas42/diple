@@ -27,7 +27,11 @@ struct Settings: Codable, Sendable, Equatable {
     var showsEye = true
     var eyeBlinks = true
     var countSide = CountSide.right
+    var liquidNotch = true
     var fitsMenuBar = false
+    var showsReviews = true
+    var followsFocus = true
+    var focusLook = FocusLook.terminal
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -107,7 +111,11 @@ struct Settings: Codable, Sendable, Equatable {
         d.showsEye = try c.decodeIfPresent(Bool.self, forKey: .showsEye) ?? d.showsEye
         d.eyeBlinks = try c.decodeIfPresent(Bool.self, forKey: .eyeBlinks) ?? d.eyeBlinks
         d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
+        d.liquidNotch = try c.decodeIfPresent(Bool.self, forKey: .liquidNotch) ?? d.liquidNotch
         d.fitsMenuBar = try c.decodeIfPresent(Bool.self, forKey: .fitsMenuBar) ?? d.fitsMenuBar
+        d.showsReviews = try c.decodeIfPresent(Bool.self, forKey: .showsReviews) ?? d.showsReviews
+        d.followsFocus = try c.decodeIfPresent(Bool.self, forKey: .followsFocus) ?? d.followsFocus
+        d.focusLook = (try? c.decodeIfPresent(FocusLook.self, forKey: .focusLook)) ?? d.focusLook
         self = d
     }
 

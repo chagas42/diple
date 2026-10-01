@@ -10,6 +10,8 @@ final class Updates: ObservableObject {
         case current
         case available(version: String, page: URL)
         case failed
+        case installing(version: String)
+        case installFailed(version: String, page: URL)
     }
 
     @Published private(set) var state = State.idle
@@ -23,9 +25,50 @@ final class Updates: ObservableObject {
     private var loop: Task<Void, Never>?
 
     static let latest = URL(string: "https://api.github.com/repos/chagas42/diple/releases/latest")!
+    static let releases = URL(string: "https://github.com/chagas42/diple/releases")!
+    static let installer = "https://raw.githubusercontent.com/chagas42/diple/main/install.sh"
+    static let appPath = "/Applications/Diple.app"
 
     var summary: String {
         isDevelopment ? "\(installed), development build" : installed
+    }
+
+    var releaseNotes: URL {
+        switch state {
+        case .available(_, let page), .installFailed(_, let page): page
+        default: isDevelopment ? Self.releases : Self.releases.appending(path: "tag/v\(installed)")
+        }
+    }
+
+    var canInstall: Bool {
+        guard !isDevelopment, Bundle.main.bundlePath == Self.appPath else { return false }
+        return viaHomebrew ? Tools.find("brew") != nil : FileManager.default.isWritableFile(atPath: "/Applications")
+    }
+
+    func install() {
+        guard canInstall, case .available(let version, let page) = state else { return }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = ["-c", installCommand]
+        p.terminationHandler = { [weak self] process in
+            let ok = process.terminationStatus == 0
+            Task { @MainActor in
+                if !ok { self?.state = .installFailed(version: version, page: page) }
+            }
+        }
+        do {
+            try p.run()
+            state = .installing(version: version)
+        } catch {
+            state = .installFailed(version: version, page: page)
+        }
+    }
+
+    private var installCommand: String {
+        if viaHomebrew, let brew = Tools.find("brew") {
+            return "pkill -x Diple; '\(brew)' upgrade --cask diple; open '\(Self.appPath)'"
+        }
+        return "set -o pipefail; curl -fsSL \(Self.installer) | bash"
     }
 
     func start() {
@@ -39,7 +82,10 @@ final class Updates: ObservableObject {
     }
 
     func check() async {
-        guard state != .checking else { return }
+        switch state {
+        case .checking, .installing: return
+        default: break
+        }
         state = .checking
         var request = URLRequest(url: Self.latest)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")

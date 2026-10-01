@@ -11,7 +11,7 @@ struct TeamTab: View {
 
     private var people: [Person] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        let matching = q.isEmpty ? model.team : model.team.filter {
+        let matching = q.isEmpty ? model.teammates : model.teammates.filter {
             $0.login.lowercased().contains(q) || $0.name.lowercased().contains(q)
         }
         let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
@@ -19,7 +19,7 @@ struct TeamTab: View {
     }
 
     private func freezeOrder() {
-        order = model.team
+        order = model.teammates
             .sorted { a, b in
                 let fa = model.following.contains(a.login), fb = model.following.contains(b.login)
                 return fa == fb ? a.login < b.login : fa
@@ -39,7 +39,7 @@ struct TeamTab: View {
                         .foregroundStyle(.white.opacity(0.45))
                 }
                 Spacer()
-                if model.team.count > 18 {
+                if model.teammates.count > 18 {
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 10))
@@ -53,9 +53,9 @@ struct TeamTab: View {
                     .padding(.horizontal, 9).padding(.vertical, 5)
                     .background(Color.white.opacity(0.08), in: Capsule())
                 }
-                Text("\(model.following.count) picked")
+                Text("\(model.pickedTeammates) picked")
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(model.following.isEmpty ? .white.opacity(0.4) : .orange)
+                    .foregroundStyle(model.pickedTeammates == 0 ? .white.opacity(0.4) : .orange)
                 Menu {
                     Picker("Review requests", selection: $model.settings.reviewFilter) {
                         ForEach(ReviewFilter.allCases) { f in
@@ -87,7 +87,7 @@ struct TeamTab: View {
             if model.team.isEmpty {
                 Placeholder(text: "Loading your organisation…")
             } else {
-                ScrollView {
+                ThinScrollView {
                     LazyVGrid(columns: columns, spacing: 11) {
                         ForEach(people.prefix(60)) { p in
                             let picked = model.following.contains(p.login)
@@ -111,7 +111,6 @@ struct TeamTab: View {
                     }
                     .padding(.top, 2)
                 }
-                .scrollIndicators(.visible)
             }
         }
         .onAppear(perform: freezeOrder)
