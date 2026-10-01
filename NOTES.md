@@ -384,6 +384,14 @@ paid Apple account. The icon must be a squircle on the official grid — 824
 artwork on a 1024 canvas — because macOS applies no mask of its own, and a
 circular corner radius reads visibly squarer than Apple's superellipse.
 
+**SwiftPM stamps the deployment target as the SDK.** `swift build` links with
+`sdk 14.0` in `LC_BUILD_VERSION` even when it compiled against the macOS 27
+SDK, and AppKit reads that field to decide whether an app gets Liquid Glass:
+below 26 it keeps the old controls, toolbar and sidebar in compatibility mode.
+`make app` rewrites the field with `vtool` to the SDK actually used, keeping
+`LSMinimumSystemVersion` as the minimum. `otool -l <binary> | grep -A4
+LC_BUILD_VERSION` shows what a build got.
+
 **Start at login registers this copy.** `SMAppService.mainApp` records the
 bundle that called it, at the path it ran from, so turning it on from a build
 in `build/` starts that build at login. Its status, not a stored setting, is
