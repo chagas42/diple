@@ -253,6 +253,19 @@ stands still. The eye stops following the pointer, blinking and looking
 around on its own. Views read `accessibilityReduceMotion`; the controller,
 which drives the eye outside SwiftUI, reads `Motion.reduced`.
 
+**The pointer glows where the cutout hides it.** The camera housing has no
+pixels, so the pointer vanishes inside it while the panel is open. The pointer
+is a light source: a thin rim around the cutout and a faint spill into the
+panel, both lit by a radial light centred on the pointer, so there is no
+bottom or side sprite to flip between. The rim fades in as the pointer comes
+within 40pt, so it never switches on at the edge. The light's reach grows by
+the pointer's distance to the nearest visible edge, so a pointer hugging the
+top of the screen still lights the rim. `CGRect.contains` excludes the max
+edge, and the cutout's top is the screen's, so the top pixel is counted as
+inside by hand. The glow lives in its own observable object, like the eye, so
+the 30 Hz updates redraw only the glow; with Reduce Motion it moves without
+animating.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
