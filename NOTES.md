@@ -253,6 +253,13 @@ stands still. The eye stops following the pointer, blinking and looking
 around on its own. Views read `accessibilityReduceMotion`; the controller,
 which drives the eye outside SwiftUI, reads `Motion.reduced`.
 
+**The panel is always dark.** It is black whatever the system appearance, so
+it sets `darkAqua` on itself; without it a light system appearance draws the
+legacy scroller (a mouse attached, or *Show scroll bars: Always*) with a
+white track down the side of the lists, where the system scroller is still
+used (`ThinScrollView` on macOS 14). The app's windows are not forced and
+follow the system.
+
 **The pointer glows where the cutout hides it.** The camera housing has no
 pixels, so the pointer vanishes inside it while the panel is open. The pointer
 is a light source: a thin rim around the cutout and a faint spill into the
