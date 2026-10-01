@@ -43,6 +43,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             Windows.shared.openMain(model)
         }
 
+        if let i = CommandLine.arguments.firstIndex(of: "--select"), i + 1 < CommandLine.arguments.count {
+            let key = CommandLine.arguments[i + 1]
+            Task { @MainActor in
+                for _ in 0..<50 where !model.queue.all.contains(where: { $0.key == key }) {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                guard let pr = model.queue.all.first(where: { $0.key == key }) else { return }
+                model.tab = AppModel.Tab.allCases.first { model.prs($0).contains { $0.key == key } } ?? model.tab
+                Windows.shared.openMain(model)
+                try? await Task.sleep(for: .milliseconds(600))
+                model.selected = pr
+            }
+        }
+
         if Film.isOn {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(900))

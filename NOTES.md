@@ -351,6 +351,31 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+## The main window
+
+**The list opens wide, and a row says one thing per line.** The list column
+opens at 520pt (380 to 680). A row is the title with a short time (`7h`,
+`3d`) on the first line, and `repo #n`, the last commenter and a trail of
+indicators on the second: approvals, open threads, and a dot for the checks.
+A stack is one card, collapsed until its header is clicked (or a PR in it is
+selected), with a sheet peeking below it for each branch it hides (up to 3). The
+whole stack is a single `List` row that draws its own branches: as list rows,
+a custom background hid the system selection but left the text white, and the
+selection fought the card. Selection in a card is a light accent tint with a
+bar. Opening does not animate, since a `List` row animating its height drew the
+old and new content over each other; only the chevron turns. The header names
+the repository once, so the rows show only `#n`, and a rail gives the order
+instead of `1/4`, which read like an approval count next to `1/2`. The base
+comes first and merges first (`groupedIntoStacks` reverses the chain from the
+tip). The list's selection binding skips stacked PRs, so it never clears a
+selection it has no row for. Reviews show as marks: approvals against the
+requirement, change requests in red, comment reviews in blue, open threads. Numbers go through `Text(verbatim:)`: a
+`LocalizedStringKey` groups them by locale, and Portuguese turned `#7966` into
+`#7.966`. The detail keeps its content to 780pt so long text has a measure,
+its badge says only Open, Draft or Approved (checks and threads have their
+own pills), and an empty conversation is a centered card. `--select repo#n`
+opens the window on a PR, which is how its screenshots are taken in `--demo`.
+
 ## Approvals
 
 **A row shows its approvals against what the branch needs.** Approvals come
