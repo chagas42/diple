@@ -1,44 +1,97 @@
 import SwiftUI
 import AppKit
 
-enum SettingsTab: Hashable {
-    case notifications, repositories, appearance, claude, account, rewards, privacy
-}
-
 struct SettingsView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        TabView(selection: $model.settingsTab) {
-            NotificationsPane(model: model)
-                .tabItem { Label("Notifications", systemImage: "bell") }
-                .tag(SettingsTab.notifications)
-            ReposPane(model: model)
-                .tabItem { Label("Repositories", systemImage: "book.closed") }
-                .tag(SettingsTab.repositories)
-
-            AppearanceSettings(model: model)
-                .tabItem { Label("Appearance", systemImage: "paintpalette") }
-                .tag(SettingsTab.appearance)
-            ClaudePane(model: model)
-                .tabItem { Label("Claude", systemImage: "sparkles") }
-                .tag(SettingsTab.claude)
-            AccountPane(model: model)
-                .tabItem { Label("Account", systemImage: "person.crop.circle") }
-                .tag(SettingsTab.account)
-            RewardsPane(model: model)
-                .tabItem { Label("Rewards", systemImage: "sparkles.rectangle.stack") }
-                .tag(SettingsTab.rewards)
-            PrivacyPane(model: model)
-                .tabItem { Label("Privacy", systemImage: "hand.raised") }
-                .tag(SettingsTab.privacy)
+        NavigationSplitView {
+            List(SettingsPane.allCases, selection: $model.settingsPane) { p in
+                Label { Text(p.title) } icon: { SettingsIcon(pane: p) }
+                    .tag(p)
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            detail
+                .navigationTitle((model.settingsPane ?? .general).title)
         }
-        .padding(.top, 12)
         .frame(minWidth: Self.minimum.width, maxWidth: .infinity,
                minHeight: Self.minimum.height, maxHeight: .infinity)
     }
 
-    static let minimum = CGSize(width: 860, height: 472)
+    @ViewBuilder private var detail: some View {
+        switch model.settingsPane ?? .general {
+        case .general:       GeneralPane(model: model)
+        case .notifications: NotificationsPane(model: model)
+        case .repositories:  ReposPane(model: model)
+        case .appearance:    AppearanceSettings(model: model)
+        case .claude:        ClaudePane(model: model)
+        case .account:       AccountPane(model: model)
+        case .rewards:       RewardsPane(model: model)
+        case .privacy:       PrivacyPane(model: model)
+        }
+    }
+
+    static let minimum = CGSize(width: 820, height: 520)
+}
+
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case general, notifications, repositories, appearance, claude, account, rewards, privacy
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general:       "General"
+        case .notifications: "Notifications"
+        case .repositories:  "Repositories"
+        case .appearance:    "Appearance"
+        case .claude:        "Claude"
+        case .account:       "Account"
+        case .rewards:       "Rewards"
+        case .privacy:       "Privacy"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general:       "gearshape.fill"
+        case .notifications: "bell.badge.fill"
+        case .repositories:  "book.closed.fill"
+        case .appearance:    "paintpalette.fill"
+        case .claude:        "sparkles"
+        case .account:       "person.crop.circle.fill"
+        case .rewards:       "sparkles.rectangle.stack.fill"
+        case .privacy:       "hand.raised.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .general:       .gray
+        case .notifications: .red
+        case .repositories:  .indigo
+        case .appearance:    .blue
+        case .claude:        .orange
+        case .account:       .teal
+        case .rewards:       .purple
+        case .privacy:       .blue
+        }
+    }
+}
+
+struct SettingsIcon: View {
+    let pane: SettingsPane
+
+    var body: some View {
+        Image(systemName: pane.symbol)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 20, height: 20)
+            .background(pane.tint.gradient, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+    }
 }
 
 struct NotificationsPane: View {
@@ -128,6 +181,32 @@ struct NotificationsPane: View {
             } footer: {
                 Text("What is off still lands in the queue — it just will not interrupt. "
                      + "Test fires a real alert: banner, sound and the notch opening.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Your reviews") {
+                Toggle("Show each review you send in the notch", isOn: $model.settings.showsReviews)
+                Text("A thin strip slides out of the notch with the PR, and a sheet drops from "
+                     + "the count onto how many you have reviewed today.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("One stack per pull request", isOn: $model.settings.stackPerPR)
+                Text(model.settings.stackPerPR
+                     ? "Each PR gets its own stack in Notification Center."
+                     : "Every Diple notification shares one stack, the way Slack's do.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Notification Center")
+            }
+
+            Section("Focus") {
+                Toggle("Quiet while a macOS Focus is on", isOn: $model.settings.followsFocus)
+                Text("While focused, the notch drops no alerts, the eye stops blinking and half closes, the panel is covered, and notifications go straight to Notification Center without a sound. Click the eye in the open notch to focus from Diple too.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -224,28 +303,13 @@ struct ReposPane: View {
     }
 }
 
-struct AccountPane: View {
+struct GeneralPane: View {
     @ObservedObject var model: AppModel
     @StateObject private var login = LoginItem()
+    @ObservedObject private var updates = Updates.shared
 
     var body: some View {
         Form {
-            Section("GitHub") {
-                LabeledContent("Account", value: model.queue.viewer.isEmpty ? "—" : model.queue.viewer)
-                LabeledContent("Token") {
-                    Text("borrowed from gh")
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Rate limit left") {
-                    Text("\(model.queue.rateLimitLeft) of 5000")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-                Text("Diple stores no token. It calls `gh auth token` on every request.")
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Sync") {
                 Picker("Every", selection: $model.settings.interval) {
                     Text("30 seconds").tag(TimeInterval(30))
@@ -256,6 +320,48 @@ struct AccountPane: View {
                 Text("One sync costs 1 point of 5000 per hour.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Updates") {
+                LabeledContent("Version", value: updates.summary)
+                HStack {
+                    updateStatus
+                    Spacer()
+                    Button("Release Notes") { NSWorkspace.shared.open(updates.releaseNotes) }
+                    if case .available(_, let page) = updates.state {
+                        if updates.canInstall {
+                            Button("Update Now") { updates.install() }
+                                .buttonStyle(.borderedProminent)
+                        } else {
+                            Button("Download") { NSWorkspace.shared.open(page) }
+                        }
+                    } else {
+                        Button("Check for Updates") { Task { await updates.check() } }
+                            .disabled(updates.state == .checking || isInstalling)
+                    }
+                }
+                if case .available = updates.state {
+                    if !updates.canInstall, !updates.isDevelopment, updates.viaHomebrew {
+                        HStack {
+                            Text("brew upgrade --cask diple")
+                                .font(.system(size: 11, design: .monospaced))
+                                .textSelection(.enabled)
+                            Spacer()
+                            Button("Copy") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString("brew upgrade --cask diple", forType: .string)
+                            }
+                        }
+                    }
+                }
+                if case .installFailed(_, let page) = updates.state {
+                    HStack {
+                        Text("The update did not install.")
+                            .foregroundStyle(.red)
+                        Spacer()
+                        Button("Download") { NSWorkspace.shared.open(page) }
+                    }
+                }
             }
 
             Section("Startup") {
@@ -278,7 +384,7 @@ struct AccountPane: View {
 
             Section {
                 HStack {
-                    Button("Sincronizar now") { Task { await model.refresh() } }
+                    Button("Sync now") { Task { await model.refresh() } }
                         .disabled(model.loading)
                     Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
                     Spacer()
@@ -287,10 +393,64 @@ struct AccountPane: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { login.refresh() }
+        .onAppear {
+            login.refresh()
+            if updates.state == .idle || updates.state == .failed { Task { await updates.check() } }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             login.refresh()
         }
+    }
+}
+
+extension GeneralPane {
+    @ViewBuilder private var updateStatus: some View {
+        switch updates.state {
+        case .idle, .checking:
+            Text("Checking for updates…").foregroundStyle(.secondary)
+        case .current:
+            Text("Up to date").foregroundStyle(.secondary)
+        case .available(let version, _):
+            Text("Version \(version) is out").foregroundStyle(.orange)
+        case .failed:
+            Text("Could not reach GitHub").foregroundStyle(.secondary)
+        case .installing(let version):
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Installing \(version)… Diple will restart.").foregroundStyle(.secondary)
+            }
+        case .installFailed(let version, _):
+            Text("Version \(version) is out").foregroundStyle(.orange)
+        }
+    }
+
+    private var isInstalling: Bool {
+        if case .installing = updates.state { true } else { false }
+    }
+}
+
+struct AccountPane: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Form {
+            Section("GitHub") {
+                LabeledContent("Account", value: model.queue.viewer.isEmpty ? "—" : model.queue.viewer)
+                LabeledContent("Token") {
+                    Text("borrowed from gh")
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Rate limit left") {
+                    Text("\(model.queue.rateLimitLeft) of 5000")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Text("Diple stores no token. It calls `gh auth token` on every request.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

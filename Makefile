@@ -9,6 +9,7 @@ NAME   := $(APP) (Dev)
 endif
 DEST   := build/$(NAME).app
 INSTALLED := /Applications/$(NAME).app
+MIN_MACOS := $(shell /usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" Resources/Info.plist)
 
 .PHONY: build app run install stop clean test tools probe bench bench-review bench-compare
 
@@ -54,6 +55,8 @@ app: build
 	@rm -rf "$(DEST)"
 	@mkdir -p "$(DEST)/Contents/MacOS" "$(DEST)/Contents/Resources"
 	@cp $(BUILD)/$(APP) "$(DEST)/Contents/MacOS/$(APP)"
+	@xcrun vtool -set-build-version macos $(MIN_MACOS) $$(xcrun --show-sdk-version) -replace \
+		-output "$(DEST)/Contents/MacOS/$(APP)" "$(DEST)/Contents/MacOS/$(APP)"
 	@cp Resources/Info.plist "$(DEST)/Contents/Info.plist"
 	@/usr/libexec/PlistBuddy -c "Set :CFBundleName $(NAME)" -c "Set :CFBundleDisplayName $(NAME)" "$(DEST)/Contents/Info.plist"
 	@cp Resources/Diple.icns "$(DEST)/Contents/Resources/Diple.icns"
@@ -95,10 +98,16 @@ gifmaker:
 	@swiftc -O tools/gifmaker.swift -o build/gifmaker
 	@echo "  build/gifmaker in.mp4 out.gif <fps> <width> [cropX cropY cropW cropH]"
 
-film:
+SCENE ?= tour
+VIDEO ?=
+FPS   ?=
+CROP  ?=
+FILM_FLAGS = --scene $(SCENE) $(if $(FPS),--fps $(FPS)) $(if $(CROP),--crop $(CROP))
+
+film: app
 	@rm -rf build/film && mkdir -p build/film
-	@$(BENCH_BIN) --demo --film build/film | tail -1
-	@echo "  python3 tools/seq2gif.py build/film out.gif <from> <to> [width] [step]"
+	@$(BENCH_BIN) --demo $(FILM_FLAGS) $(if $(VIDEO),--video "$(VIDEO)" --backdrop tools/backdrop.jpg,--film build/film) | tail -1
+	@$(if $(VIDEO),true,echo "  python3 tools/seq2gif.py build/film out.gif <from> <to> [width] [step]")
 
 demo-reset:
 	@pkill -x Diple 2>/dev/null || true

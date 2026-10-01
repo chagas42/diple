@@ -10,6 +10,7 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
     var onChange: (() async -> Void)?
 
     var settings = Settings()
+    var quiet: @MainActor () -> Bool = { false }
     var telemetry: Telemetry = .shared
 
     private enum Cat {
@@ -69,25 +70,32 @@ final class Notifier: NSObject, @preconcurrency UNUserNotificationCenterDelegate
     func post(_ events: [Event], force: Bool = false) async {
         guard !Bench.isOn else { return }
         for e in events where force || settings.shouldInterrupt(e.kind) {
-            let c = UNMutableNotificationContent()
-            c.title = e.title
-            c.body = e.body
-            if let sound = force ? (settings.sounds[e.kind.rawValue] ?? e.kind.sound) ?? e.kind.sound
-                                   : settings.sound(e.kind) {
-                c.sound = UNNotificationSound(named: UNNotificationSoundName("\(sound).aiff"))
-            }
-
-            c.threadIdentifier = e.key
-            c.categoryIdentifier = e.threadId == nil ? Cat.simples : Cat.thread
-            c.userInfo = [
-                "url": e.url.absoluteString,
-                "threadId": e.threadId ?? "",
-            ]
             try? await center.add(
-                UNNotificationRequest(identifier: e.id, content: c, trigger: nil)
+                UNNotificationRequest(identifier: e.id, content: content(for: e, force: force), trigger: nil)
             )
             if !e.isTest { telemetry.capture(.notificationShown(kind: e.kind)) }
         }
+    }
+
+    func content(for e: Event, force: Bool) -> UNMutableNotificationContent {
+        let c = UNMutableNotificationContent()
+        c.title = e.title
+        c.body = e.body
+        if let sound = force ? (settings.sounds[e.kind.rawValue] ?? e.kind.sound) ?? e.kind.sound
+                               : settings.sound(e.kind) {
+            c.sound = UNNotificationSound(named: UNNotificationSoundName("\(sound).aiff"))
+        }
+        if !force, quiet() {
+            c.sound = nil
+            c.interruptionLevel = .passive
+        }
+        if settings.stackPerPR { c.threadIdentifier = e.key }
+        c.categoryIdentifier = e.threadId == nil ? Cat.simples : Cat.thread
+        c.userInfo = [
+            "url": e.url.absoluteString,
+            "threadId": e.threadId ?? "",
+        ]
+        return c
     }
 
     private func reportFailure(_ what: String, _ error: Error) async {

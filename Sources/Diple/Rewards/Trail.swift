@@ -26,14 +26,3 @@ struct SeasonProgress: Codable, Sendable, Equatable {
     var reviews: Int
 }
 
-struct ReviewTick: Identifiable, Sendable, Equatable {
-    let id: String
-    let pr: String
-    let verdict: ReviewVerdict
-    let count: Int
-    let reward: Reward?
-
-    var leg: (from: Int, to: Int)? { Trail.leg(for: count) }
-
-    static func == (a: ReviewTick, b: ReviewTick) -> Bool { a.id == b.id }
-}

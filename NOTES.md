@@ -5,6 +5,15 @@ carries no comments.
 
 ## GitHub API
 
+**Review history comes from search, not `contributionsCollection`.** For an
+org's private repositories `pullRequestReviewContributions` reported 0 reviews
+over six months that search counted in the thousands, so it cannot feed the
+Activity grid. The grid pages `reviewed-by:` search instead, one point per 100
+PRs, in non-overlapping 30-day `updated:` windows because a search stops at
+1000 results. A PR shows up in the window of its last update, and only its
+reviews submitted inside the grid count. The full six months is fetched once;
+after that only the last two days are, and older days come from the cache.
+
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
 separate connection. Reading one and not the other makes the app blind to the
@@ -91,12 +100,24 @@ fitted to the gap instead, measured from `CGWindowListCopyWindowInfo`: status
 items are windows at `kCGStatusWindowLevel`, and their bounds need no Screen
 Recording permission. Items change width as they tick (a meeting countdown),
 so the fit is re-checked every 2 s while idle. When less than 27pt fits, the
-eye would have to shrink against the corner, so the right wing goes away, the
-eye is hidden, and the count moves to a full left wing; the shape is then
-shifted left by half a wing. The left wing is not measured: an app's menus are
+eye would have to shrink against the corner, so the right wing goes away and
+the count moves to a full left wing, with the eye beside it; the shape is then
+shifted left. With the eye turned off its wing is dropped, not left empty, and
+the wake-ups are skipped, being all eye. The left wing is not measured: an app's menus are
 drawn inside one full-width menu bar window, and reading their extents takes
 Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
 gap, to see each layout without arranging the menu bar.
+
+**On macOS 27 the status items are not windows any more.** One `MenuBarAgent`
+window draws the whole bar, so the window list shows no item at all and the
+gap cannot be measured from it. Without a measurement Diple assumes the bar is
+full: no right wing, the count on the left. The one other source is
+Accessibility (`AXExtrasMenuBar` of every running app), behind the opt-in
+*Fit the notch to the menu bar*. It reports positions only as laid out on the
+main display, and each display lays items out differently (a title that
+truncates on one is wider on another), so it is used only when the notch
+display is the main display. A window at the status level taller than the
+menu bar is not a status item: another Diple's panel sits there too.
 
 **The panel springs out and settles back in.** Growing uses an underdamped
 spring; shrinking uses a critically damped one. A bounce on the way in
@@ -158,6 +179,36 @@ hovering mid-blink cannot leave the eye half shut. It is skipped over a
 fullscreen app, under Reduce Motion, in `--film` and in benches, and hovering
 or an alert ends it at once.
 
+**The wings spread from the notch.** The window is placed before the hosting
+view exists, and the shape starts at the notch's own size, black on black, so
+the first frame shows nothing new. 60 ms later both wings open outward together
+over 0.55 s on an ease-out curve with no overshoot. Before, the panel started
+at a zero frame in the corner and the content grew in from the left.
+
+**It also wakes after the Mac rests.** Going to sleep or the screens sleeping
+shuts the eye; coming back plays a wake-up sized by how long the Mac was
+away: under 2 minutes (the lid closed and opened) it dozes for 1 s with quicker z's
+(the first after 0.1 s, one every 0.28 s, each gone in 1.3 s) and opens and
+blinks, about 2.3 s, so even a short rest reads as sleep; up to an hour it dozes for 1.6 s, blinks once and looks
+around; an hour or more is the full launch wake-up. The rest is measured from
+sleep to wake, not to unlock, and when the screen is locked the wake-up waits
+for the unlock, since behind the lock screen nobody would see it. Sleep and the
+screens sleeping arrive as separate notifications for one rest, so the first
+one starts it and the rest are ignored. To rehearse one, the dev build's
+right-click menu on the notch has Rehearse Nap → Short, Medium or Long; it waits
+for the pointer to leave the notch, shuts the eye for 1.5 s and wakes.
+`--nap short|medium|long` does the same 9 s after launch.
+
+**Gravity is smoothed twice and must never overshoot.** *Lean toward the
+pointer* (on by default, off under Reduce Motion) bulges the idle notch toward
+the pointer. The pointer is only sampled at 30 Hz, so an exponential
+moving average takes the jitter out and an
+interpolating spring draws the bulge at display rate between samples; a
+retargeted spring keeps its velocity, so a new sample never shows as a step.
+The spring is critically damped because a negative bulge dents the notch
+upward and shows the cutout's edge. The pull lives in its own observable
+object, like the eye, so only the fill redraws.
+
 **The count says how it changed.** Whenever it moves, a small "+N" (green) or
 "−N" (dimmed) rises beside it for a second. The label is always in the view,
 empty at rest: a `keyframeAnimator` only runs when its trigger changes on a
@@ -168,108 +219,75 @@ the same update never animated.
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
 
-## Rewards (beta)
-
-**A review is noticed when its request leaves the list.** GitHub drops you
-from a pull request's requested reviewers as soon as you review it, so a PR
-whose snapshot had `reviewRequested` and now does not is a candidate. That
-alone is not proof (the request may have been withdrawn, or a section may have
-failed to sync), so each candidate is confirmed with one query for a review of
-yours submitted after the request was first seen (`requestSeenAt`). Reviews
-done anywhere count, not only from Diple, within a sync.
-
-**Stickers wait along a quarterly trail, not after every review.** Someone
-doing 300 reviews a quarter would drown in one sticker per review, so each
-review is one step on the season's trail (a season is a calendar quarter) and
-stickers wait at 10, 30, 60, 100, 180 and 300, common to legendary: about six
-a quarter at that pace, three for someone doing 60. A review is counted once
-(`countedReviews` keeps the last one per PR), whatever its verdict, and Diple
-never judges how you review: time, length or verdict say nothing reliable
-about quality, so none of them changes what you get.
-
-**A review is a thin strip, not a show.** For someone reviewing all day,
-anything louder is noise, so the notch opens an 18 pt strip for 1.5 s:
-`› approved  orders-api#7867` on the left, a short bar with "12/30" towards
-the next sticker on the right. At a milestone it stays 2.3 s, the sticker pops
-at the end of the bar and the eye squints; only then does the dot by the count
-ask you to claim it. With the strip, a small sheet of paper either flies up
-into the notch ("filed") or slips out and falls ("dropped off the pile"), a
-choice in Settings → Rewards while both are being tried.
-
-**Opening a PR from Diple watches it for your review.** The sync notices a
-review only on its next pass, up to a minute late, so a PR opened from Diple is
-checked every 10 s for 30 minutes and the strip shows within seconds of the
-review.
-
-**Claiming zips the sticker into a backpack.** The gift button opens the card
-mid-screen, 120 pt below the notch; clicking it shrinks the card into a
-pixel-art backpack with a MacBook peeking out, which squashes as it lands.
-The sound is `Resources/Sounds/zipper.*` when there is one, the 8-bit coin
-from `tools/coin.py` until then, at 35% volume; it plays even in quiet hours,
-since the click asked for it. While a card is up, hovering the notch does not
-open the panel.
-
-**Onboarding asks two things, once.** Turning Rewards on asks what you do and
-why you want to review more, for the characters that will come later; the
-answers stay on this Mac.
-
-**The collection lives in the main window.** With Rewards on, the sidebar
-gets a Collection row: the season's trail with its six milestones, the
-stickers by rarity, and the Journey, every sticker by day with the verdict,
-the PR and whether it is in the backpack yet.
-
-`--celebrate [rarity]` rehearses three reviews up to the milestone for that
-rarity, and `--tour` walks the whole flow over demo data.
-
-**Stickers look like vinyl, flat or inspected.** Everywhere in 2D a sticker is
-the sprite with a one-cell white die-cut border, tilted a degree or two (from
-its id, so it stays put), with a short and a long shadow; rare and up get a
-faint holographic gradient masked to the sticker, and nothing sweeps across
-it, since the earlier shine band read as an interface effect. Clicking one in
-the collection opens it in SceneKit (no dependency): the outline is traced from
-that dilated sprite and extruded 0.14 cells with a small chamfer, the front is
-the sprite under a clear coat, the back is the printed backing paper, and it
-floats just above a cutting mat that catches its shadow. SceneKit is
-deprecated, so this stays small until the MacBook lid replaces it.
-`DIPLE_RENDER_STICKERS=<dir> swift test --filter StickerRenderProbe` renders
-every sticker front, back and flat to PNGs.
-
-**Each season has its own sheet of six.** 2026-Q3 is "AI Season" (Strawberry
-to The Last Human Reviewer), 2026-Q4 "Dev Folklore" (It Was DNS to the
-Load-Bearing TODO), later quarters rotate through the sheets, and the first
-seven artifacts are the "Classics". A milestone gives the sheet's sticker for
-that step, so a sheet always runs common to legendary. The jokes are about the
-memes and the culture, never a real person by name or face, and they poke at
-every AI lab alike.
-
-**The lid is where stickers live (prototype, 2D).** The collection opens on a
-brushed-aluminium MacBook lid with every sticker earned stuck on it. Each lands
-where its id puts it (a seeded position, a tilt within ±18° and a size), so a
-lid stays the same between launches, stickers overlap like real ones, and the
-centre stays clear for the logo: Diple's `›` glowing through a Space Gray lid
-like the backlit logos of older MacBooks, since Apple's logo is a trademark
-third-party apps may not use, Mac-only or not. A new sticker waits lifted above
-the lid, bobbing with its shadow; drag it where you want it and press "Stick
-it", and it settles with a spring and stays there (`lidSpots`), since a real
-sticker does not move once stuck. With "Preview every sticker" on,
-"Stick one" adds a random sticker to place, without saving. This is the 2D trial before a
-modelled MacBook: the lid is meant to become one composed texture on a 3D
-model, and only there, never in the notch.
-
-**Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
-palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
-get a holographic foil (an `AngularGradient` in `.overlay`, masked by the
-sprite), epic a sweeping shine, legendary sparks.
+**Diple goes quiet in Focus.** A macOS Focus is read through
+`INFocusStatusCenter` (after the Focus permission, which works on an ad-hoc
+signature) and polled every 5 s, since it posts no change notification.
+Clicking the eye in the open panel focuses from Diple too, with no macOS
+Focus. The idle notch's eye is not clickable on purpose: making it a target
+meant hovering it could no longer open the panel, and the notch felt smaller
+and slower to open. While focused, the notch drops no alerts, notifications are
+posted `.passive` with no sound (they land in Notification Center), the eye
+stops blinking, half closes and turns a pale indigo, and the panel's body is
+covered and takes no clicks, showing how long the focus has lasted; only the
+top strip stays live, so the eye can end it. The cover arrives and leaves
+with a line of its own: the terminal one, a small zsh window of fixed size (so lines appearing never shift it), types `heads-down`, prints that
+notifications are paused and waits at a blinking prompt; leaving types `exit`
+and prints how long the focus lasted. The cover lingers 1.8 s for that goodbye
+before fading. The time counts seconds for the first minute, so it never sits
+at 0. It lives in memory only. Settings → Appearance → Focus picks the cover
+(Terminal by default, Breathing, Pomodoro). Clicking the eye during a macOS
+Focus sets that Focus aside, since Diple cannot end it: Diple stays out of focus
+until the macOS Focus ends, and the next one is followed again. The eye in the open panel
+follows the pointer from where it sits (top left, 41pt in, halfway down the
+menu bar), over a shorter range than the idle eye. The click hurts: the eye
+squints shut, turns pink and shakes for about half a second, then opens into
+the new state, while a bubble below it complains (`💢 ow!`, `hey!`, `my eye!`,
+`rude.`, `ouch!`, `why?!`, in turn) for about a second. With the eye turned off, a moon button takes its place in the
+open panel's top strip, and the notch's right-click menu always has Focus /
+Stop Focusing, so focus can be entered and left without the eye. The moon is a tap gesture, not a
+`Button`: as a plain `Button` in the panel it fired by itself a fraction of a
+second after focus ended, turning focus straight back on. Settings → Notifications → Focus turns following macOS off. `--scene focus` films the terminal cover coming and going, and
+`focus-breathing` and `focus-pomodoro` the other two; film them at `--fps 8`, since the cover's typing
+and the poke run on the wall clock and a 60 fps capture falls behind them.
+Films and benches never ask: they run
+the binary straight from a shell, so TCC holds the shell responsible, finds no
+`NSFocusStatusUsageDescription` in its Info.plist, and kills the process.
 
 ## Notifications
+
+**A review you send slides a strip out of the notch.** When a PR leaves your
+review requests, Diple asks GitHub whether you reviewed it since the request
+first showed up (one small query per PR, at most five per sync). A PR opened
+from Diple is also checked every 10 s for 30 minutes, at most three at a time,
+so the strip shows seconds after you review; that PR leaves Needs you at once,
+before the next sync. The count keeps its old number until the strip plays,
+drops the moment a sheet leaves it, and the sheet falls into a small drawer
+whose number (today's reviews) goes up as it lands, so the two numbers move
+together. The drawer always sits at the strip's right end; when the count is on
+the left (a tight menu bar), the sheet first drops to the strip and glides
+under the cutout, since anything drawn at wing height there is hidden by the
+camera housing. The drawer opens a little as the sheet comes, stays open while
+it lands, then shuts and shakes, so the shake reads as the drawer closing, not
+the sheet falling. It shows more sheets inside as the day's reviews pile up
+(one, then two from 3, three from 7, four from 15). The bar beside it fills from empty to full as the sheet travels and
+glows when it lands: each review reads as one finished piece of work, whatever
+the verdict. A request that
+goes away without a review of yours (reassigned, PR closed) lets the count go
+with no strip; a hold nobody answers lets go after 20 s. Today resets at local
+midnight. Settings → Notifications → Your reviews turns it off, and
+`--demo --rehearse-review` plays three.
 
 **Quiet hours silence the test too.** The rule lets only direct replies through
 outside working hours, which is correct for real events and wrong for a test
 button — a test that does not fire because of the clock looks like a broken
 app. The test path bypasses it explicitly.
 
-**`threadIdentifier`** groups several notifications from one PR into a single
-banner. **`UNTextInputNotificationAction`** is what puts a reply field in it.
+**`threadIdentifier` only when asked.** Notification Center makes one stack per
+thread, so a thread per PR leaves one entry per PR — five PRs, five entries.
+Without it, every Diple notification stacks under the app, the way Slack's do
+(Slack sets none either). That is the default; "One stack per pull request"
+brings the per-PR thread back. **`UNTextInputNotificationAction`** is what puts a reply field in the
+banner.
 
 **Picks shape review requests only when asked to.** `review-requested:@me`
 matches requests to any GitHub team you are on, which is most of the noise.
@@ -281,6 +299,20 @@ count and alerts, while keeping them dimmed in Reviewing. A quiet request
 speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
+
+## The PR detail
+
+**A thread's code is parsed once, and shows only what the comment marks.** On
+a new file GitHub's `diffHunk` is the whole file down to the commented line,
+hundreds of lines. `DiffHunkView` used to split and highlight it in `init`, and
+since the detail observes the whole `AppModel`, every publish rebuilt every
+thread and highlighted every line again: about 10 ms per 300 lines in a debug
+build, per thread, per publish. `HunkCache` now keeps the parsed rows (cleared
+past 300 hunks), and a hunk shows what GitHub's own page shows: the comment's
+`startLine` through `line`, or the line and the 3 above it for a one-line
+comment, with the rest behind "Show N more lines", which turns into "Hide N lines" once open. The threads sit in a
+`LazyVStack` so off-screen ones are not built. `startLine` is fetched with the
+thread; threads cached before it decode with none.
 
 ## The PR map
 
@@ -372,11 +404,44 @@ paid Apple account. The icon must be a squircle on the official grid — 824
 artwork on a 1024 canvas — because macOS applies no mask of its own, and a
 circular corner radius reads visibly squarer than Apple's superellipse.
 
+**SwiftPM stamps the deployment target as the SDK.** `swift build` links with
+`sdk 14.0` in `LC_BUILD_VERSION` even when it compiled against the macOS 27
+SDK, and AppKit reads that field to decide whether an app gets Liquid Glass:
+below 26 it keeps the old controls, toolbar and sidebar in compatibility mode.
+`make app` rewrites the field with `vtool` to the SDK actually used, keeping
+`LSMinimumSystemVersion` as the minimum. `otool -l <binary> | grep -A4
+LC_BUILD_VERSION` shows what a build got.
+
 **Start at login registers this copy.** `SMAppService.mainApp` records the
 bundle that called it, at the path it ran from, so turning it on from a build
 in `build/` starts that build at login. Its status, not a stored setting, is
 the source of truth: removing Diple in System Settings → Login Items turns the
 switch off the next time Settings is shown.
+
+## Releasing
+
+**Actions are pinned to a commit, not a tag.** The release job can write to the
+repository and holds `TAP_TOKEN`, and a tag like `v2` can be moved to other
+code at any time, so every `uses:` names a commit with its version beside it.
+Dependabot opens one grouped `ci:` pull request a week when a newer version of
+any of them is out, which keeps the pins from going stale.
+
+## Filming
+
+**The film is the panel, not the screen.** `cacheDisplay` renders the panel's
+content view, so no Screen Recording permission is needed, and nothing outside
+the panel exists: no cursor, no menu bar, no camera cutout. The cursor, the
+cutout and the desktop are composited on afterwards (`FilmStage`). The cutout
+is drawn last, in pure black with rounded bottom corners, so a cursor entering
+it disappears the way it does on the hardware.
+
+**Time is the frame's, not the clock's.** Capturing is slower than real time
+at high frame rates, so a pointer driven by the wall clock would jump. The
+scripted pointer is placed from `frame / fps`, and each frame waits for its
+own deadline; SwiftUI animations still run on the wall clock, so if capture
+falls behind (the recorder says so) they look faster than the pointer. The
+pointer timer does not run while filming: each frame calls `followPointer()`,
+which is what the timer calls.
 
 ## Measuring
 
@@ -470,3 +535,77 @@ request's IP, and fills `$geoip_city_name`, postal code, latitude and more —
 none of it sent by the app. `$geoip_disable: true` on every event turns it off
 at the source; it is merged last, so no event can switch it back on. The
 project's "Discard client IP data" setting is still worth turning on.
+
+## Rewards (beta)
+
+**Stickers wait along a quarterly trail, not after every review.** Someone
+doing 300 reviews a quarter would drown in one sticker per review, so each
+review is one step on the season's trail (a season is a calendar quarter) and
+stickers wait at 10, 30, 60, 100, 180 and 300, common to legendary: about six
+a quarter at that pace, three for someone doing 60. The trail moves on the
+same tick as the review strip: when the store counts a review for today, it
+also advances the season (`advanceSeason`), so a review is counted once,
+whatever its verdict, and a milestone hands its sticker to the notch through
+`onReward`, where it waits behind the gift button. Diple never judges how you
+review: time, length or verdict say nothing reliable
+about quality, so none of them changes what you get.
+
+**Claiming zips the sticker into a backpack.** The gift button opens the card
+mid-screen, 120 pt below the notch; clicking it shrinks the card into a
+pixel-art backpack with a MacBook peeking out, which squashes as it lands.
+The sound is `Resources/Sounds/zipper.*` when there is one, the 8-bit coin
+from `tools/coin.py` until then, at 35% volume; it plays even in quiet hours,
+since the click asked for it. While a card is up, hovering the notch does not
+open the panel.
+
+**Onboarding asks two things, once.** Turning Rewards on asks what you do and
+why you want to review more, for the characters that will come later; the
+answers stay on this Mac.
+
+**The collection lives in the main window.** With Rewards on, the sidebar
+gets a Collection row: the season's trail with its six milestones, the
+stickers by rarity, and the Journey, every sticker by day with the verdict,
+the PR and whether it is in the backpack yet.
+
+`--celebrate [rarity]` rehearses three reviews up to the milestone for that
+rarity, and `--tour` walks the whole flow over demo data.
+
+**Stickers look like vinyl, flat or inspected.** Everywhere in 2D a sticker is
+the sprite with a one-cell white die-cut border, tilted a degree or two (from
+its id, so it stays put), with a short and a long shadow; rare and up get a
+faint holographic gradient masked to the sticker, and nothing sweeps across
+it, since the earlier shine band read as an interface effect. Clicking one in
+the collection opens it in SceneKit (no dependency): the outline is traced from
+that dilated sprite and extruded 0.14 cells with a small chamfer, the front is
+the sprite under a clear coat, the back is the printed backing paper, and it
+floats just above a cutting mat that catches its shadow. SceneKit is
+deprecated, so this stays small until the MacBook lid replaces it.
+`DIPLE_RENDER_STICKERS=<dir> swift test --filter StickerRenderProbe` renders
+every sticker front, back and flat to PNGs.
+
+**Each season has its own sheet of six.** 2026-Q3 is "AI Season" (Strawberry
+to The Last Human Reviewer), 2026-Q4 "Dev Folklore" (It Was DNS to the
+Load-Bearing TODO), later quarters rotate through the sheets, and the first
+seven artifacts are the "Classics". A milestone gives the sheet's sticker for
+that step, so a sheet always runs common to legendary. The jokes are about the
+memes and the culture, never a real person by name or face, and they poke at
+every AI lab alike.
+
+**The lid is where stickers live (prototype, 2D).** The collection opens on a
+brushed-aluminium MacBook lid with every sticker earned stuck on it. Each lands
+where its id puts it (a seeded position, a tilt within ±18° and a size), so a
+lid stays the same between launches, stickers overlap like real ones, and the
+centre stays clear for the logo: Diple's `›` glowing through a Space Gray lid
+like the backlit logos of older MacBooks, since Apple's logo is a trademark
+third-party apps may not use, Mac-only or not. A new sticker waits lifted above
+the lid, bobbing with its shadow; drag it where you want it and press "Stick
+it", and it settles with a spring and stays there (`lidSpots`), since a real
+sticker does not move once stuck. With "Preview every sticker" on,
+"Stick one" adds a random sticker to place, without saving. This is the 2D trial before a
+modelled MacBook: the lid is meant to become one composed texture on a 3D
+model, and only there, never in the notch.
+
+**Artifacts are drawn in code.** Each is a 16×16 grid of characters and a
+palette, painted with `Canvas`, so the beta ships no image assets. Rare and up
+get a faint holographic foil (an `AngularGradient` in `.overlay`, masked by
+the sprite).

@@ -27,29 +27,43 @@ enum NotchState: Equatable {
 
 struct NotchView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var updates = Updates.shared
     let state: NotchState
     let size: CGSize
     let notchWidth: CGFloat
     let notchHeight: CGFloat
-    var countOnLeft = false
+    let wings: Wings
     var shift: CGFloat = 0
     var shrinking = false
+    var pulling: PullState?
+    var appearing = false
     var hidesByFading = false
     var waking = false
     var sleepingSince: Date?
-    var celebration: ReviewTick?
-    var celebrationStart = Date()
+    var dozesQuickly = false
+    var tick: ReviewTick?
+    var tickStart = Date()
+    var heldCount: Int?
+    var onEyeTap: (() -> Void)?
+    var onFocusToggle: (() -> Void)?
+
+    private var isFocused: Bool { focusedSince != nil && focusEnded == nil }
+    var focusedSince: Date?
+    var focusEnded: Date?
+    var focusLook = FocusLook.terminal
     var unclaimed: [Reward] = []
     var onClaim: () -> Void = {}
     let eye: EyeState
+    var onNap: ((Nap) -> Void)?
     let onClose: () -> Void
 
     var body: some View {
         let _ = Metrics.shared.body("NotchView")
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                shape.fill(.black)
+                PulledFill(pulling: pulling, flare: flare, base: radius, resting: state == .active, settle: resize)
                 content
+                    .clipShape(shape)
                     .id(state.kind)
                     .transition(
                         .asymmetric(
@@ -60,29 +74,37 @@ struct NotchView: View {
                     )
             }
             .frame(width: size.width, height: size.height)
+            .contentShape(shape)
 
-            .clipShape(shape)
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
             .contextMenu {
+                if case .available(let version, let page) = updates.state {
+                    Button("Update to \(version)…") {
+                        if updates.canInstall { updates.install() } else { NSWorkspace.shared.open(page) }
+                    }
+                    Divider()
+                }
                 Button("Settings…") { Windows.shared.openSettings(model) }
                 Button("Main Window") { Windows.shared.openMain(model) }
+                Button(isFocused ? "Stop Focusing" : "Focus") { onFocusToggle?() }
+                if let onNap {
+                    Menu("Rehearse Nap") {
+                        Button("Short") { onNap(.short) }
+                        Button("Medium") { onNap(.medium) }
+                        Button("Long") { onNap(.long) }
+                    }
+                }
                 Divider()
+                Text("Diple \(updates.summary)")
                 Button("Quit Diple") { NSApplication.shared.terminate(nil) }
             }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .top) {
-            if let t = celebration, state == .active {
-                PaperFlight(style: model.settings.paperStyle, tint: t.verdict.color, start: celebrationStart)
-                    .offset(x: shift + notchWidth / 2 + 10, y: notchHeight + ReviewStrip.drawer - 10)
-                    .id(t.id)
-            }
-        }
-        .overlay(alignment: .top) {
-            if let since = sleepingSince {
-                SleepyZs(start: since)
+            if let since = sleepingSince, model.settings.showsEye {
+                SleepyZs(start: since, quick: dozesQuickly)
                     .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
                             y: eyeCenter.y - SleepyZs.eye.y)
                     .transition(.opacity)
@@ -93,16 +115,26 @@ struct NotchView: View {
         .animation(resize, value: size)
         .animation(resize, value: shift)
         .animation(.easeOut(duration: 0.22), value: state.kind)
-        .animation(.bouncy(duration: 0.35), value: model.count)
+        .animation(.bouncy(duration: 0.35), value: shownCount)
+    }
+
+    private var shownCount: Int { heldCount ?? model.count }
+
+    private var eyeToggle: AnyTransition {
+        .scale(scale: 0.2).combined(with: .opacity)
+    }
+
+    private var eyeToggleAnimation: Animation {
+        .spring(response: 0.35, dampingFraction: 0.6)
     }
 
     private var resize: Animation {
-        .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
+        appearing ? .timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
+                  : .spring(response: 0.3, dampingFraction: shrinking ? 1 : 0.72)
     }
 
     private var eyeCenter: CGPoint {
-        let wing = max(0, (size.width - notchWidth) / 2)
-        return CGPoint(x: shift - notchWidth / 2 - wing / 2, y: notchHeight / 2)
+        CGPoint(x: wings.eyeX(notchWidth: notchWidth), y: notchHeight / 2)
     }
 
     private var shape: PanelShape {
@@ -128,16 +160,15 @@ struct NotchView: View {
         case .hidden:
             Color.clear
         case .active:
-            VStack(spacing: 0) {
-                wings
-                if let t = celebration {
-                    ReviewStrip(tick: t, start: celebrationStart)
-                        .frame(height: ReviewStrip.drawer)
-                        .id(t.id)
+            ZStack(alignment: .top) {
+                activeWings
+                if let t = tick {
+                    ReviewStrip(tick: t, start: tickStart, wings: wings, notchWidth: notchWidth,
+                                notchHeight: notchHeight, eyeBesideCount: model.settings.showsEye)
                         .transition(.opacity)
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(width: size.width, height: size.height, alignment: .top)
         case .open:
             open
         case .alert(let e):
@@ -145,33 +176,53 @@ struct NotchView: View {
         }
     }
 
-    private var wings: some View {
+    private var activeWings: some View {
         HStack(spacing: 0) {
-            if countOnLeft {
-                count.frame(maxWidth: .infinity)
-                Spacer(minLength: notchWidth)
-                    .frame(width: notchWidth)
-            } else {
-                EyeView(eye: eye, width: 15)
-                    .opacity(model.count > 0 ? 1 : 0.42)
-                    .animation(.easeOut(duration: 0.25), value: model.count > 0)
-                    .frame(maxWidth: .infinity)
-                Spacer(minLength: notchWidth)
-                    .frame(width: notchWidth)
-                count.frame(maxWidth: .infinity)
+            Group {
+                if wings.crowded { eyeBesideCount } else if wings.countOnLeft { count } else { eyeWing }
             }
+            .frame(width: wings.left)
+            Spacer(minLength: notchWidth)
+                .frame(width: notchWidth)
+            Group {
+                if wings.countOnLeft { eyeWing } else { count }
+            }
+            .frame(width: wings.right)
         }
         .frame(height: notchHeight)
+        .animation(eyeToggleAnimation, value: wings.countOnLeft)
+    }
+
+    private var eyeWing: some View {
+        ZStack {
+            if model.settings.showsEye, wings.eye > 0 { wingEye }
+        }
+        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+    }
+
+    private var eyeBesideCount: some View {
+        HStack(spacing: 6) {
+            if model.settings.showsEye { wingEye }
+            count
+        }
+        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+    }
+
+    private var wingEye: some View {
+        EyeView(eye: eye, width: 15)
+            .opacity(shownCount > 0 ? 1 : 0.42)
+            .animation(.easeOut(duration: 0.25), value: shownCount > 0)
+            .transition(eyeToggle)
     }
 
     private var count: some View {
-        Text("\(model.count)")
+        Text("\(shownCount)")
             .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(model.count > 0 ? 0.92 : 0.34))
+            .foregroundStyle(.white.opacity(shownCount > 0 ? 0.92 : 0.34))
             .monospacedDigit()
             .contentTransition(.numericText())
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.count)
-            .contentTransition(.numericText(value: Double(model.count)))
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: shownCount)
+            .contentTransition(.numericText(value: Double(shownCount)))
             .overlay(alignment: .topTrailing) {
                 if let best = unclaimed.map(\.artifact.rarity).max() {
                     Circle()
@@ -181,7 +232,7 @@ struct NotchView: View {
                         .offset(x: 6, y: -3)
                 }
             }
-            .overlay(alignment: .leading) { CountDelta(count: model.count) }
+            .overlay(alignment: .leading) { CountDelta(count: shownCount) }
             .opacity(waking ? 0 : 1)
             .animation(.easeOut(duration: 0.3), value: waking)
     }
@@ -189,15 +240,43 @@ struct NotchView: View {
     private var open: some View {
         VStack(spacing: 0) {
             topStrip
+                .zIndex(1)
             openBody
+                .overlay {
+                    if let since = focusedSince {
+                        FocusCover(since: since, ended: focusEnded, look: focusLook,
+                                   comeBack: model.settings.showsEye ? "click the eye" : "click the moon")
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.4), value: focusedSince == nil)
         }
     }
 
     private var topStrip: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                EyeView(eye: eye, width: 15)
-                    .padding(.trailing, 2)
+                if model.settings.showsEye {
+                    EyeView(eye: eye, width: 15)
+                        .frame(width: 22, height: 26)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onEyeTap?() }
+                        .overlay(alignment: .topLeading) {
+                            Complaint(eye: eye)
+                                .fixedSize()
+                                .offset(x: 14, y: 20)
+                        }
+                        .help(eye.focused ? "Focused. Click to stop." : "Click to focus.")
+                        .transition(eyeToggle)
+                } else {
+                    Image(systemName: isFocused ? "moon.fill" : "moon")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(isFocused ? FocusCover.indigo : .white.opacity(0.42))
+                        .frame(width: 30, height: 26)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onFocusToggle?() }
+                        .help(isFocused ? "Focused. Click to stop." : "Focus")
+                }
                 ForEach(AppModel.NotchTab.allCases) { tab in
                     Button { model.notchTab = tab } label: {
                         Image(systemName: tab.icon)
@@ -220,6 +299,7 @@ struct NotchView: View {
             }
             .padding(.leading, 14 + flare)
             .frame(maxWidth: .infinity)
+            .animation(eyeToggleAnimation, value: model.settings.showsEye)
 
             Spacer(minLength: notchWidth).frame(width: notchWidth)
 
@@ -414,7 +494,7 @@ struct NotchView: View {
                 if let problem = model.syncProblem {
                     problemStrip(problem)
                 }
-                ScrollView {
+                ThinScrollView {
                     VStack(spacing: 0) {
                         ForEach(Array(model.prs(model.tab).enumerated()), id: \.element.id) { i, pr in
                             if i > 0 {
@@ -456,7 +536,6 @@ struct NotchView: View {
                         }
                     }
                 }
-                .scrollIndicators(.visible)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -632,6 +711,41 @@ struct NotchView: View {
         case .checkFailed:     .red
         case .approved:       .green
         case .newPullRequest: .teal
+        }
+    }
+}
+
+private struct PulledFill: View {
+    var pulling: PullState?
+    let flare: CGFloat
+    let base: CGFloat
+    let resting: Bool
+    let settle: Animation
+
+    var body: some View {
+        if let pulling {
+            Pulled(pulling: pulling, flare: flare, base: base, resting: resting, settle: settle)
+        } else {
+            PanelShape(flare: flare, base: base).fill(.black)
+        }
+    }
+
+    private struct Pulled: View {
+        @ObservedObject var pulling: PullState
+        let flare: CGFloat
+        let base: CGFloat
+        let resting: Bool
+        let settle: Animation
+
+        private var motion: Animation? {
+            if pulling.snaps { return nil }
+            return resting ? .interpolatingSpring(stiffness: 30, damping: 11) : settle
+        }
+
+        var body: some View {
+            PanelShape(flare: flare, base: base, pull: pulling.pull)
+                .fill(.black)
+                .animation(motion, value: pulling.pull)
         }
     }
 }

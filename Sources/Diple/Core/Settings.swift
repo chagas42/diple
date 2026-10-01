@@ -8,6 +8,7 @@ struct Settings: Codable, Sendable, Equatable {
     var quietFrom = 19
     var quietUntil = 9
     var quietOnWeekends = true
+    var stackPerPR = false
 
     var mutedRepos: Set<String> = []
     var interval: TimeInterval = 60
@@ -23,9 +24,16 @@ struct Settings: Codable, Sendable, Equatable {
     var mapModel: String? = nil
     var shareUsage = true
     var reviewFilter = ReviewFilter.everyone
+    var showsEye = true
+    var eyeBlinks = true
+    var countSide = CountSide.right
+    var liquidNotch = true
+    var fitsMenuBar = false
+    var showsReviews = true
+    var followsFocus = true
+    var focusLook = FocusLook.terminal
     var rewardsBeta = false
     var rewardsProfile: RewardsProfile? = nil
-    var paperStyle = PaperStyle.filed
     var rewardsPreview = false
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
@@ -91,6 +99,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.quietFrom = try c.decodeIfPresent(Int.self, forKey: .quietFrom) ?? d.quietFrom
         d.quietUntil = try c.decodeIfPresent(Int.self, forKey: .quietUntil) ?? d.quietUntil
         d.quietOnWeekends = try c.decodeIfPresent(Bool.self, forKey: .quietOnWeekends) ?? d.quietOnWeekends
+        d.stackPerPR = try c.decodeIfPresent(Bool.self, forKey: .stackPerPR) ?? d.stackPerPR
         d.mutedRepos = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRepos) ?? d.mutedRepos
         d.interval = try c.decodeIfPresent(TimeInterval.self, forKey: .interval) ?? d.interval
         d.aiModel = try c.decodeIfPresent(String.self, forKey: .aiModel) ?? d.aiModel
@@ -102,9 +111,16 @@ struct Settings: Codable, Sendable, Equatable {
         d.mapModel = try c.decodeIfPresent(String.self, forKey: .mapModel) ?? d.mapModel
         d.shareUsage = try c.decodeIfPresent(Bool.self, forKey: .shareUsage) ?? d.shareUsage
         d.reviewFilter = (try? c.decodeIfPresent(ReviewFilter.self, forKey: .reviewFilter)) ?? d.reviewFilter
+        d.showsEye = try c.decodeIfPresent(Bool.self, forKey: .showsEye) ?? d.showsEye
+        d.eyeBlinks = try c.decodeIfPresent(Bool.self, forKey: .eyeBlinks) ?? d.eyeBlinks
+        d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
+        d.liquidNotch = try c.decodeIfPresent(Bool.self, forKey: .liquidNotch) ?? d.liquidNotch
+        d.fitsMenuBar = try c.decodeIfPresent(Bool.self, forKey: .fitsMenuBar) ?? d.fitsMenuBar
+        d.showsReviews = try c.decodeIfPresent(Bool.self, forKey: .showsReviews) ?? d.showsReviews
+        d.followsFocus = try c.decodeIfPresent(Bool.self, forKey: .followsFocus) ?? d.followsFocus
+        d.focusLook = (try? c.decodeIfPresent(FocusLook.self, forKey: .focusLook)) ?? d.focusLook
         d.rewardsBeta = try c.decodeIfPresent(Bool.self, forKey: .rewardsBeta) ?? d.rewardsBeta
         d.rewardsProfile = try? c.decodeIfPresent(RewardsProfile.self, forKey: .rewardsProfile)
-        d.paperStyle = (try? c.decodeIfPresent(PaperStyle.self, forKey: .paperStyle)) ?? d.paperStyle
         d.rewardsPreview = try c.decodeIfPresent(Bool.self, forKey: .rewardsPreview) ?? d.rewardsPreview
         self = d
     }
@@ -142,6 +158,19 @@ enum Attribution: String, CaseIterable, Identifiable, Sendable {
 
 extension Settings {
     var attributionMode: Attribution { Attribution(rawValue: attribution) ?? .onMyOwn }
+}
+
+enum CountSide: String, Codable, Sendable, CaseIterable, Identifiable {
+    case left, right
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .left:  "Left"
+        case .right: "Right"
+        }
+    }
 }
 
 enum ReviewFilter: String, Codable, Sendable, CaseIterable, Identifiable {

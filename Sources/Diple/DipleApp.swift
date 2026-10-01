@@ -11,8 +11,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let model = AppModel.shared
         model.onEvent = { [weak self] event in self?.notch.alert(event) }
         model.onCountChange = { [weak self] in self?.notch.refreshIdle() }
-        model.onTick = { [weak self] tick in self?.notch.tick(tick) }
+        model.onReviewsPending = { [weak self] keys, count in self?.notch.expectReviews(keys, showing: count) }
+        model.onNoReview = { [weak self] key in self?.notch.noReview(key) }
+        model.onTick = { [weak self] t in self?.notch.tick(t) }
         model.onPreviewClaim = { [weak self] reward in self?.notch.preview(reward) }
+        model.onReward = { [weak self] reward in self?.notch.reward(reward) }
         notch.onClaimed = { reward in model.claimed(reward) }
         notch.mount(model: model)
         model.start()
@@ -21,6 +24,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         if Bench.scenario == "notch-idle" {
             Task { @MainActor in await BenchScenarios.notchIdle(notch: notch) }
+        }
+
+        if CommandLine.arguments.contains("--rehearse-review"), Demo.isOn {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                model.rehearseReviews()
+            }
+        }
+
+        if let i = CommandLine.arguments.firstIndex(of: "--nap"), i + 1 < CommandLine.arguments.count {
+            let nap: Nap = switch CommandLine.arguments[i + 1] {
+            case "short": .short
+            case "medium": .medium
+            default: .long
+            }
+            notch.rehearse(nap, after: .seconds(9))
         }
 
         if CommandLine.arguments.contains("--windowFrame") {

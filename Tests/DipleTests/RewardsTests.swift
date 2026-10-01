@@ -55,11 +55,6 @@ import Testing
         #expect(Trail.leg(for: 301) == nil)
     }
 
-    static func tick(_ count: Int, sticker: Rarity? = nil, _ id: String = "t") -> ReviewTick {
-        ReviewTick(id: id, pr: "acme/orders-api#7867", verdict: .approved, count: count,
-                   reward: sticker.map { Reward(id: id, artifact: .sample($0), pr: "acme/orders-api#7867") })
-    }
-
     @Test func theTrailFillsEvenlyBetweenMilestones() {
         #expect(CollectionView.trailFill(0) == 0)
         #expect(abs(CollectionView.trailFill(10) - 1.0 / 6) < 0.001)
@@ -77,22 +72,42 @@ import Testing
         }
     }
 
-    @Test func theStripSaysWhereYouAreOnTheLeg() {
-        #expect(ReviewStrip.shortPR("acme/orders-api#7867") == "orders-api#7867")
-        #expect(ReviewStrip.label(Self.tick(12)) == "12/30")
-        #expect(abs(ReviewStrip.fill(Self.tick(12), 0) - 0.05) < 0.001)
-        #expect(abs(ReviewStrip.fill(Self.tick(12), 1) - 0.10) < 0.001)
-        #expect(ReviewStrip.fill(Self.tick(10), 1) == 1)
-        #expect(ReviewStrip.label(Self.tick(320)) == "320 this season")
+    @Test func theSeasonCountsUpAndStartsOverWithANewQuarter() {
+        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        #expect(store.advanceSeason("2026-Q3") == 1)
+        #expect(store.advanceSeason("2026-Q3") == 2)
+        #expect(store.advanceSeason("2026-Q4") == 1)
     }
 
-    @Test func aReviewIsCountedOnceAndTheSeasonStartsOver() {
+    @Test func onlyAReviewOnAMilestoneEarnsASticker() {
         let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
-        let at = Date()
-        #expect(store.countReview("o/r#1", at: at, season: "2026-Q3") == 1)
-        #expect(store.countReview("o/r#1", at: at, season: "2026-Q3") == nil)
-        #expect(store.countReview("o/r#1", at: at.addingTimeInterval(600), season: "2026-Q3") == 2)
-        #expect(store.countReview("o/r#2", at: at, season: "2026-Q4") == 1)
+        let model = AppModel(
+            client: GitHubClient(transport: StubTransport(body: Data()), tokens: CountingTokens(), metrics: Metrics()),
+            store: store
+        )
+        model.settings.rewardsBeta = true
+        let now = Date()
+        store.setSeason(SeasonProgress(id: Trail.season(of: now), reviews: 8))
+        var earned: [Reward] = []
+        model.onReward = { earned.append($0) }
+        model.counted(pr: "acme/a#1", at: now, verdict: .commented)
+        #expect(earned.isEmpty)
+        model.counted(pr: "acme/a#2", at: now.addingTimeInterval(1), verdict: .approved)
+        #expect(earned.map(\.artifact.rarity) == [.common])
+        #expect(model.seasonReviews == 10)
+    }
+
+    @Test func withRewardsOffTheTrailDoesNotMove() {
+        let store = Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        let model = AppModel(
+            client: GitHubClient(transport: StubTransport(body: Data()), tokens: CountingTokens(), metrics: Metrics()),
+            store: store
+        )
+        var earned = 0
+        model.onReward = { _ in earned += 1 }
+        for i in 0..<12 { model.counted(pr: "acme/a#\(i)", at: Date().addingTimeInterval(Double(i)), verdict: .approved) }
+        #expect(earned == 0)
+        #expect(store.state.season == nil)
     }
 
     @Test func whereAStickerIsStuckIsKept() {
@@ -150,44 +165,6 @@ import Testing
         return n
     }
 
-    func drain(_ gate: Gate, _ n: NotchController) async {
-        while n.celebration != nil || !n.pendingCelebrations.isEmpty {
-            if gate.waiting.isEmpty { await Task.yield() } else { gate.open() }
-        }
-    }
-
-    @Test func aReviewOpensAThinStripAndClosesIt() async {
-        let gate = Gate()
-        let n = notch(gate: gate)
-        let resting = NotchGeometry.current().active
-        n.tick(Self.tick(12))
-        #expect(n.celebration?.count == 12)
-        #expect(n.size.height == resting.height + ReviewStrip.drawer)
-        await drain(gate, n)
-        #expect(n.size == resting)
-        #expect(n.unclaimed.isEmpty)
-    }
-
-    @Test func onlyAMilestoneLeavesAStickerToClaim() async {
-        let gate = Gate()
-        let n = notch(gate: gate)
-        n.tick(Self.tick(9, "a"))
-        n.tick(Self.tick(10, sticker: .common, "b"))
-        await drain(gate, n)
-        #expect(n.unclaimed.map(\.id) == ["b"])
-    }
-
-    @Test func overAFullScreenAppTheStripWaitsForTheNotchToComeBack() {
-        let full = StoreFlag(true)
-        let n = notch(full: full, gate: Gate())
-        n.tick(Self.tick(12))
-        #expect(n.state == .hidden)
-        #expect(n.celebration == nil)
-        full.on = false
-        n.refreshIdle()
-        #expect(n.celebration?.count == 12)
-    }
-
     @Test func tryingAStickerPlaysTheClaimWithoutAddingIt() {
         let n = notch(gate: Gate())
         var shown: [String] = []
@@ -199,10 +176,8 @@ import Testing
     }
 
     @Test func whileClaimingHoveringTheNotchDoesNotOpenIt() async {
-        let gate = Gate()
-        let n = notch(gate: gate)
-        n.tick(Self.tick(10, sticker: .common))
-        await drain(gate, n)
+        let n = notch(gate: Gate())
+        n.reward(Reward(id: "t", artifact: .sample(.common), pr: "acme/orders-api#7867"))
         n.pointer = {
             let g = NotchGeometry.current()
             let r = g.rect(g.closed)

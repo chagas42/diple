@@ -12,10 +12,6 @@ struct RewardsPane: View {
                 if model.settings.rewardsBeta {
                     Toggle("Preview every sticker", isOn: $model.settings.rewardsPreview)
                         .help("Reveals every sheet in the collection with a Try it button that plays the claim. For testing; nothing is added to your collection.")
-                    Picker("When you review", selection: $model.settings.paperStyle) {
-                        ForEach(PaperStyle.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
                 }
                 Text("Every review you send moves you one step along this quarter's trail, and stickers wait at 10, 30, 60, 100, 180 and 300 reviews. Any review counts the same: commenting, approving or asking for changes. Diple never judges how you review.")
                     .font(.system(size: 11))

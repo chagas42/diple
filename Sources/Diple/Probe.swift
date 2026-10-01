@@ -76,8 +76,13 @@ enum NotchProbe {
                 print("  auxiliary areas: none (screen has no notch)")
             }
             print("  closed:   \(g.closed)  -> \(g.rect(g.closed))")
-            print("  free right: \(g.freeRight)  wings: \(g.wings)")
-            print("  active: \(g.active)  -> \(g.rect(g.active, shift: g.wings.shift))")
+            print("  free right: \(g.freeRight)  wings: \(g.wings())")
+            if !NotchGeometry.statusItemsAreWindows {
+                MenuBarItems.measuring = true
+                print("  status items are not windows; with Accessibility (\(MenuBarItems.allowed ? "granted" : "not granted")): free right \(g.freeRight)  wings: \(g.wings())")
+                MenuBarItems.measuring = false
+            }
+            print("  active: \(g.active(g.wings()))  -> \(g.rect(g.active(g.wings()), shift: g.wings().shift))")
             print("  open:    \(g.open)  -> \(g.rect(g.open))")
             print("  fixed windowFrame: \(g.windowFrame())")
             print("  under full screen: \(g.isUnderFullScreen)")

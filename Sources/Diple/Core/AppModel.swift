@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastSync: Date?
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
+    @Published private(set) var reviewedAhead: Set<String> = []
     @Published private(set) var artifacts: [String: Int] = [:]
     @Published private(set) var earned: [EarnedArtifact] = []
     @Published private(set) var seasonReviews = 0
@@ -25,7 +26,7 @@ final class AppModel: ObservableObject {
         lidSpots = store.state.lidSpots
     }
     @Published var showsCollection = false
-    @Published var settingsTab = SettingsTab.notifications
+    @Published var settingsPane: SettingsPane? = .general
 
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var team: [Person] = []
@@ -72,8 +73,10 @@ final class AppModel: ObservableObject {
             guard settings != oldValue else { return }
             store.saveSettings(settings)
             notificador.settings = settings
+            focus.follows = settings.followsFocus
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
+            MenuBarItems.measuring = settings.fitsMenuBar
         }
     }
 
@@ -317,6 +320,7 @@ final class AppModel: ObservableObject {
     private let client: GitHubClient
     private let store: Store
     private let notificador = Notifier()
+    let focus = Focus()
 
     private let sync: SyncEngine
     let telemetry: Telemetry
@@ -417,7 +421,12 @@ final class AppModel: ObservableObject {
         restoreCached()
         settings = store.state.settings
         notificador.settings = settings
+        MenuBarItems.measuring = settings.fitsMenuBar
+        notificador.quiet = { [weak self] in self?.focus.isOn ?? false }
+        focus.follows = settings.followsFocus
+        focus.start()
         startTelemetry()
+        Updates.shared.start()
 
         Task {
             await refresh()
@@ -611,9 +620,13 @@ final class AppModel: ObservableObject {
                           let pr = nova.toReview.first(where: { $0.key == e.key }) else { return true }
                     return !quiets(pr)
                 }
-            if settings.rewardsBeta { rewardReviews(store.unrequested) }
+            let candidates = settings.showsReviews
+                ? Array(store.unrequested.filter { !reviewedAhead.contains($0.key) }.prefix(5)) : []
+            if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
             queue = nova
             store.saveQueue(nova)
+            reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
+            confirmReviews(candidates)
             if let s = selected {
                 selected = nova.all.first { $0.key == s.key } ?? s
             }
@@ -634,7 +647,7 @@ final class AppModel: ObservableObject {
             recordActiveDay()
             schedulePrefetch()
             schedulePreload()
-            if let first = events.first(where: { $0.kind.interrupts }) {
+            if !focus.isOn, let first = events.first(where: { $0.kind.interrupts }) {
                 onEvent?(first)
             }
         } catch {
@@ -653,6 +666,7 @@ final class AppModel: ObservableObject {
     func toggleFollow(_ login: String) {
         store.toggleFollow(login)
         following = store.state.following
+        picksChanged += 1
         var cache = store.state.cache
         cache.dropRanks()
         store.saveCache(cache)
@@ -703,18 +717,26 @@ final class AppModel: ObservableObject {
             switch tab {
             case .ranking:
                 let period = rankPeriod
+                let picks = picksChanged
                 let rows = try await client.fetchRanking(
                     org: org, people: rankingScope(people), from: period.since
                 )
                 guard !Task.isCancelled else { return }
-                store.updateCache { $0.setRank(rows, for: period) }
-                if period == rankPeriod { ranking = rows }
+                if picks == picksChanged {
+                    store.updateCache { $0.setRank(rows, for: period) }
+                    if period == rankPeriod { ranking = rows }
+                }
             case .activity:
-                let days = try await client.fetchActivity(org: org, login: viewer)
+                let today = Date()
+                let from = ActivityHistory.refetchFrom(today: today, cachedFrom: cache.activityFrom)
+                let counts = try await client.fetchReviewCounts(org: org, login: viewer, from: from, to: today)
                 guard !Task.isCancelled else { return }
+                let days = ActivityHistory.merged(old: cache.activity, fresh: counts, from: from, today: today)
+                let covered = min(cache.activityFrom ?? from, from)
                 store.updateCache {
                     $0.activity = days
-                    $0.activityAt = Date()
+                    $0.activityAt = today
+                    $0.activityFrom = covered
                 }
                 activity = days
             default: break
@@ -733,7 +755,18 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private var picksChanged = 0
+
     var myRank: RankRow? { ranking.first { $0.person.login == queue.viewer } }
+
+    var teammates: [Person] { Self.others(team, viewer: queue.viewer) }
+
+    var pickedTeammates: Int { teammates.filter { following.contains($0.login) }.count }
+
+    nonisolated static func others(_ people: [Person], viewer: String) -> [Person] {
+        guard !viewer.isEmpty else { return people }
+        return people.filter { $0.login.caseInsensitiveCompare(viewer) != .orderedSame }
+    }
 
     private func rankingScope(_ all: [Person]) -> [Person] {
         let picked = all.filter { following.contains($0.login) || $0.login == queue.viewer }
@@ -1014,10 +1047,10 @@ final class AppModel: ObservableObject {
 
     func open(_ pr: PR, from source: TelemetryEvent.Source = .window) {
         openURL(pr.url)
-        watchForReview(pr.key)
         telemetry.capture(.prOpened(source: source))
         store.markRead(pr.key)
         unread = store.state.unread
+        watchForReview(pr)
     }
 
     func clearAll() {
@@ -1098,7 +1131,9 @@ final class AppModel: ObservableObject {
         return out
     }
 
-    var reviewing: [PR] { settings.reviewFilter.order(queue.toReview, picked: following) }
+    var reviewing: [PR] {
+        settings.reviewFilter.order(queue.toReview.filter { !reviewedAhead.contains($0.key) }, picked: following)
+    }
 
     func quiets(_ pr: PR) -> Bool { settings.reviewFilter.quiets(pr, picked: following) }
 
@@ -1112,6 +1147,88 @@ final class AppModel: ObservableObject {
     }
 
     var yoursBroken: [PR] { queue.mine.filter { $0.checks == .failing } }
+
+    var onReviewsPending: (([String], Int) -> Void)?
+    var onNoReview: ((String) -> Void)?
+    var onTick: ((ReviewTick) -> Void)?
+
+    private func confirmReviews(_ candidates: [Store.Unrequested]) {
+        guard !candidates.isEmpty else { return }
+        Task { [weak self] in
+            for c in candidates {
+                guard let self else { return }
+                if let review = try? await self.client.myReview(onPullRequest: c.key, since: c.since) {
+                    self.counted(pr: c.key, at: review.at, verdict: ReviewVerdict(github: review.state))
+                } else {
+                    self.onNoReview?(c.key)
+                }
+            }
+        }
+    }
+
+    private var watches: [String: (id: UUID, task: Task<Void, Never>)] = [:]
+    private var watchOrder: [String] = []
+    var watchEvery: Duration = .seconds(10)
+    var watchFor: TimeInterval = 30 * 60
+    static let mostWatched = 3
+
+    func watchForReview(_ pr: PR) {
+        guard settings.showsReviews, !Demo.isOn, pr.author != queue.viewer else { return }
+        let key = pr.key
+        watches[key]?.task.cancel()
+        watchOrder.removeAll { $0 == key }
+        watchOrder.append(key)
+        while watchOrder.count > Self.mostWatched {
+            let oldest = watchOrder.removeFirst()
+            watches[oldest]?.task.cancel()
+            watches[oldest] = nil
+        }
+        let id = UUID()
+        let since = Date()
+        let task = Task { [weak self] in
+            while let self, !Task.isCancelled, Date().timeIntervalSince(since) < self.watchFor {
+                try? await Task.sleep(for: self.watchEvery)
+                guard !Task.isCancelled, self.queue.all.contains(where: { $0.key == key }) else { break }
+                if let review = try? await self.client.myReview(onPullRequest: key, since: since) {
+                    self.reviewedFromDiple(key, at: review.at, verdict: ReviewVerdict(github: review.state))
+                    break
+                }
+            }
+            guard let self, self.watches[key]?.id == id else { return }
+            self.watches[key] = nil
+            self.watchOrder.removeAll { $0 == key }
+        }
+        watches[key] = (id, task)
+    }
+
+    var watchedForReview: [String] { watchOrder }
+
+    func reviewedFromDiple(_ key: String, at: Date, verdict: ReviewVerdict) {
+        if queue.toReview.contains(where: { $0.key == key }), !reviewedAhead.contains(key) {
+            onReviewsPending?([key], count)
+            reviewedAhead.insert(key)
+            onCountChange?()
+        }
+        counted(pr: key, at: at, verdict: verdict)
+    }
+
+    func counted(pr: String, at: Date, verdict: ReviewVerdict) {
+        guard let today = store.countReview(pr, at: at) else { return onNoReview?(pr) ?? () }
+        onTick?(ReviewTick(id: "\(pr)/\(at.timeIntervalSince1970)", pr: pr, verdict: verdict, today: today))
+        if settings.rewardsBeta { advanceTrail(pr: pr, at: at, verdict: verdict) }
+    }
+
+    func rehearseReviews() {
+        let prs = Array(reviewing.prefix(3))
+        guard !prs.isEmpty else { return }
+        let verdicts: [ReviewVerdict] = [.commented, .changesRequested, .approved]
+        onReviewsPending?(prs.map(\.key), count)
+        for (i, pr) in prs.enumerated() {
+            reviewedAhead.insert(pr.key)
+            counted(pr: pr.key, at: Date().addingTimeInterval(Double(i)), verdict: verdicts[i % verdicts.count])
+        }
+        onCountChange?()
+    }
 
     var count: Int { needsYou.count }
 
@@ -1156,40 +1273,8 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func rewardReviews(_ candidates: [Store.Unrequested]) {
-        guard !candidates.isEmpty else { return }
-        Task { [weak self] in
-            for c in candidates.prefix(5) {
-                guard let self,
-                      let review = try? await self.client.myReview(onPullRequest: c.key, since: c.since)
-                else { continue }
-                self.counted(pr: c.key, at: review.at, verdict: ReviewVerdict(github: review.state))
-            }
-        }
-    }
-
-    private var watches: [String: Task<Void, Never>] = [:]
-    var watchEvery: Duration = .seconds(10)
-    var watchFor: TimeInterval = 30 * 60
-
-    func watchForReview(_ key: String) {
-        guard settings.rewardsBeta, !Demo.isOn else { return }
-        watches[key]?.cancel()
-        let since = Date()
-        watches[key] = Task { [weak self] in
-            while let self, !Task.isCancelled, Date().timeIntervalSince(since) < self.watchFor {
-                try? await Task.sleep(for: self.watchEvery)
-                if let review = try? await self.client.myReview(onPullRequest: key, since: since) {
-                    self.counted(pr: key, at: review.at, verdict: ReviewVerdict(github: review.state))
-                    break
-                }
-            }
-            self?.watches[key] = nil
-        }
-    }
-
-    var onTick: ((ReviewTick) -> Void)?
     var onPreviewClaim: ((Reward) -> Void)?
+    var onReward: ((Reward) -> Void)?
 
     func previewClaim(_ a: Artifact) {
         onPreviewClaim?(Reward(id: "preview/\(a.id)/\(Date().timeIntervalSince1970)", artifact: a, pr: "acme/orders-api#7867"))
@@ -1203,20 +1288,18 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func counted(pr: String, at: Date, verdict: ReviewVerdict) {
-        guard let count = store.countReview(pr, at: at, season: Trail.season(of: at)) else { return }
-        var reward: Reward?
-        if let step = Trail.milestone(at: count) {
-            let a = StickerSheet.of(season: Trail.season(of: at)).stickers[step]
-            let id = "\(pr)/\(at.timeIntervalSince1970)"
-            store.collect(a, on: at.formatted(.iso8601.year().month().day()),
-                          record: EarnedArtifact(id: id, artifact: a.id, pr: pr, verdict: verdict, at: at))
-            artifacts = store.state.artifacts
-            earned = store.state.earned
-            reward = Reward(id: id, artifact: a, pr: pr, verdict: verdict)
-        }
+    private func advanceTrail(pr: String, at: Date, verdict: ReviewVerdict) {
+        let season = Trail.season(of: at)
+        let count = store.advanceSeason(season)
         seasonReviews = count
-        onTick?(ReviewTick(id: "\(pr)/\(at.timeIntervalSince1970)", pr: pr, verdict: verdict, count: count, reward: reward))
+        guard let step = Trail.milestone(at: count) else { return }
+        let a = StickerSheet.of(season: season).stickers[step]
+        let id = "\(pr)/\(at.timeIntervalSince1970)"
+        store.collect(a, on: at.formatted(.iso8601.year().month().day()),
+                      record: EarnedArtifact(id: id, artifact: a.id, pr: pr, verdict: verdict, at: at))
+        artifacts = store.state.artifacts
+        earned = store.state.earned
+        onReward?(Reward(id: id, artifact: a, pr: pr, verdict: verdict))
     }
 
     func claimed(_ reward: Reward) {

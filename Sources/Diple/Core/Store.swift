@@ -25,12 +25,14 @@ struct StoredState: Codable, Sendable, Equatable {
     var usageNoticeSeen = false
     var lastActiveDay: String? = nil
     var requestSeenAt: [String: Date] = [:]
+    var countedReviews: [String: Date] = [:]
+    var reviewDay: String? = nil
+    var reviewsThatDay = 0
     var artifacts: [String: Int] = [:]
     var rewardDay: String? = nil
     var rewardsThatDay = 0
     var earned: [EarnedArtifact] = []
     var season: SeasonProgress? = nil
-    var countedReviews: [String: Date] = [:]
     var lidSpots: [String: LidSpot] = [:]
 
     init() {}
@@ -52,12 +54,14 @@ struct StoredState: Codable, Sendable, Equatable {
         d.usageNoticeSeen = try c.decodeIfPresent(Bool.self, forKey: .usageNoticeSeen) ?? d.usageNoticeSeen
         d.lastActiveDay = try c.decodeIfPresent(String.self, forKey: .lastActiveDay)
         d.requestSeenAt = (try? c.decodeIfPresent([String: Date].self, forKey: .requestSeenAt)) ?? d.requestSeenAt
+        d.countedReviews = (try? c.decodeIfPresent([String: Date].self, forKey: .countedReviews)) ?? d.countedReviews
+        d.reviewDay = try c.decodeIfPresent(String.self, forKey: .reviewDay)
+        d.reviewsThatDay = try c.decodeIfPresent(Int.self, forKey: .reviewsThatDay) ?? d.reviewsThatDay
         d.artifacts = (try? c.decodeIfPresent([String: Int].self, forKey: .artifacts)) ?? d.artifacts
         d.rewardDay = try c.decodeIfPresent(String.self, forKey: .rewardDay)
         d.rewardsThatDay = try c.decodeIfPresent(Int.self, forKey: .rewardsThatDay) ?? d.rewardsThatDay
         d.earned = (try? c.decodeIfPresent([EarnedArtifact].self, forKey: .earned)) ?? d.earned
         d.season = try? c.decodeIfPresent(SeasonProgress.self, forKey: .season)
-        d.countedReviews = (try? c.decodeIfPresent([String: Date].self, forKey: .countedReviews)) ?? d.countedReviews
         d.lidSpots = (try? c.decodeIfPresent([String: LidSpot].self, forKey: .lidSpots)) ?? d.lidSpots
         self = d
     }
@@ -110,6 +114,7 @@ struct Cache: Codable, Sendable, Equatable {
     var teamAt: Date?
     var rankingAt: Date?
     var activityAt: Date?
+    var activityFrom: Date?
     var scoreShownOn: Date?
     var repos: [RepoRef]? = nil
     var reposAt: Date? = nil
@@ -155,6 +160,7 @@ struct Cache: Codable, Sendable, Equatable {
         d.teamAt = try c.decodeIfPresent(Date.self, forKey: .teamAt)
         d.rankingAt = try c.decodeIfPresent(Date.self, forKey: .rankingAt)
         d.activityAt = try c.decodeIfPresent(Date.self, forKey: .activityAt)
+        d.activityFrom = try c.decodeIfPresent(Date.self, forKey: .activityFrom)
         d.scoreShownOn = try c.decodeIfPresent(Date.self, forKey: .scoreShownOn)
         d.repos = try c.decodeIfPresent([RepoRef].self, forKey: .repos)
         d.reposAt = try c.decodeIfPresent(Date.self, forKey: .reposAt)
@@ -330,13 +336,11 @@ final class Store {
         save()
     }
 
-    func countReview(_ key: String, at: Date, season id: String) -> Int? {
-        if let last = state.countedReviews[key], abs(last.timeIntervalSince(at)) < 1 { return nil }
-        state.countedReviews[key] = at
+    func advanceSeason(_ id: String) -> Int {
         if state.season?.id != id { state.season = SeasonProgress(id: id, reviews: 0) }
         state.season?.reviews += 1
         save()
-        return state.season?.reviews
+        return state.season?.reviews ?? 0
     }
 
     func stick(_ id: String, at spot: LidSpot) {
@@ -356,6 +360,29 @@ final class Store {
     }
 
     private(set) var unrequested: [Unrequested] = []
+
+    static func day(of date: Date, calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    func reviewsToday(now: Date = Date()) -> Int {
+        state.reviewDay == Self.day(of: now) ? state.reviewsThatDay : 0
+    }
+
+    func countReview(_ key: String, at: Date, now: Date = Date()) -> Int? {
+        if let last = state.countedReviews[key], abs(last.timeIntervalSince(at)) < 1 { return nil }
+        state.countedReviews = state.countedReviews.filter { now.timeIntervalSince($0.value) < 2 * 86_400 }
+        state.countedReviews[key] = at
+        let today = Self.day(of: now)
+        if state.reviewDay != today {
+            state.reviewDay = today
+            state.reviewsThatDay = 0
+        }
+        state.reviewsThatDay += 1
+        save()
+        return state.reviewsThatDay
+    }
 
     @discardableResult
     func collect(_ artifact: Artifact, on day: String, record: EarnedArtifact? = nil) -> Int {
@@ -450,11 +477,13 @@ final class Store {
             ))
         }
 
-        unrequested = state.prs.compactMap { key, before in
+        unrequested = state.hasRunBefore ? state.prs.compactMap { key, before in
             guard before.reviewRequested, next[key]?.reviewRequested != true else { return nil }
             return Unrequested(key: key, since: state.requestSeenAt[key] ?? before.updatedAt)
+        } : []
+        for key in state.requestSeenAt.keys where next[key]?.reviewRequested != true {
+            state.requestSeenAt[key] = nil
         }
-        for u in unrequested { state.requestSeenAt[u.key] = nil }
 
         state.prs = next
         state.hasRunBefore = true

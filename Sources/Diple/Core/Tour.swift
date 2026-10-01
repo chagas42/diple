@@ -14,7 +14,7 @@ enum Tour {
         await pause(1)
 
         model.rehearse(toward: Trail.milestones[0])
-        await until { notch.celebration == nil && notch.pendingCelebrations.isEmpty }
+        await until { notch.tick == nil && notch.pendingTicks.isEmpty }
         await pause(1.2)
 
         notch.holdsOpen = true
@@ -30,7 +30,7 @@ enum Tour {
 
         Windows.shared.openMain(model, collection: true)
         await pause(5)
-        Windows.shared.openSettings(model, tab: .rewards)
+        Windows.shared.openSettings(model, pane: .rewards)
     }
 
     private static func pause(_ seconds: Double) async {

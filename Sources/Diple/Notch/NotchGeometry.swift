@@ -18,7 +18,7 @@ struct NotchGeometry {
 
     var closed: CGSize { CGSize(width: notchWidth, height: topInset) }
 
-    var active: CGSize {
+    func active(_ wings: Wings) -> CGSize {
         CGSize(width: notchWidth + wings.left + wings.right, height: topInset)
     }
 
@@ -29,12 +29,21 @@ struct NotchGeometry {
     var asa: CGFloat { 42 }
 
     static let minWing: CGFloat = 27
+    static let eyeBesideCount: CGFloat = 20
 
-    var wings: Wings { Self.wings(freeRight: freeRight, full: asa) }
+    func wings(showsEye: Bool = true, countOnLeft: Bool = false) -> Wings {
+        Self.wings(freeRight: freeRight, full: asa, showsEye: showsEye, countOnLeft: countOnLeft)
+    }
 
-    static func wings(freeRight: CGFloat, full: CGFloat) -> Wings {
+    static func wings(freeRight: CGFloat, full: CGFloat, showsEye: Bool = true, countOnLeft: Bool = false) -> Wings {
         let fits = min(full, freeRight - 6)
-        return fits >= minWing ? Wings(left: fits, right: fits) : Wings(left: full, right: 0)
+        guard fits >= minWing else {
+            return Wings(left: full + (showsEye ? eyeBesideCount : 0), right: 0, countOnLeft: true, crowded: true)
+        }
+        let eye = showsEye ? fits : 0
+        return countOnLeft
+            ? Wings(left: fits, right: eye, countOnLeft: true)
+            : Wings(left: eye, right: fits)
     }
 
     var freeRight: CGFloat {
@@ -49,20 +58,32 @@ struct NotchGeometry {
         let notchRight = screen.frame.midX + notchWidth / 2
         let barTop = primary.frame.maxY - screen.frame.maxY
         let me = ProcessInfo.processInfo.processIdentifier
+        let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
         var nearest = screen.frame.maxX
+        var sawStatusItem = false
 
         for w in list {
-            guard w[kCGWindowLayer as String] as? Int == Int(CGWindowLevelForKey(.statusWindow)),
+            guard w[kCGWindowLayer as String] as? Int == statusLevel,
                   w[kCGWindowOwnerPID as String] as? Int32 != me,
                   let d = w[kCGWindowBounds as String] as? NSDictionary,
                   let b = CGRect(dictionaryRepresentation: d),
-                  abs(b.minY - barTop) < 2, b.height <= topInset + 2,
+                  b.height <= topInset + 2
+            else { continue }
+            sawStatusItem = true
+            guard abs(b.minY - barTop) < 2,
                   b.minX >= notchRight - 1, b.minX < nearest
             else { continue }
             nearest = b.minX
         }
-        return nearest - notchRight
+        Self.statusItemsAreWindows = sawStatusItem
+        if sawStatusItem { return nearest - notchRight }
+
+        let display = CGRect(x: screen.frame.minX, y: barTop, width: screen.frame.width, height: screen.frame.height)
+        guard let lefts = MenuBarItems.lefts(onDisplay: display) else { return 0 }
+        return MenuBarItems.freeRight(notchRight: notchRight, screenMaxX: screen.frame.maxX, lefts: lefts)
     }
+
+    static var statusItemsAreWindows = true
 
     var displayName: String? {
         guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
@@ -161,7 +182,16 @@ enum ManagedSpaces {
 struct Wings: Equatable {
     let left: CGFloat
     let right: CGFloat
+    var countOnLeft = false
 
-    var countOnLeft: Bool { right == 0 }
+    var crowded = false
+
+    var eye: CGFloat { crowded ? 0 : countOnLeft ? right : left }
     var shift: CGFloat { (right - left) / 2 }
+
+    func eyeX(notchWidth: CGFloat) -> CGFloat {
+        crowded ? -notchWidth / 2 - left / 2 - 10
+            : countOnLeft ? notchWidth / 2 + right / 2
+            : -notchWidth / 2 - left / 2
+    }
 }
