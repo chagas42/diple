@@ -246,6 +246,13 @@ The spring is critically damped because a negative bulge dents the notch
 upward and shows the cutout's edge. The pull lives in its own observable
 object, like the eye, so only the fill redraws.
 
+**Reduce Motion turns movement into fades.** With the system setting on,
+springs become short ease-in-outs without bounce, slides and scale-ins become
+cross-fades, the count swaps digits instead of rolling them, and the flame
+stands still. The eye stops following the pointer, blinking and looking
+around on its own. Views read `accessibilityReduceMotion`; the controller,
+which drives the eye outside SwiftUI, reads `Motion.reduced`.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
