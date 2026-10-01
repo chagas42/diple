@@ -16,7 +16,7 @@ struct MainWindowView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 280)
         } content: {
             list
-                .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 520)
+                .navigationSplitViewColumnWidth(min: 380, ideal: 520, max: 680)
         } detail: {
             if let pr = model.selected {
                 DetailView(model: model, pr: pr)
@@ -217,10 +217,10 @@ struct MainWindowView: View {
                             PRRow(
                                 pr: pr,
                                 unread: model.unread.contains(pr.key),
-                                step: i + 1,
-                                steps: stack.prs.count,
+                                stack: (i + 1, stack.prs.count),
                                 required: model.requiredApprovals(for: pr)
                             )
+                            .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
                             .opacity(model.dims(pr) ? 0.45 : 1)
                             .tag(pr.key)
                         }
@@ -291,75 +291,127 @@ struct MainWindowView: View {
 struct PRRow: View {
     let pr: PR
     let unread: Bool
-    var step: Int? = nil
-    var steps: Int? = nil
+    var stack: (index: Int, count: Int)? = nil
     var required: Int? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            if let d = step, let n = steps {
-                Text("\(d)/\(n)")
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .frame(minWidth: 22, alignment: .trailing)
-                    .padding(.top, 3)
-            }
+            if let stack { StackRail(index: stack.index, count: stack.count) }
+            content.padding(.vertical, 6)
+        }
+    }
 
+    private var content: some View {
+        HStack(alignment: .top, spacing: 10) {
             PRAvatar(url: pr.authorAvatar, login: pr.author)
                 .padding(.top, 1)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(pr.title)
-                    .font(.system(size: 13, weight: unread ? .semibold : .regular))
-                    .lineLimit(2)
-                HStack(spacing: 6) {
-                    Image(systemName: glyph)
-                        .font(.system(size: 10))
-                        .foregroundStyle(color)
-                    Text("\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.number)")
-                        .font(.system(size: 11, design: .monospaced))
-                    if let c = pr.lastComment {
-                        Text("· \(c.author)\(c.location.map { " at \($0)" } ?? "")")
-                            .font(.system(size: 11))
-                            .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if unread {
+                        Circle().fill(.orange).frame(width: 6, height: 6)
+                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                     }
+                    Text(pr.title)
+                        .font(.system(size: 13, weight: unread ? .semibold : .regular))
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    Text(Self.ago(pr.updatedAt))
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .help(pr.updatedAt.formatted(date: .abbreviated, time: .shortened))
                 }
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 6)
-
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.tertiary)
                 HStack(spacing: 8) {
+                    Text(verbatim: place)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                    if pr.draft {
+                        Text("Draft")
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                            .foregroundStyle(.secondary)
+                    }
+                    if let c = pr.lastComment {
+                        Text(verbatim: c.author)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .help(c.location.map { "\(c.author) at \($0)" } ?? c.author)
+                    }
+                    Spacer(minLength: 6)
                     if let approvals = ApprovalCount(pr: pr, required: required) { approvals }
                     if !pr.threads.isEmpty {
                         Label("\(pr.threads.count)", systemImage: "bubble.left")
-                            .font(.system(size: 10.5))
+                            .font(.system(size: 10.5).monospacedDigit())
                             .foregroundStyle(.secondary)
+                            .help("\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")")
                     }
+                    ChecksDot(state: pr.checks)
                 }
             }
         }
-        .padding(.vertical, 4)
     }
 
-    private var glyph: String {
-        if pr.checks == .failing { "xmark.circle.fill" }
-        else if pr.approved { "checkmark.circle.fill" }
-        else if pr.draft { "circle.dashed" }
-        else { "arrow.triangle.branch" }
+    private var place: String {
+        let repo = pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo
+        return stack == nil ? "\(repo) #\(pr.number)" : "#\(pr.number)"
     }
 
-    private var color: Color {
-        if pr.checks == .failing { .red }
-        else if pr.approved { .green }
-        else if unread { .orange }
-        else { .secondary }
+    static func ago(_ date: Date, now: Date = Date()) -> String {
+        let s = max(0, now.timeIntervalSince(date))
+        switch s {
+        case ..<60: return "now"
+        case ..<3600: return "\(Int(s / 60))m"
+        case ..<86_400: return "\(Int(s / 3600))h"
+        case ..<(7 * 86_400): return "\(Int(s / 86_400))d"
+        case ..<(30 * 86_400): return "\(Int(s / (7 * 86_400)))w"
+        case ..<(365 * 86_400): return "\(Int(s / (30 * 86_400)))mo"
+        default: return "\(Int(s / (365 * 86_400)))y"
+        }
+    }
+}
+
+struct StackRail: View {
+    let index: Int
+    let count: Int
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                Rectangle().fill(index == 1 ? .clear : Color.secondary.opacity(0.35)).frame(width: 1.5, height: 20)
+                Rectangle().fill(index == count ? .clear : Color.secondary.opacity(0.35)).frame(width: 1.5)
+            }
+            Circle()
+                .strokeBorder(Color.secondary.opacity(0.7), lineWidth: 1.5)
+                .frame(width: 9, height: 9)
+                .padding(.top, 15.5)
+        }
+        .frame(width: 12)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .help("\(index) of \(count), the bottom one merges first")
+    }
+}
+
+struct ChecksDot: View {
+    let state: CheckState
+
+    var body: some View {
+        switch state {
+        case .none:
+            EmptyView()
+        case .passing:
+            dot(.green, "Checks passing")
+        case .failing:
+            dot(.red, "A check failed")
+        case .running:
+            dot(.orange, "Checks running")
+        }
+    }
+
+    private func dot(_ color: Color, _ help: String) -> some View {
+        Circle().fill(color).frame(width: 7, height: 7).help(help)
     }
 }
 

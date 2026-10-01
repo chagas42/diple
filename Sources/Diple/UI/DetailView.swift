@@ -26,26 +26,33 @@ struct DetailView: View {
         _section = State(initialValue: Section.shown(model.section(for: pr.key), for: pr))
     }
 
+    static let readable: CGFloat = 780
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 20) {
                 header
-                Divider()
-                estatisticas
+                status
 
-                Picker("", selection: $section) {
-                    ForEach(Section.available(for: pr)) { Text($0.rawValue).tag($0) }
+                HStack {
+                    Picker("", selection: $section) {
+                        ForEach(Section.available(for: pr)) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    Spacer(minLength: 0)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
 
                 switch section {
                 case .conversation:
                     if pr.threads.isEmpty {
                         semThreads
                     } else {
-                        ForEach(pr.threads) { t in
-                            ThreadView(model: model, pr: pr, thread: t)
+                        LazyVStack(alignment: .leading, spacing: 18) {
+                            ForEach(pr.threads) { t in
+                                ThreadView(model: model, pr: pr, thread: t)
+                            }
                         }
                     }
                 case .map:
@@ -54,57 +61,61 @@ struct DetailView: View {
                     AIReviewView(model: model, pr: pr)
                 }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 28)
+            .frame(maxWidth: Self.readable, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
         .onChange(of: pr.key) { _, key in section = Section.shown(model.section(for: key), for: pr) }
         .onChange(of: section) { _, s in model.remember(s, for: pr.key) }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                selo
-                Text("\(pr.repo) #\(pr.number)")
-                    .font(.system(size: 11.5, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                Spacer()
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(pr.title)
+                    .font(.system(size: 21, weight: .semibold))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
                 FeedbackButton(model: model, feature: .pullRequest)
             }
-            Text(pr.title)
-                .font(.system(size: 20, weight: .semibold))
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 10) {
-                Text("opened by \(pr.author) · updated \(pr.updatedAt.formatted(.relative(presentation: .numeric)))")
+            HStack(spacing: 8) {
+                selo
+                Text(verbatim: "\(pr.repo) #\(pr.number)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                Text("·").foregroundStyle(.tertiary)
+                PRAvatar(url: pr.authorAvatar, login: pr.author)
+                    .scaleEffect(0.7)
+                    .frame(width: 18, height: 18)
+                Text(verbatim: pr.author)
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
-
+                Text("·").foregroundStyle(.tertiary)
+                Text(pr.updatedAt.formatted(.relative(presentation: .named)))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
                 Button {
                     model.open(pr)
                 } label: {
-                    HStack(spacing: 4) {
-                        Text("Open \(pr.repo.split(separator: "/").last.map(String.init) ?? "")#\(pr.number)")
-                            .font(.system(size: 12))
-                        Image(systemName: "arrow.up.forward.square")
-                            .font(.system(size: 10.5))
-                    }
+                    Label("Open on GitHub", systemImage: "arrow.up.forward.square")
+                        .font(.system(size: 12))
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .clickable()
                 .help("Open this pull request on GitHub")
-
-                Spacer(minLength: 0)
             }
         }
     }
 
     @ViewBuilder private var selo: some View {
         let (text, color): (String, Color) =
-            if pr.checks == .failing { ("Check failing", .red) }
+            if pr.draft { ("Draft", .secondary) }
             else if pr.approved { ("Approved", .green) }
-            else if pr.draft { ("Draft", .secondary) }
-            else if !pr.threads.isEmpty { ("Open thread", .orange) }
             else { ("Open", .blue) }
         Text(text)
             .font(.system(size: 11, weight: .semibold))
@@ -113,26 +124,47 @@ struct DetailView: View {
             .foregroundStyle(color)
     }
 
-    private var estatisticas: some View {
+    private var status: some View {
         HStack(spacing: 8) {
-            label(pr.checks == .failing ? "checks failing" : pr.checks == .passing ? "checks passing" : "checks running")
-            Text("·").foregroundStyle(.tertiary)
-            label("\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")")
+            switch pr.checks {
+            case .passing: pill("checkmark.circle.fill", "Checks passing", .green)
+            case .failing: pill("xmark.circle.fill", "A check failed", .red)
+            case .running: pill("clock", "Checks running", .orange)
+            case .none: EmptyView()
+            }
+            if let a = ApprovalCount(pr: pr, required: model.requiredApprovals(for: pr)) {
+                pill(a.met ? "checkmark.seal.fill" : "checkmark.seal",
+                     a.required.map { "\(a.approvals) of \($0) approvals" } ?? "\(a.approvals) approval\(a.approvals == 1 ? "" : "s")",
+                     a.met ? .green : .secondary)
+            }
+            pill(pr.threads.isEmpty ? "bubble.left" : "bubble.left.fill",
+                 pr.threads.isEmpty ? "No open threads" : "\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")",
+                 pr.threads.isEmpty ? .secondary : .orange)
         }
-        .font(.system(size: 12, design: .monospaced))
-        .foregroundStyle(.secondary)
     }
 
-    private func label(_ t: String) -> some View { Text(t) }
+    private func pill(_ icon: String, _ text: String, _ color: Color) -> some View {
+        Label(text, systemImage: icon)
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(color.opacity(0.10), in: Capsule())
+    }
 
     private var semThreads: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle").foregroundStyle(.green)
-            Text("No open human threads on this PR.")
-                .font(.system(size: 13))
+        VStack(spacing: 10) {
+            Image(systemName: "checkmark.bubble")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(.green)
+            Text("Nothing to answer")
+                .font(.system(size: 14, weight: .semibold))
+            Text("No one left an open thread on this pull request.")
+                .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 48)
+        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
