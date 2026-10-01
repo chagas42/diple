@@ -516,6 +516,15 @@ falls behind (the recorder says so) they look faster than the pointer. The
 pointer timer does not run while filming: each frame calls `followPointer()`,
 which is what the timer calls.
 
+**Updating through Homebrew refreshes the tap first.** `brew upgrade` only
+refreshes taps when its last refresh is older than a day, so right after a
+release it can see no new version and exit 0 having done nothing. The update
+runs `brew update` first. Homebrew quits a running cask app before replacing
+it and reopens it after, so Diple does not kill itself; a final `open` covers
+a run where it did not. If the command ends and this Diple is still running,
+the version on disk decides: newer means relaunch into it, unchanged means
+the install failed and Settings says so, instead of spinning forever.
+
 ## Measuring
 
 **Two kinds of proof, on purpose.** `swift test` gates CI on counts —
