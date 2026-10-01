@@ -87,7 +87,7 @@ struct TeamTab: View {
             if model.team.isEmpty {
                 Placeholder(text: "Loading your organisation…")
             } else {
-                ScrollView {
+                ThinScrollView {
                     LazyVGrid(columns: columns, spacing: 11) {
                         ForEach(people.prefix(60)) { p in
                             let picked = model.following.contains(p.login)
@@ -111,7 +111,6 @@ struct TeamTab: View {
                     }
                     .padding(.top, 2)
                 }
-                .scrollIndicators(.visible)
             }
         }
         .onAppear(perform: freezeOrder)
