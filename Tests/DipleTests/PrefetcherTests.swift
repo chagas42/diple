@@ -59,11 +59,12 @@ final class ReviewGitHub: @unchecked Sendable {
     }
 }
 
+@MainActor
 @Suite struct PrefetcherTests {
     static func rig() -> (ReviewGitHub, Prefetcher) {
         let gh = ReviewGitHub()
         let client = GitHubClient(transport: gh.transport, tokens: CountingTokens(), metrics: Metrics())
-        return (gh, Prefetcher(client: client, fetchRefs: gh.fetchRefs))
+        return (gh, Prefetcher(queries: QueryClient(github: client), fetchRefs: gh.fetchRefs))
     }
 
     static func count(_ gh: ReviewGitHub, _ kind: String) -> Int {
@@ -118,7 +119,9 @@ final class ReviewGitHub: @unchecked Sendable {
         let pr = try await gh.prs()[0]
         let broken = StubTransport { _ in .init(status: 502) }
         let failing = Prefetcher(
-            client: GitHubClient(transport: broken, tokens: CountingTokens(), metrics: Metrics(), retryDelays: [.zero, .zero]),
+            queries: QueryClient(github: GitHubClient(
+                transport: broken, tokens: CountingTokens(), metrics: Metrics(), retryDelays: [.zero, .zero]
+            )),
             fetchRefs: gh.fetchRefs
         )
         await failing.warm([.init(pr: pr, origin: nil)])
@@ -153,13 +156,30 @@ final class ReviewGitHub: @unchecked Sendable {
 
 @MainActor
 @Suite struct PrefetchIntegrationTests {
+    @Test func startingAReviewWhileItsContextIsPrefetchingSharesTheRequest() async throws {
+        let gh = ReviewGitHub()
+        let model = AppModel(
+            client: GitHubClient(transport: gh.transport, tokens: CountingTokens(), metrics: Metrics()),
+            store: Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics()),
+            fetchRefs: gh.fetchRefs
+        )
+        let pr = try await gh.prs()[0]
+        gh.delay(.milliseconds(150))
+        let warming = Task { await model.prefetcher.warm([.init(pr: pr, origin: nil)]) }
+        try await Task.sleep(for: .milliseconds(30))
+        let context = try await model.reviewContext(for: pr)
+        await warming.value
+        #expect(context.head == "head111")
+        #expect(PrefetcherTests.count(gh, "context") == 1)
+    }
+
     @Test func aRefreshWarmsWhatNeedsYouForTheMapButNotForAReview() async throws {
         let gh = ReviewGitHub()
         let client = GitHubClient(transport: gh.transport, tokens: CountingTokens(), metrics: Metrics())
         let model = AppModel(
             client: client,
             store: Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics()),
-            prefetcher: Prefetcher(client: client, fetchRefs: gh.fetchRefs)
+            fetchRefs: gh.fetchRefs
         )
         model.preloadsTabs = false
         await model.refresh()

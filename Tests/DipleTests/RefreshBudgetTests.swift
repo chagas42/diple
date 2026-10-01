@@ -55,6 +55,56 @@ import Testing
         #expect(relaunched.queue.all == first.queue.all)
     }
 
+    static func model(_ github: FakeGitHub) -> AppModel {
+        let model = AppModel(
+            client: GitHubClient(transport: github.transport, tokens: CountingTokens(), metrics: Metrics()),
+            store: Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
+        )
+        model.preloadsTabs = false
+        return model
+    }
+
+    @Test func aFullRefreshAskedForMidSyncStillRuns() async throws {
+        let github = FakeGitHub(.realistic())
+        let model = Self.model(github)
+        await model.refresh()
+        let before = github.transport.queries.count
+        github.transport.respond { [github] q in
+            var reply = github.reply(q)
+            reply.delay = .milliseconds(150)
+            return reply
+        }
+        async let steady: Void = model.refresh()
+        try await Task.sleep(for: .milliseconds(30))
+        await model.refresh(full: true)
+        await steady
+        let kinds = FakeGitHub.syncKinds(github.transport.queries.dropFirst(before))
+        #expect(kinds == ["beat", "beat", "beat", "full", "full", "full"])
+    }
+
+    @Test func twoRefreshesAtOnceShareOneSync() async throws {
+        let github = FakeGitHub(.realistic())
+        let model = Self.model(github)
+        await model.refresh()
+        let before = github.transport.queries.count
+        async let a: Void = model.refresh()
+        async let b: Void = model.refresh()
+        _ = await (a, b)
+        #expect(FakeGitHub.syncKinds(github.transport.queries.dropFirst(before)) == ["beat", "beat", "beat"])
+    }
+
+    @Test func watchingARepositoryFetchesItsPullRequestsAtOnce() async throws {
+        let github = FakeGitHub(.realistic())
+        let model = Self.model(github)
+        await model.refresh()
+        let before = github.transport.queries.count
+        model.toggleWatch("acme/repo0")
+        await model.tabsSettled()
+        let sent = github.transport.queries.dropFirst(before)
+        #expect(FakeGitHub.syncKinds(sent).allSatisfy { $0 == "full" })
+        #expect(sent.contains { $0.contains("repo:acme/repo0") })
+    }
+
     @Test func wakingUpForcesAFullFetch() async throws {
         let github = FakeGitHub(.realistic())
         let model = AppModel(
