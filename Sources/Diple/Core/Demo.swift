@@ -7,6 +7,8 @@ enum Demo {
 
     private static func avatar(_ login: String) -> URL? { nil }
 
+    static let required = 2
+
     private static func ago(_ minutes: Double) -> Date {
         Date().addingTimeInterval(-minutes * 60)
     }
@@ -68,7 +70,9 @@ enum Demo {
             approved: approved,
             threads: threads,
             lastComment: last,
-            askedYou: askedYou
+            askedYou: askedYou,
+            approvals: approved ? required : number % 3 == 0 ? 1 : 0,
+            reviewedByOthers: approved || number % 3 == 0 || reply != nil
         )
     }
 

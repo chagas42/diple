@@ -1230,6 +1230,28 @@ final class AppModel: ObservableObject {
 
     func count(_ tab: Tab) -> Int { prs(tab).count }
 
+    @Published private(set) var requirements: [String: Int] = [:]
+
+    static func requirementKey(_ pr: PR) -> String { "\(pr.repo)@\(pr.baseRef)" }
+
+    func requiredApprovals(for pr: PR) -> Int? { requirements[Self.requirementKey(pr)] }
+
+    func loadRequirements(for prs: [PR]) {
+        guard !Demo.isOn else {
+            requirements = Dictionary(prs.map { (Self.requirementKey($0), Demo.required) }, uniquingKeysWith: { a, _ in a })
+            return
+        }
+        let wanted = Dictionary(prs.filter { !$0.draft }.map { (Self.requirementKey($0), $0) }, uniquingKeysWith: { a, _ in a })
+        for (key, pr) in wanted where requirements[key] == nil {
+            let q = Queries.requiredApprovals(repo: pr.repo, branch: pr.baseRef)
+            queries.prefetch(q)
+            Task { [weak self] in
+                guard let found = try? await self?.queries.fetch(q) else { return }
+                if let n = found.count { self?.requirements[key] = n }
+            }
+        }
+    }
+
     func reply(thread: String, text: String) async -> String? {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return nil }

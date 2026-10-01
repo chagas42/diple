@@ -351,6 +351,28 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+## Approvals
+
+**A row shows its approvals against what the branch needs.** Approvals come
+from `latestReviews` in the queue's own query (one review per person, bots and
+the author left out), so they cost no extra request. What the base branch needs
+is looked up once per repository and branch and cached for 6 hours: the strictest
+`pull_request` rule from `GET /repos/{repo}/rules/branches/{branch}` (rulesets,
+readable with read access) and classic branch protection's
+`requiredApprovingReviewCount` over GraphQL, which GitHub hides from anyone below
+maintain. A reader therefore sees rulesets only: `1/2` when a rule is known,
+`1` when it is not, nothing for a PR nobody approved and no rule. It is only
+looked up while the main window shows a list, since the notch never shows the
+count: running it on every sync cost requests nobody saw, and the extra work on
+the main actor right after a sync was enough to make two tab-loading tests miss
+their wait on CI. The lookup
+never throws, so a repository that errors is not asked again every sync, and it
+goes through `QueryClient.prefetch` so the cache can settle it. Holding a key
+before its first fetch makes an entry with no staleness and refetches it
+forever, which is why there is no `hold` here. "No reviews yet" lists PRs with
+no approval, change request or comment review from anyone but the author and
+bots.
+
 ## The PR detail
 
 **A thread's code is parsed once, and shows only what the comment marks.** On

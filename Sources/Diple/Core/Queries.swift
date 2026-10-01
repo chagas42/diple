@@ -36,6 +36,13 @@ enum Queries {
         ) { try await $0.fetchRepoPRs(repo) }
     }
 
+    static func requiredApprovals(repo: String, branch: String) -> CacheQuery<RequiredApprovals> {
+        CacheQuery(
+            key: .requiredApprovals(repo: repo, branch: branch), tags: [.repo(repo)],
+            staleAfter: .seconds(6 * 3600), forgetAfter: .seconds(7 * 24 * 3600), persists: true
+        ) { try await $0.requiredApprovals(repo: repo, branch: branch) }
+    }
+
     static let perPRForgetAfter: Duration = .seconds(3600)
 
     static func reviewContext(_ pr: PR) -> CacheQuery<ReviewContext> {

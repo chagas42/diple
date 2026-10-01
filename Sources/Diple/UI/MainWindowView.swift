@@ -8,6 +8,7 @@ enum SidebarItem: Hashable {
 struct MainWindowView: View {
     @ObservedObject var model: AppModel
     @State private var repoSearch = ""
+    @State private var onlyUnreviewed = false
 
     var body: some View {
         NavigationSplitView {
@@ -168,12 +169,13 @@ struct MainWindowView: View {
                     .font(.system(size: 12))
             } else {
                 ForEach(model.repoPRsShown, id: \.key) { pr in
-                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr))
                         .tag(pr.key)
                 }
             }
         }
         .navigationTitle(model.selectedRepo ?? "")
+        .task(id: model.repoPRs.map(\.key)) { model.loadRequirements(for: model.repoPRs) }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Picker("", selection: Binding(
@@ -193,12 +195,22 @@ struct MainWindowView: View {
         }
     }
 
+    private var queueShown: [PR] {
+        let all = model.prs(model.tab)
+        return onlyUnreviewed ? all.filter(\.hasNoReviews) : all
+    }
+
     private var queueList: some View {
         List(selection: Binding(
             get: { model.selected?.key },
             set: { key in model.selected = model.prs(model.tab).first { $0.key == key } }
         )) {
-            ForEach(model.prs(model.tab).groupedIntoStacks()) { stack in
+            if onlyUnreviewed && queueShown.isEmpty {
+                Text("Every pull request here has a review.")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+            }
+            ForEach(queueShown.groupedIntoStacks()) { stack in
                 if stack.isStack {
                     Section {
                         ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
@@ -206,7 +218,8 @@ struct MainWindowView: View {
                                 pr: pr,
                                 unread: model.unread.contains(pr.key),
                                 step: i + 1,
-                                steps: stack.prs.count
+                                steps: stack.prs.count,
+                                required: model.requiredApprovals(for: pr)
                             )
                             .opacity(model.dims(pr) ? 0.45 : 1)
                             .tag(pr.key)
@@ -227,13 +240,28 @@ struct MainWindowView: View {
                         }
                     }
                 } else if let pr = stack.prs.first {
-                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr))
                         .opacity(model.dims(pr) ? 0.45 : 1)
                         .tag(pr.key)
                 }
             }
         }
         .navigationTitle(model.tab.title)
+        .task(id: model.queue.all.map(\.key)) { model.loadRequirements(for: model.queue.all) }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                Picker("", selection: $onlyUnreviewed) {
+                    Text("All \(model.prs(model.tab).count)").tag(false)
+                    Text("No reviews yet \(model.prs(model.tab).filter(\.hasNoReviews).count)").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                Divider()
+            }
+            .background(.bar)
+        }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let problem = model.syncProblem {
                 HStack(alignment: .top, spacing: 9) {
@@ -266,6 +294,7 @@ struct PRRow: View {
     let unread: Bool
     var step: Int? = nil
     var steps: Int? = nil
+    var required: Int? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -307,10 +336,13 @@ struct PRRow: View {
                 Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.tertiary)
-                if !pr.threads.isEmpty {
-                    Label("\(pr.threads.count)", systemImage: "bubble.left")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    if let approvals = ApprovalCount(pr: pr, required: required) { approvals }
+                    if !pr.threads.isEmpty {
+                        Label("\(pr.threads.count)", systemImage: "bubble.left")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -348,5 +380,30 @@ struct PRAvatar: View {
         }
         .frame(width: side, height: side)
         .clipShape(Circle())
+    }
+}
+
+struct ApprovalCount: View {
+    let approvals: Int
+    let required: Int?
+
+    init?(pr: PR, required: Int?) {
+        guard !pr.draft, let approvals = pr.approvals else { return nil }
+        let needs = required.flatMap { $0 > 0 ? $0 : nil }
+        guard approvals > 0 || needs != nil else { return nil }
+        self.approvals = approvals
+        self.required = needs
+    }
+
+    var met: Bool { required.map { approvals >= $0 } ?? (approvals > 0) }
+
+    var text: String { required.map { "\(approvals)/\($0)" } ?? "\(approvals)" }
+
+    var body: some View {
+        Label(text, systemImage: met ? "checkmark.circle.fill" : "checkmark.circle")
+            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(met ? Color.green : Color.secondary)
+            .help(required.map { "\(approvals) of the \($0) approvals this branch needs" }
+                  ?? "\(approvals) approval\(approvals == 1 ? "" : "s")")
     }
 }
