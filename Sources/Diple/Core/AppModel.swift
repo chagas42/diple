@@ -363,7 +363,7 @@ final class AppModel: ObservableObject {
         self.notificador.telemetry = telemetry
         self.client = client
         self.store = store
-        let queries = QueryClient(github: client, store: store)
+        let queries = QueryClient(github: client, store: store, decoders: Queries.savedDecoders)
         self.queries = queries
         self.sync = SyncEngine(client: client)
         self.prefetcher = fetchRefs.map { Prefetcher(queries: queries, fetchRefs: $0) } ?? Prefetcher(queries: queries)

@@ -151,15 +151,25 @@ final class QueryClient {
     private let now: () -> Date
     private var entries: [QueryKey: AnyEntry] = [:]
     private var background: [UUID: Task<Void, Never>] = [:]
+    private var decoded: [String: any Sendable] = [:]
+    private var decoding: Task<Void, Never>?
+
+    typealias Decode = @Sendable (Data) throws -> any Sendable
 
     var onChange: (() -> Void)?
 
-    init(github: GitHubClient, store: Store? = nil, now: @escaping () -> Date = Date.init) {
+    init(
+        github: GitHubClient, store: Store? = nil, now: @escaping () -> Date = Date.init,
+        decoders: [String: Decode] = [:]
+    ) {
         self.github = github
         self.store = store
         self.now = now
         pruneExpired()
+        decodeSaved(with: decoders)
     }
+
+    func savedDecoded() async { await decoding?.value }
 
     func observe<T: Sendable>(_ q: CacheQuery<T>, placeholder: T? = nil, fetching: Bool = true) -> QueryObserver<T> {
         let entry = entry(for: q)
@@ -290,8 +300,8 @@ final class QueryClient {
         entry.staleAfter = q.staleAfter
         entry.forgetAfter = q.forgetAfter
         if q.persists, let stored = store?.state.cache.queries?[q.key.id],
-           let decoded = Self.decode(T.self, stored.data) {
-            entry.data = decoded
+           let value = (decoded.removeValue(forKey: q.key.id) as? T) ?? Self.decode(T.self, stored.data) {
+            entry.data = value
             entry.fetchedAt = stored.at
         }
         entry.refetch = { [weak self] force in
@@ -399,8 +409,28 @@ final class QueryClient {
         if unchanged, recent { return }
         guard let data = try? Self.encoder.encode(value) else { return }
         if stored?.data == data, recent { return }
+        decoded[key.id] = nil
         let row = StoredQuery(data: data, at: at, forgetAt: at.addingTimeInterval(entry.persistFor.seconds))
         store.updateCache { $0.queries = ($0.queries ?? [:]).merging([key.id: row]) { $1 } }
+    }
+
+    private func decodeSaved(with decoders: [String: Decode]) {
+        guard !decoders.isEmpty, let rows = store?.state.cache.queries else { return }
+        let work = rows.compactMap { id, row in
+            decoders[String(id.prefix { $0 != "/" })].map { (id, row.data, $0) }
+        }
+        guard !work.isEmpty else { return }
+        decoding = Task { [weak self] in
+            let values = await Task.detached(priority: .userInitiated) {
+                var out: [String: any Sendable] = [:]
+                for (id, data, decode) in work { out[id] = try? decode(data) }
+                return out
+            }.value
+            guard let self else { return }
+            for (id, value) in values where self.entries.keys.allSatisfy({ $0.id != id }) {
+                self.decoded[id] = value
+            }
+        }
     }
 
     private func pruneExpired() {

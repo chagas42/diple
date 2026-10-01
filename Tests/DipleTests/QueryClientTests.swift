@@ -256,6 +256,25 @@ final class Source: @unchecked Sendable {
         #expect(calls.value == 2)
     }
 
+    @Test func savedRowsAreDecodedOffTheMainActorAtLaunch() async throws {
+        let dir = StoreDiffTests.tempDirectory()
+        let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
+        _ = try await QueryClient(github: Self.github, store: store).fetch(Self.query(Source([7]), persists: true))
+        await store.settle()
+
+        let onMain = Locked<Bool?>(nil)
+        let relaunched = QueryClient(
+            github: Self.github, store: Store(directory: dir, metrics: Metrics()),
+            decoders: ["repos": { data in
+                onMain.value = Thread.isMainThread
+                return try JSONDecoder().decode(Int.self, from: data)
+            }]
+        )
+        await relaunched.savedDecoded()
+        #expect(onMain.value == false)
+        #expect(relaunched.peek(Self.query(Source([0]), persists: true)) == 7)
+    }
+
     @Test func persistedDataIsReadBackAtLaunch() async throws {
         let dir = StoreDiffTests.tempDirectory()
         let store = Store(directory: dir, metrics: Metrics(), debounce: .milliseconds(10))
