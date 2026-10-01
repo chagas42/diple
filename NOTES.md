@@ -294,6 +294,20 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+## The PR detail
+
+**A thread's code is parsed once, and shows only what the comment marks.** On
+a new file GitHub's `diffHunk` is the whole file down to the commented line,
+hundreds of lines. `DiffHunkView` used to split and highlight it in `init`, and
+since the detail observes the whole `AppModel`, every publish rebuilt every
+thread and highlighted every line again: about 10 ms per 300 lines in a debug
+build, per thread, per publish. `HunkCache` now keeps the parsed rows (cleared
+past 300 hunks), and a hunk shows what GitHub's own page shows: the comment's
+`startLine` through `line`, or the line and the 3 above it for a one-line
+comment, with the rest behind "Show N more lines", which turns into "Hide N lines" once open. The threads sit in a
+`LazyVStack` so off-screen ones are not built. `startLine` is fetched with the
+thread; threads cached before it decode with none.
+
 ## The PR map
 
 **Two layers, two speeds.** Domains and modules come from the GraphQL file list
