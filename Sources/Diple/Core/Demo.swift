@@ -203,6 +203,8 @@ enum Demo {
             return repos
         case .repoPRs(let repo):
             return queue.all.filter { $0.repo == repo }
+        case .requiredApprovals:
+            return RequiredApprovals(count: required)
         case .reviewContext, .changedFiles, .aiReview, .map:
             throw ClientError.empty
         }
