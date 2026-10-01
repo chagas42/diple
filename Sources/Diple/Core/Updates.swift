@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 @MainActor
 final class Updates: ObservableObject {
@@ -27,7 +27,7 @@ final class Updates: ObservableObject {
     static let latest = URL(string: "https://api.github.com/repos/chagas42/diple/releases/latest")!
     static let releases = URL(string: "https://github.com/chagas42/diple/releases")!
     static let installer = "https://raw.githubusercontent.com/chagas42/diple/main/install.sh"
-    static let appPath = "/Applications/Diple.app"
+    nonisolated static let appPath = "/Applications/Diple.app"
 
     var summary: String {
         isDevelopment ? "\(installed), development build" : installed
@@ -51,9 +51,13 @@ final class Updates: ObservableObject {
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         p.arguments = ["-c", installCommand]
         p.terminationHandler = { [weak self] process in
-            let ok = process.terminationStatus == 0
+            let status = process.terminationStatus
             Task { @MainActor in
-                if !ok { self?.state = .installFailed(version: version, page: page) }
+                guard let self else { return }
+                let onDisk = Self.versionOnDisk()
+                self.state = Self.afterInstall(status: status, onDisk: onDisk, installed: self.installed,
+                                               version: version, page: page)
+                if case .installing = self.state { self.relaunch() }
             }
         }
         do {
@@ -66,9 +70,34 @@ final class Updates: ObservableObject {
 
     private var installCommand: String {
         if viaHomebrew, let brew = Tools.find("brew") {
-            return "pkill -x Diple; '\(brew)' upgrade --cask diple; open '\(Self.appPath)'"
+            return Self.homebrewCommand(brew: brew, app: Self.appPath)
         }
         return "set -o pipefail; curl -fsSL \(Self.installer) | bash"
+    }
+
+    nonisolated static func homebrewCommand(brew: String, app: String) -> String {
+        "set -e; '\(brew)' update --quiet; '\(brew)' upgrade --cask diple; open '\(app)'"
+    }
+
+    nonisolated static func afterInstall(status: Int32, onDisk: String?, installed: String,
+                                         version: String, page: URL) -> State {
+        guard status == 0, let onDisk, isNewer(onDisk, than: installed) else {
+            return .installFailed(version: version, page: page)
+        }
+        return .installing(version: version)
+    }
+
+    private func relaunch() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = ["-c", "sleep 1; open '\(Self.appPath)'"]
+        try? p.run()
+        NSApplication.shared.terminate(nil)
+    }
+
+    nonisolated static func versionOnDisk() -> String? {
+        let plist = URL(fileURLWithPath: appPath).appending(path: "Contents/Info.plist")
+        return (NSDictionary(contentsOf: plist)?["CFBundleShortVersionString"]) as? String
     }
 
     func start() {

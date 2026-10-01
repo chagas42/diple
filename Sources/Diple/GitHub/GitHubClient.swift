@@ -105,6 +105,48 @@ struct GitHubClient: Sendable {
         return payload
     }
 
+    func rest(_ path: String) async throws -> Data {
+        func once() async throws -> Data {
+            let token = try await tokens.current()
+            var req = URLRequest(url: URL(string: "https://api.github.com/\(path)")!)
+            req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
+            req.timeoutInterval = 20
+            let (payload, response) = try await metrics.measure(.request) {
+                try await transport.send(req)
+            }
+            metrics.count(.requests)
+            metrics.count(.bytesIn, by: payload.count)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                throw ClientError.http(http.statusCode)
+            }
+            return payload
+        }
+        do {
+            return try await once()
+        } catch ClientError.http(401, _) {
+            await tokens.invalidate()
+            return try await once()
+        }
+    }
+
+    func requiredApprovals(repo: String, branch: String) async throws -> RequiredApprovals {
+        let parts = repo.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return RequiredApprovals(count: nil) }
+        let encoded = branch.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? branch
+        async let rules = try? rest("repos/\(repo)/rules/branches/\(encoded)")
+        let classic = try? await post("""
+        query($owner: String!, $name: String!, $ref: String!) {
+          repository(owner: $owner, name: $name) {
+            viewerPermission
+            ref(qualifiedName: $ref) { branchProtectionRule { requiredApprovingReviewCount } }
+          }
+        }
+        """, variables: ["owner": parts[0], "name": parts[1], "ref": "refs/heads/\(branch)"])
+        return RequiredApprovals(rules: await rules, classic: classic ?? Data())
+    }
+
     func send<T: Decodable & Sendable>(_ query: String) async throws -> T {
         let payload = try await post(query)
         let dec = JSONDecoder()

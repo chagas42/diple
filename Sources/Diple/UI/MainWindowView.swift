@@ -8,6 +8,7 @@ enum SidebarItem: Hashable {
 struct MainWindowView: View {
     @ObservedObject var model: AppModel
     @State private var repoSearch = ""
+    @State private var onlyUnreviewed = false
 
     var body: some View {
         NavigationSplitView {
@@ -15,7 +16,7 @@ struct MainWindowView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 232, max: 280)
         } content: {
             list
-                .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 520)
+                .navigationSplitViewColumnWidth(min: 380, ideal: 520, max: 680)
         } detail: {
             if let pr = model.selected {
                 DetailView(model: model, pr: pr)
@@ -168,12 +169,13 @@ struct MainWindowView: View {
                     .font(.system(size: 12))
             } else {
                 ForEach(model.repoPRsShown, id: \.key) { pr in
-                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr))
                         .tag(pr.key)
                 }
             }
         }
         .navigationTitle(model.selectedRepo ?? "")
+        .task(id: model.repoPRs.map(\.key)) { model.loadRequirements(for: model.repoPRs) }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Picker("", selection: Binding(
@@ -193,47 +195,81 @@ struct MainWindowView: View {
         }
     }
 
+    @State private var openStacks: Set<String> = []
+
+    private func isOpen(_ stack: PRStack) -> Bool {
+        openStacks.contains(stack.id) || stack.prs.contains { $0.key == model.selected?.key }
+    }
+
+    private func toggle(_ stack: PRStack) {
+        if isOpen(stack) {
+            openStacks.remove(stack.id)
+            if stack.prs.contains(where: { $0.key == model.selected?.key }) { model.selected = nil }
+        } else {
+            openStacks.insert(stack.id)
+        }
+    }
+
+    private var queueShown: [PR] {
+        let all = model.prs(model.tab)
+        return onlyUnreviewed ? all.filter(\.hasNoReviews) : all
+    }
+
     private var queueList: some View {
-        List(selection: Binding(
-            get: { model.selected?.key },
-            set: { key in model.selected = model.prs(model.tab).first { $0.key == key } }
+        let stacked = Set(queueShown.groupedIntoStacks().filter(\.isStack).flatMap { $0.prs.map(\.key) })
+        return List(selection: Binding(
+            get: { model.selected.flatMap { stacked.contains($0.key) ? nil : $0.key } },
+            set: { key in
+                if let key {
+                    model.selected = model.prs(model.tab).first { $0.key == key }
+                } else if let current = model.selected?.key, !stacked.contains(current) {
+                    model.selected = nil
+                }
+            }
         )) {
-            ForEach(model.prs(model.tab).groupedIntoStacks()) { stack in
+            if onlyUnreviewed && queueShown.isEmpty {
+                Text("Every pull request here has a review.")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+            }
+            ForEach(queueShown.groupedIntoStacks()) { stack in
                 if stack.isStack {
-                    Section {
-                        ForEach(Array(stack.prs.enumerated()), id: \.element.key) { i, pr in
-                            PRRow(
-                                pr: pr,
-                                unread: model.unread.contains(pr.key),
-                                step: i + 1,
-                                steps: stack.prs.count
-                            )
-                            .opacity(model.dims(pr) ? 0.45 : 1)
-                            .tag(pr.key)
-                        }
-                    } header: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "square.3.layers.3d.down.right")
-                                .font(.system(size: 10))
-                            Text("Stack of \(stack.prs.count)")
-                                .font(.system(size: 10.5, weight: .semibold))
-                            Text(stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
-                                .font(.system(size: 10.5, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("read bottom to top")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
+                    StackGroup(
+                        stack: stack, model: model, open: isOpen(stack),
+                        toggle: { toggle(stack) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .selectionDisabled()
                 } else if let pr = stack.prs.first {
-                    PRRow(pr: pr, unread: model.unread.contains(pr.key))
+                    PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr),
+                          selected: model.selected?.key == pr.key)
                         .opacity(model.dims(pr) ? 0.45 : 1)
                         .tag(pr.key)
                 }
             }
         }
         .navigationTitle(model.tab.title)
+        .task(id: model.queue.all.map(\.key)) { model.loadRequirements(for: model.queue.all) }
+        .onChange(of: model.selected?.key, initial: true) { _, key in
+            guard let key, let stack = queueShown.groupedIntoStacks().first(where: { $0.isStack && $0.prs.contains { $0.key == key } }) else { return }
+            openStacks.insert(stack.id)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                Picker("", selection: $onlyUnreviewed) {
+                    Text("All \(model.prs(model.tab).count)").tag(false)
+                    Text("No reviews yet \(model.prs(model.tab).filter(\.hasNoReviews).count)").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                Divider()
+            }
+            .background(.bar)
+        }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let problem = model.syncProblem {
                 HStack(alignment: .top, spacing: 9) {
@@ -264,71 +300,161 @@ struct MainWindowView: View {
 struct PRRow: View {
     let pr: PR
     let unread: Bool
-    var step: Int? = nil
-    var steps: Int? = nil
+    var stack: (index: Int, count: Int)? = nil
+    var required: Int? = nil
+    var selected = false
+    var showsRepo = true
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            if let d = step, let n = steps {
-                Text("\(d)/\(n)")
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .frame(minWidth: 22, alignment: .trailing)
-                    .padding(.top, 3)
-            }
+            if let stack { StackRail(index: stack.index, count: stack.count) }
+            content.padding(.vertical, 6)
+        }
+    }
 
+    private var content: some View {
+        HStack(alignment: .top, spacing: 10) {
             PRAvatar(url: pr.authorAvatar, login: pr.author)
                 .padding(.top, 1)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(pr.title)
-                    .font(.system(size: 13, weight: unread ? .semibold : .regular))
-                    .lineLimit(2)
-                HStack(spacing: 6) {
-                    Image(systemName: glyph)
-                        .font(.system(size: 10))
-                        .foregroundStyle(color)
-                    Text("\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.number)")
-                        .font(.system(size: 11, design: .monospaced))
-                    if let c = pr.lastComment {
-                        Text("· \(c.author)\(c.location.map { " at \($0)" } ?? "")")
-                            .font(.system(size: 11))
-                            .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if unread {
+                        Circle().fill(.orange).frame(width: 6, height: 6)
+                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                     }
+                    Text(pr.title)
+                        .font(.system(size: 13, weight: unread ? .semibold : .regular))
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    Text(Self.ago(pr.updatedAt))
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .help(pr.updatedAt.formatted(date: .abbreviated, time: .shortened))
                 }
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 6)
-
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                if !pr.threads.isEmpty {
-                    Label("\(pr.threads.count)", systemImage: "bubble.left")
-                        .font(.system(size: 10.5))
+                HStack(spacing: 8) {
+                    Text(verbatim: place)
+                        .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
+                        .fixedSize()
+                    if pr.draft {
+                        Text("Draft")
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                            .foregroundStyle(.secondary)
+                    }
+                    if let c = pr.lastComment {
+                        Text(verbatim: c.author)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .help(c.location.map { "\(c.author) at \($0)" } ?? c.author)
+                    }
+                    Spacer(minLength: 6)
+                    ReviewMarks(pr: pr, required: required, selected: selected)
+                        .fixedSize()
+                        .layoutPriority(1)
+                    ChecksDot(state: pr.checks, selected: selected)
                 }
             }
         }
-        .padding(.vertical, 4)
     }
 
-    private var glyph: String {
-        if pr.checks == .failing { "xmark.circle.fill" }
-        else if pr.approved { "checkmark.circle.fill" }
-        else if pr.draft { "circle.dashed" }
-        else { "arrow.triangle.branch" }
+    private var place: String {
+        let repo = pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo
+        return showsRepo ? "\(repo) #\(pr.number)" : "#\(pr.number)"
     }
 
-    private var color: Color {
-        if pr.checks == .failing { .red }
-        else if pr.approved { .green }
-        else if unread { .orange }
-        else { .secondary }
+    static func ago(_ date: Date, now: Date = Date()) -> String {
+        let s = max(0, now.timeIntervalSince(date))
+        switch s {
+        case ..<60: return "now"
+        case ..<3600: return "\(Int(s / 60))m"
+        case ..<86_400: return "\(Int(s / 3600))h"
+        case ..<(7 * 86_400): return "\(Int(s / 86_400))d"
+        case ..<(30 * 86_400): return "\(Int(s / (7 * 86_400)))w"
+        case ..<(365 * 86_400): return "\(Int(s / (30 * 86_400)))mo"
+        default: return "\(Int(s / (365 * 86_400)))y"
+        }
+    }
+}
+
+struct StackRail: View {
+    let index: Int
+    let count: Int
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                Rectangle().fill(index == 1 ? .clear : Color.secondary.opacity(0.35)).frame(width: 1.5, height: 20)
+                Rectangle().fill(index == count ? .clear : Color.secondary.opacity(0.35)).frame(width: 1.5)
+            }
+            Circle()
+                .strokeBorder(Color.secondary.opacity(0.7), lineWidth: 1.5)
+                .frame(width: 9, height: 9)
+                .padding(.top, 15.5)
+        }
+        .frame(width: 12)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .help("\(index) of \(count); the top one merges first")
+    }
+}
+
+struct ChecksDot: View {
+    let state: CheckState
+    var selected = false
+
+    var body: some View {
+        switch state {
+        case .none: EmptyView()
+        case .passing: dot(.green, "Checks passing")
+        case .failing: dot(.red, "A check failed")
+        case .running: dot(.orange, "Checks running")
+        }
+    }
+
+    private func dot(_ color: Color, _ help: String) -> some View {
+        Circle()
+            .fill(color)
+            .overlay(Circle().strokeBorder(.white.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
+            .frame(width: 8, height: 8)
+            .help(help)
+    }
+}
+
+struct ReviewMarks: View {
+    let pr: PR
+    let required: Int?
+    var selected = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let a = ApprovalCount(pr: pr, required: required) {
+                mark(a.met ? "checkmark.circle.fill" : "checkmark.circle", a.text, a.met ? .green : .secondary,
+                     a.required.map { "\(a.approvals) of the \($0) approvals this branch needs" }
+                        ?? "\(a.approvals) approval\(a.approvals == 1 ? "" : "s")")
+            }
+            if let n = pr.changesRequested, n > 0 {
+                mark("arrow.uturn.backward.circle.fill", "\(n)", .red,
+                     "\(n) reviewer\(n == 1 ? "" : "s") asked for changes")
+            }
+            if let n = pr.commentReviews, n > 0 {
+                mark("text.bubble", "\(n)", .blue, "\(n) review\(n == 1 ? "" : "s") left comments")
+            }
+            if !pr.threads.isEmpty {
+                mark("bubble.left", "\(pr.threads.count)", .secondary,
+                     "\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")")
+            }
+        }
+    }
+
+    private func mark(_ icon: String, _ text: String, _ color: Color, _ help: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(selected ? Color.white : color)
+            .help(help)
     }
 }
 
@@ -350,3 +476,128 @@ struct PRAvatar: View {
         .clipShape(Circle())
     }
 }
+
+struct ApprovalCount: View {
+    let approvals: Int
+    let required: Int?
+
+    init?(pr: PR, required: Int?) {
+        guard !pr.draft, let approvals = pr.approvals else { return nil }
+        let needs = required.flatMap { $0 > 0 ? $0 : nil }
+        guard approvals > 0 || needs != nil else { return nil }
+        self.approvals = approvals
+        self.required = needs
+    }
+
+    var met: Bool { required.map { approvals >= $0 } ?? (approvals > 0) }
+
+    var text: String { required.map { "\(approvals)/\($0)" } ?? "\(approvals)" }
+
+    var body: some View {
+        Label(text, systemImage: met ? "checkmark.circle.fill" : "checkmark.circle")
+            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(met ? Color.green : Color.secondary)
+            .help(required.map { "\(approvals) of the \($0) approvals this branch needs" }
+                  ?? "\(approvals) approval\(approvals == 1 ? "" : "s")")
+    }
+}
+
+struct StackGroup: View {
+    let stack: PRStack
+    @ObservedObject var model: AppModel
+    let open: Bool
+    let toggle: () -> Void
+
+    static let radius: CGFloat = 10
+    static let peek: CGFloat = 5
+    static let maxPeeks = 3
+
+    private var n: Int { stack.prs.count }
+
+    private var shown: [PR] { open ? stack.prs : Array(stack.prs.prefix(1)) }
+    private var peeks: Int { open ? 0 : min(n - 1, Self.maxPeeks) }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            ForEach((0..<peeks).reversed(), id: \.self) { k in
+                sheet
+                    .padding(.horizontal, CGFloat(k + 1) * 8)
+                    .offset(y: CGFloat(k + 1) * Self.peek)
+                    .opacity(1 - Double(k) * 0.2)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                ForEach(Array(shown.enumerated()), id: \.element.key) { i, pr in
+                    VStack(spacing: 0) {
+                        Divider().opacity(0.6)
+                        row(pr, index: open ? i + 1 : nil)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                    .fill(.background.secondary)
+                    .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
+            )
+            .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+            .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+        }
+        .padding(.bottom, CGFloat(peeks) * Self.peek + 2)
+        .padding(.horizontal, 4)
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .rotationEffect(.degrees(open ? 90 : 0))
+                .animation(.easeInOut(duration: 0.18), value: open)
+            Image(systemName: "square.3.layers.3d.down.right")
+                .font(.system(size: 10))
+            Text("Stack of \(n)")
+                .font(.system(size: 11, weight: .semibold))
+            Text(verbatim: stack.base?.repo.split(separator: "/").last.map(String.init) ?? "")
+                .font(.system(size: 11, design: .monospaced))
+            Spacer()
+            Text(open ? "merges top first" : "\(n) branches")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .help(open ? "Collapse this stack" : "Show the \(n) pull requests in this stack")
+    }
+
+    private func row(_ pr: PR, index: Int?) -> some View {
+        let selected = model.selected?.key == pr.key
+        return PRRow(
+            pr: pr,
+            unread: model.unread.contains(pr.key),
+            stack: index.map { ($0, n) },
+            required: model.requiredApprovals(for: pr),
+            showsRepo: false
+        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 1)
+        .background(selected ? Color.accentColor.opacity(0.14) : .clear)
+        .overlay(alignment: .leading) {
+            if selected { Rectangle().fill(Color.accentColor).frame(width: 3) }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { model.selected = pr }
+        .opacity(model.dims(pr) ? 0.45 : 1)
+    }
+
+    private var sheet: some View {
+        RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+            .fill(.background.secondary)
+            .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.14), radius: 2, y: 1)
+            .frame(height: 30)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+    }
+}
+

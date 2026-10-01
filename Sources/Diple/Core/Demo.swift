@@ -7,6 +7,8 @@ enum Demo {
 
     private static func avatar(_ login: String) -> URL? { nil }
 
+    static let required = 2
+
     private static func ago(_ minutes: Double) -> Date {
         Date().addingTimeInterval(-minutes * 60)
     }
@@ -68,11 +70,15 @@ enum Demo {
             approved: approved,
             threads: threads,
             lastComment: last,
-            askedYou: askedYou
+            askedYou: askedYou,
+            approvals: approved ? required : number % 3 == 0 ? 1 : 0,
+            reviewedByOthers: approved || number % 3 == 0 || reply != nil,
+            changesRequested: number % 5 == 1 ? 1 : 0,
+            commentReviews: reply != nil ? 1 : 0
         )
     }
 
-    static var queue: Queue {
+    static let queue: Queue = {
         Queue(
             viewer: viewer,
             mine: [
@@ -125,7 +131,9 @@ enum Demo {
             ],
             rateLimitLeft: 4980
         )
-    }
+    }()
+
+    static let watching: Set<String> = ["acme/orders-api"]
 
     static var unread: Set<String> {
         ["acme/orders-api#7842", "acme/orders-api#7841", "acme/orders-api#7880"]
@@ -175,5 +183,51 @@ enum Demo {
             let n = shape[(119 - back) % shape.count]
             return ActivityDay(date: d, reviews: n)
         }.reversed()
+    }
+
+    static let latency: Duration = .milliseconds(250)
+
+    @Sendable static func answer(_ key: QueryKey) async throws -> any Sendable {
+        try await Task.sleep(for: latency)
+        switch key {
+        case .queue:
+            return SyncOutcome(queue: queue)
+        case .team:
+            return team
+        case .ranking(_, let period, let people):
+            let rows = ranking(period)
+            let picked = rows.filter { people.contains($0.person.login) }
+            return picked.isEmpty ? rows : picked
+        case .activity:
+            let days = activity
+            return ActivityLog(days: days, from: days.first?.date ?? Date())
+        case .repos:
+            return repos
+        case .repoPRs(let repo):
+            return queue.all.filter { $0.repo == repo }
+        case .requiredApprovals:
+            return RequiredApprovals(count: required)
+        case .reviewContext, .changedFiles, .aiReview, .map:
+            throw ClientError.empty
+        }
+    }
+
+    @MainActor static func store() -> Store {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("diple-demo-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var state = StoredState()
+        state.hasRunBefore = true
+        state.unread = unread
+        state.watching = watching
+        let toReview = Set(queue.toReview.map(\.key))
+        for pr in queue.all {
+            state.prs[pr.key] = Snapshot(
+                updatedAt: pr.updatedAt, checks: pr.checks.rawValue, approved: pr.approved,
+                lastCommentAt: pr.lastComment?.at, reviewRequested: toReview.contains(pr.key)
+            )
+        }
+        try? JSONEncoder().encode(state).write(to: dir.appendingPathComponent("state.json"), options: .atomic)
+        return Store(directory: dir)
     }
 }

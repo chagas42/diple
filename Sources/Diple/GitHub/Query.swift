@@ -16,6 +16,9 @@ enum Query {
       reviewRequests(first: 20) {
         nodes { requestedReviewer { __typename ... on User { login } } }
       }
+      latestReviews(first: 20) {
+        nodes { state author { login __typename } }
+      }
       comments(last: 20) {
         nodes { author { login __typename } createdAt bodyText }
       }
