@@ -255,6 +255,7 @@ struct MainWindowView: View {
             guard let key, let stack = queueShown.groupedIntoStacks().first(where: { $0.isStack && $0.prs.contains { $0.key == key } }) else { return }
             openStacks.insert(stack.id)
         }
+        .task(id: model.queue.all.map(\.key)) { model.loadRequirements(for: model.queue.all) }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Picker("", selection: $onlyUnreviewed) {
