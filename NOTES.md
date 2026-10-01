@@ -100,6 +100,13 @@ only in memory. TanStack's persister keeps the same split with `maxAge`.
 writes nothing unless the saved copy is already stale, so a relaunch can trust
 its time.
 
+**Coming back online syncs afresh.** A `refresh()` asked for while the queue
+is being fetched joins that fetch. When the network dropped mid-sync and came
+back, the sync `setOnline(true)` asked for joined the one that was failing, so
+it failed too and the error stayed on screen ("could not update", or the
+offline error) until the next timer tick. Coming back now forces the fetch,
+which cancels the failing one and starts over.
+
 ## The notch panel
 
 **The window never resizes.** It is always the open size, pinned to the top.

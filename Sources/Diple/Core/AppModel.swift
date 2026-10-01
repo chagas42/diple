@@ -580,7 +580,7 @@ final class AppModel: ObservableObject {
         guard cameBack else { return }
         refetchShown()
         Task {
-            await refresh()
+            await refresh(force: true)
             restartTimer()
         }
     }
@@ -590,7 +590,7 @@ final class AppModel: ObservableObject {
         queries.refetchObserved(force: force, except: .queue)
     }
 
-    func refresh(full: Bool = false) async {
+    func refresh(full: Bool = false, force: Bool = false) async {
         if full { await sync.requestFull() }
         guard canFetch else { return }
         if let seed = pendingSeed {
@@ -598,7 +598,7 @@ final class AppModel: ObservableObject {
             await sync.seed(seed, watching: watching)
         }
         bindQueue()
-        guard (try? await queries.fetch(queueQuery)) != nil else { return }
+        guard (try? await queries.fetch(queueQuery, force: force)) != nil else { return }
         if await sync.fullPending { _ = try? await queries.fetch(queueQuery) }
     }
 
