@@ -451,6 +451,31 @@ struct AccountPane: View {
     }
 }
 
+struct AccountPane: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Form {
+            Section("GitHub") {
+                LabeledContent("Account", value: model.queue.viewer.isEmpty ? "—" : model.queue.viewer)
+                LabeledContent("Token") {
+                    Text("borrowed from gh")
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Rate limit left") {
+                    Text("\(model.queue.rateLimitLeft) of 5000")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Text("Diple stores no token. It calls `gh auth token` on every request.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
 struct ClaudePane: View {
     @ObservedObject var model: AppModel
 
