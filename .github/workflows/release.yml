@@ -25,7 +25,7 @@ jobs:
       version: ${{ steps.next.outputs.version }}
       release: ${{ steps.next.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { fetch-depth: 0 }
 
       - name: Work out the next version
@@ -88,7 +88,7 @@ jobs:
     if: needs.decide.outputs.release == 'true'
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { fetch-depth: 0 }
 
       - name: Use the newest Xcode on the runner
@@ -152,7 +152,7 @@ jobs:
           git push origin "v$V"
 
       - name: Publish
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: v${{ needs.decide.outputs.version }}
           overwrite_files: true
