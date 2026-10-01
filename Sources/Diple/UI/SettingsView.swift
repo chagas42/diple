@@ -312,19 +312,26 @@ struct GeneralPane: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Diple") {
+            Section("Updates") {
                 LabeledContent("Version", value: updates.summary)
-                if !updates.isDevelopment {
-                    HStack {
-                        updateStatus
-                        Spacer()
-                        if case .available(_, let page) = updates.state {
+                HStack {
+                    updateStatus
+                    Spacer()
+                    Button("Release Notes") { NSWorkspace.shared.open(updates.releaseNotes) }
+                    if case .available(_, let page) = updates.state {
+                        if updates.canInstall {
+                            Button("Update Now") { updates.install() }
+                                .buttonStyle(.borderedProminent)
+                        } else {
                             Button("Download") { NSWorkspace.shared.open(page) }
                         }
-                        Button("Check now") { Task { await updates.check() } }
-                            .disabled(updates.state == .checking)
+                    } else {
+                        Button("Check for Updates") { Task { await updates.check() } }
+                            .disabled(updates.state == .checking || isInstalling)
                     }
-                    if case .available = updates.state, updates.viaHomebrew {
+                }
+                if case .available = updates.state {
+                    if !updates.canInstall, !updates.isDevelopment, updates.viaHomebrew {
                         HStack {
                             Text("brew upgrade --cask diple")
                                 .font(.system(size: 11, design: .monospaced))
@@ -335,6 +342,14 @@ struct GeneralPane: View {
                                 NSPasteboard.general.setString("brew upgrade --cask diple", forType: .string)
                             }
                         }
+                    }
+                }
+                if case .installFailed(_, let page) = updates.state {
+                    HStack {
+                        Text("The update did not install.")
+                            .foregroundStyle(.red)
+                        Spacer()
+                        Button("Download") { NSWorkspace.shared.open(page) }
                     }
                 }
             }
@@ -389,7 +404,18 @@ extension GeneralPane {
             Text("Version \(version) is out").foregroundStyle(.orange)
         case .failed:
             Text("Could not reach GitHub").foregroundStyle(.secondary)
+        case .installing(let version):
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Installing \(version)… Diple will restart.").foregroundStyle(.secondary)
+            }
+        case .installFailed(let version, _):
+            Text("Version \(version) is out").foregroundStyle(.orange)
         }
+    }
+
+    private var isInstalling: Bool {
+        if case .installing = updates.state { true } else { false }
     }
 }
 
