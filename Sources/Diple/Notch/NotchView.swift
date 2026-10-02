@@ -275,7 +275,7 @@ struct NotchView: View {
                         .onTapGesture { onFocusToggle?() }
                         .help(isFocused ? "Focused. Click to stop." : "Focus")
                 }
-                ForEach(AppModel.NotchTab.allCases) { tab in
+                ForEach(model.notchTabs) { tab in
                     Button { model.notchTab = tab } label: {
                         Image(systemName: tab.icon)
                             .font(.system(size: 11.5, weight: .semibold))

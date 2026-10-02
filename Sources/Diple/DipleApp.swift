@@ -43,6 +43,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             Windows.shared.openMain(model)
         }
 
+        if CommandLine.arguments.contains("--settings") {
+            Windows.shared.openSettings(model)
+        }
+
         if let i = CommandLine.arguments.firstIndex(of: "--select"), i + 1 < CommandLine.arguments.count {
             let key = CommandLine.arguments[i + 1]
             Task { @MainActor in

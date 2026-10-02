@@ -72,6 +72,7 @@ final class TabsGitHub: @unchecked Sendable {
             store: store ?? Store(directory: StoreDiffTests.tempDirectory(), metrics: Metrics())
         )
         model.preloadsTabs = preloading
+        model.settings.rankingMode = .team
         return model
     }
 

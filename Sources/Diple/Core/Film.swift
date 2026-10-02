@@ -32,7 +32,7 @@ enum Film {
         let beats: (NotchController, AppModel) -> [Beat]
     }
 
-    static let scenes: [Scene] = [tour, approach, focus, focusBreathing, focusPomodoro, focusMoon]
+    static let scenes: [Scene] = [tour, approach, focus, focusBreathing, focusPomodoro, focusMoon, rankingModes]
 
     static func roll(notch: NotchController, model: AppModel) async {
         let video = option("--video").map { URL(fileURLWithPath: $0) }
@@ -225,4 +225,16 @@ extension Film {
         Beat(name: "02-moon-in", seconds: 4, pointer: still(at: moon, for: 4)) { model.focus.toggle() },
         Beat(name: "03-moon-out", seconds: 3, pointer: still(at: moon, for: 3)) { model.focus.toggle() },
     ] }
+
+    static let rankingModes = Scene(name: "ranking-modes", crop: .panel) { notch, model in [
+        Beat(name: "01-board", seconds: 2.4) {
+            model.settings.rankingMode = .team
+            model.rankPeriod = .week
+            model.notchTab = .ranking
+            notch.open()
+        },
+        Beat(name: "02-pace", seconds: 3) { model.settings.rankingMode = .pace },
+        Beat(name: "03-pace-month", seconds: 2.4) { model.rankPeriod = .month },
+    ] }
 }
+

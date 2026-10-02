@@ -12,6 +12,7 @@ import Testing
             answer: Demo.answer
         )
         model.restoreCached()
+        model.settings.rankingMode = .team
         await model.refresh()
         model.loadTab(.ranking)
         await model.tabsSettled()

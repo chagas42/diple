@@ -319,6 +319,23 @@ struct GeneralPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                HStack(spacing: 10) {
+                    ForEach(RankingMode.allCases) { mode in
+                        RankingChoice(mode: mode, selected: model.settings.rankingMode == mode) {
+                            model.settings.rankingMode = mode
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text("Ranking")
+            } footer: {
+                Text("Reviews are counted from GitHub either way. This only decides what the notch shows you.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Updates") {
                 LabeledContent("Version", value: updates.summary)
                 HStack {
@@ -596,3 +613,40 @@ struct ClaudePane: View {
         }
     }
 }
+
+struct RankingChoice: View {
+    let mode: RankingMode
+    let selected: Bool
+    let pick: () -> Void
+
+    var body: some View {
+        Button(action: pick) {
+            VStack(alignment: .leading, spacing: 6) {
+                Image(systemName: mode.icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(selected ? Color.accentColor : .secondary)
+                    .frame(height: 20)
+                Text(mode.title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                Text(mode.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(selected ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.03))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12), lineWidth: selected ? 1.5 : 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
