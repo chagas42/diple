@@ -3,7 +3,7 @@ import Foundation
 enum QueryKey: Hashable, Sendable {
     case queue(watching: Set<String>)
     case team(org: String)
-    case ranking(org: String, period: RankPeriod, people: [String])
+    case ranking(org: String, period: RankPeriod, from: String, people: [String])
     case activity(org: String, login: String)
     case repos
     case repoPRs(repo: String)
@@ -17,7 +17,7 @@ enum QueryKey: Hashable, Sendable {
         switch self {
         case .queue(let watching):          "queue/\(watching.sorted().joined(separator: ","))"
         case .team(let org):                "team/\(org)"
-        case .ranking(let org, let p, let people): "ranking/\(org)/\(p.rawValue)/\(people.joined(separator: ","))"
+        case .ranking(let org, let p, let from, let people): "ranking/\(org)/\(p.rawValue)/\(from)/\(people.joined(separator: ","))"
         case .activity(let org, let login): "activity/\(org)/\(login)"
         case .repos:                        "repos"
         case .repoPRs(let repo):            "repoPRs/\(repo)"

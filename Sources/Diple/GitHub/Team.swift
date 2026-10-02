@@ -135,14 +135,12 @@ extension GitHubClient {
 
     func fetchRanking(org: String, people: [Person], from: Date) async throws -> [RankRow] {
         guard !people.isEmpty else { return [] }
-        let fmt = ISO8601DateFormatter()
-        fmt.formatOptions = [.withFullDate]
-        let cutoff = fmt.string(from: from)
+        let cutoff = RankPeriod.day(from)
 
         let targets = Array(people.prefix(30))
         let searches = targets.enumerated().map { i, p in
             """
-              u\(i): search(query: "is:pr org:\(org) reviewed-by:\(p.login) created:>\(cutoff)", \
+              u\(i): search(query: "is:pr org:\(org) reviewed-by:\(p.login) created:>=\(cutoff)", \
             type: ISSUE, first: 1) { issueCount }
             """
         }.joined(separator: "\n")
