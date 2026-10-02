@@ -21,7 +21,7 @@ struct CodeTheme: Identifiable, Sendable, Equatable {
     let addedMark: Color
     let removedMark: Color
 
-    static let all: [CodeTheme] = [dipleDark, dipleLight, nord, gruvbox, rosePine, solarized]
+    static let all: [CodeTheme] = [dipleDark, dipleLight, oxocarbonDark, nord, gruvbox, rosePine, solarized]
 
     static func named(_ id: String?) -> CodeTheme {
         all.first { $0.id == id } ?? dipleDark
@@ -53,6 +53,16 @@ struct CodeTheme: Identifiable, Sendable, Equatable {
         surface: hex(0xF6F8FA), gutter: hex(0x8C959F),
         addedTint: hex(0x2EA043, 0.11), removedTint: hex(0xCF222E, 0.10),
         addedMark: hex(0x1A7F37), removedMark: hex(0xCF222E)
+    )
+
+    static let oxocarbonDark = CodeTheme(
+        id: "oxocarbon-dark", name: "Oxocarbon Dark", dark: true,
+        plain: hex(0xD5D5D5), keyword: hex(0x78A9FF), type: hex(0x78A9FF),
+        string: hex(0xBE95FF), number: hex(0x82CFFF), comment: hex(0x5C5C5C),
+        function: hex(0x3DDBD9), punctuation: hex(0x3DDBD9),
+        surface: hex(0x161616), gutter: hex(0x5C5C5C),
+        addedTint: hex(0x122F2F), removedTint: hex(0x361C28),
+        addedMark: hex(0x42BE65), removedMark: hex(0xEE5396)
     )
 
     static let nord = CodeTheme(
