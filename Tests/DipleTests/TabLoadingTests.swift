@@ -20,14 +20,10 @@ final class TabsGitHub: @unchecked Sendable {
     func delay(ranking d: Duration) { lock.withLock { rankingDelay = d } }
     func delay(team d: Duration) { lock.withLock { teamDelay = d } }
 
-    static func cutoff(_ p: RankPeriod) -> String {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withFullDate]
-        return f.string(from: p.since)
-    }
+    static func cutoff(_ p: RankPeriod) -> String { p.startDay() }
 
     static func marker(_ q: String) -> Int {
-        for p in RankPeriod.allCases where q.contains("created:>\(cutoff(p))") {
+        for p in RankPeriod.allCases where q.contains("created:>=\(cutoff(p))") {
             switch p {
             case .week: return 7
             case .month: return 30
@@ -193,7 +189,7 @@ final class TabsGitHub: @unchecked Sendable {
         try? await Task.sleep(for: .milliseconds(100))
 
         #expect(Set(model.ranking.map(\.person.login)) == ["p1", "p2"])
-        let saved = QueryKey.ranking(org: "acme", period: model.rankPeriod, people: ["p1", "p2"]).id
+        let saved = QueryKey.ranking(org: "acme", period: model.rankPeriod, from: model.rankPeriod.startDay(), people: ["p1", "p2"]).id
         #expect(store.state.cache.queries?[saved] != nil)
     }
 

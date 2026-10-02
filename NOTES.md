@@ -43,6 +43,16 @@ reviews in private repos. The activity grid is built from each review's real
 5000/hour. The reviewer ranking is one search per person, all aliased into a
 single request — thirty people still cost 1 point.
 
+**Ranking periods are calendar periods.** Week runs from Monday 00:00, month
+from the 1st, quarter from the first day of its calendar quarter (Jan, Apr,
+Jul, Oct), all in the Mac's time zone, so each starts again from zero instead
+of sliding over the last 7 or 30 days. The search is `created:>=` the local
+start day; GitHub search has no review-date filter, so a period counts pull
+requests created in it that the person reviewed, and a PR opened on Friday and
+reviewed on Monday stays in the week it was opened. When two periods start on
+the same day (October 1st opens both the month and the quarter), their
+searches are the same.
+
 **Points are not the problem, bytes are.** The full queue costs 1 point but
 weighs ~430 KB and takes 4–6 s, almost all of it comment bodies and diff
 hunks that did not change since the last minute. The refresh is therefore a
@@ -71,7 +81,8 @@ a key holds every input the data depends on, identical requests share one
 fetch, and a reply that lands after its entry was cleared is dropped.
 
 **Changing an input means asking for a different key.** The ranking key carries
-the period and the picked logins, per-PR data carries the PR's last update, and
+the period, the day it started and the picked logins, so a new week is a new
+key on Monday morning rather than last week's numbers until they go stale; per-PR data carries the PR's last update, and
 AI reviews and maps carry its head commit. Nothing is cleared by hand; old keys
 are forgotten once nobody has looked at them for their `forgetAfter`.
 

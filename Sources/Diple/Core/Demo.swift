@@ -194,7 +194,7 @@ enum Demo {
             return SyncOutcome(queue: queue)
         case .team:
             return team
-        case .ranking(_, let period, let people):
+        case .ranking(_, let period, _, let people):
             let rows = ranking(period)
             let picked = rows.filter { people.contains($0.person.login) }
             return picked.isEmpty ? rows : picked

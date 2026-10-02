@@ -20,7 +20,7 @@ enum Queries {
     static func ranking(org: String, period: RankPeriod, logins: [String]) -> CacheQuery<[RankRow]> {
         let logins = logins.sorted()
         return CacheQuery(
-            key: .ranking(org: org, period: period, people: logins), tags: [.team],
+            key: .ranking(org: org, period: period, from: period.startDay(), people: logins), tags: [.team],
             staleAfter: .seconds(period.freshFor), forgetAfter: .seconds(24 * 3600), persists: true
         ) { try await $0.fetchRanking(org: org, people: logins.map(Person.placeholder), from: period.since) }
     }

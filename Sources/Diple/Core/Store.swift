@@ -70,20 +70,40 @@ enum RankPeriod: String, CaseIterable, Codable, Sendable, Identifiable {
 
     var caption: String {
         switch self {
-        case .week:    "last 7 days"
-        case .month:   "last 30 days"
-        case .quarter: "last 3 months"
+        case .week:    "this week"
+        case .month:   "this month"
+        case .quarter: "this quarter"
         }
     }
 
-    var since: Date {
-        let cal = Calendar.current
-        let now = Date()
-        return switch self {
-        case .week:    cal.date(byAdding: .day, value: -7, to: now) ?? now
-        case .month:   cal.date(byAdding: .day, value: -30, to: now) ?? now
-        case .quarter: cal.date(byAdding: .month, value: -3, to: now) ?? now
+    var since: Date { since(now: Date()) }
+
+    func since(now: Date, calendar: Calendar = .current) -> Date {
+        var cal = calendar
+        cal.firstWeekday = 2
+        switch self {
+        case .week:
+            return cal.dateInterval(of: .weekOfYear, for: now)?.start ?? cal.startOfDay(for: now)
+        case .month:
+            return cal.dateInterval(of: .month, for: now)?.start ?? cal.startOfDay(for: now)
+        case .quarter:
+            let month = cal.component(.month, from: now)
+            var start = cal.dateComponents([.year], from: now)
+            start.month = (month - 1) / 3 * 3 + 1
+            start.day = 1
+            return cal.date(from: start) ?? cal.startOfDay(for: now)
         }
+    }
+
+    func startDay(now: Date = Date(), calendar: Calendar = .current) -> String {
+        Self.day(since(now: now, calendar: calendar), calendar: calendar)
+    }
+
+    static func day(_ date: Date, calendar: Calendar = .current) -> String {
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withFullDate]
+        fmt.timeZone = calendar.timeZone
+        return fmt.string(from: date)
     }
 
     var freshFor: TimeInterval {

@@ -413,10 +413,12 @@ final class Source: @unchecked Sendable {
     }
 
     @Test func keysCarryEverythingTheDataDependsOn() {
-        let before = QueryKey.ranking(org: "acme", period: .week, people: ["ana", "bia"])
-        let after = QueryKey.ranking(org: "acme", period: .week, people: ["ana"])
+        let before = QueryKey.ranking(org: "acme", period: .week, from: "2026-09-28", people: ["ana", "bia"])
+        let after = QueryKey.ranking(org: "acme", period: .week, from: "2026-09-28", people: ["ana"])
         #expect(before != after)
         #expect(before.id != after.id)
+        let nextWeek = QueryKey.ranking(org: "acme", period: .week, from: "2026-10-05", people: ["ana", "bia"])
+        #expect(before.id != nextWeek.id)
         #expect(QueryKey.queue(watching: ["b", "a"]).id == QueryKey.queue(watching: ["a", "b"]).id)
     }
 }
