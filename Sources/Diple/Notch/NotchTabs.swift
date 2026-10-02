@@ -159,6 +159,14 @@ struct RankTab: View {
     }
 
     var body: some View {
+        if model.settings.rankingMode == .pace {
+            PaceView(model: model)
+        } else {
+            board
+        }
+    }
+
+    private var board: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 HStack(spacing: 2) {
@@ -293,6 +301,103 @@ struct RankTab: View {
         withAnimation(.easeOut(duration: 0.9)) { progress = 1 }
         try? await Task.sleep(for: .milliseconds(1100))
         withAnimation(.easeOut(duration: 0.3)) { celebrating = false }
+    }
+}
+
+struct PeriodPicker: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(RankPeriod.allCases) { p in
+                let on = model.rankPeriod == p
+                Button {
+                    model.rankPeriod = p
+                } label: {
+                    Text(p.label)
+                        .font(.system(size: 10.5, weight: on ? .semibold : .regular))
+                        .foregroundStyle(.white.opacity(on ? 0.95 : 0.45))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.white.opacity(on ? 0.14 : 0)))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.05)))
+    }
+}
+
+struct PaceView: View {
+    @ObservedObject var model: AppModel
+
+    private var pace: Pace { Pace.of(model.rankPeriod, days: model.activity) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                PeriodPicker(model: model)
+                Text(model.rankPeriod.caption)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.white.opacity(0.3))
+                Spacer()
+                Text("only you see this")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.white.opacity(0.28))
+            }
+            if model.activity.isEmpty {
+                Placeholder(text: "Counting your reviews…")
+            } else {
+                summary
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var summary: some View {
+        let p = pace
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(p.current)")
+                    .font(.system(size: 34, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText(value: Double(p.current)))
+                Text(p.current == 1 ? "review" : "reviews")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.55))
+                Spacer()
+                if let usual = p.usual {
+                    Text("your usual: \(Int(usual.rounded())) a \(model.rankPeriod.rawValue)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+            }
+            if let usual = p.usual, usual > 0 {
+                GeometryReader { g in
+                    let scale = max(Double(p.current), usual) * 1.1
+                    let done = g.size.width * CGFloat(Double(p.current) / scale)
+                    let mark = g.size.width * CGFloat((p.expected ?? 0) / scale)
+                    let whole = g.size.width * CGFloat(usual / scale)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.06))
+                        Capsule().fill(.white.opacity(0.08)).frame(width: max(3, whole))
+                        Capsule().fill(FocusCover.indigo.opacity(0.9)).frame(width: max(3, done))
+                        Rectangle().fill(.white.opacity(0.55)).frame(width: 1.5, height: 14).offset(x: mark)
+                    }
+                    .frame(height: 10)
+                    .frame(maxHeight: .infinity)
+                }
+                .frame(height: 16)
+                .help("The light bar is your usual for a whole \(model.rankPeriod.rawValue); the tick is how far into it you would be by now.")
+            }
+            Text(p.sentence(model.rankPeriod))
+                .font(.system(size: 12.5))
+                .foregroundStyle(.white.opacity(0.75))
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.05)))
     }
 }
 

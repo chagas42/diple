@@ -43,6 +43,16 @@ reviews in private repos. The activity grid is built from each review's real
 5000/hour. The reviewer ranking is one search per person, all aliased into a
 single request — thirty people still cost 1 point.
 
+**The ranking is opt-in, and can be just you.** Settings → General → Ranking
+picks Off (the default, also for anyone upgrading), My pace or Team board. Off
+hides the trophy tab. My pace compares only you with your own usual: this
+period's reviews from the activity log (dated by the review, not the PR)
+against the average of the last complete periods it holds (8 weeks, 5 months
+or 1 quarter), scaled by how much of the period has passed, so a Monday morning
+reads as "just started" rather than behind. It never shows anyone else. Only
+Team board fetches or preloads the team's ranking. The demo turns Team board on,
+so films still show it.
+
 **Ranking periods are calendar periods.** Week runs from Monday 00:00, month
 from the 1st, quarter from the first day of its calendar quarter (Jan, Apr,
 Jul, Oct), all in the Mac's time zone, so each starts again from zero instead

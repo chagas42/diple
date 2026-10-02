@@ -218,6 +218,7 @@ enum Demo {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var state = StoredState()
         state.hasRunBefore = true
+        state.settings.rankingMode = .team
         state.unread = unread
         state.watching = watching
         let toReview = Set(queue.toReview.map(\.key))

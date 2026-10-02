@@ -41,7 +41,10 @@ final class AppModel: ObservableObject {
         let fetching = switch tab {
         case .queue:    false
         case .team:     teamObserver?.isFetching == true
-        case .ranking:  rankingObserver?.isFetching ?? (teamObserver?.isFetching == true)
+        case .ranking:
+            settings.rankingMode == .pace
+                ? activityObserver?.isFetching == true
+                : rankingObserver?.isFetching ?? (teamObserver?.isFetching == true)
         case .activity: activityObserver?.isFetching == true
         }
         return fetching ? tab : nil
@@ -109,6 +112,7 @@ final class AppModel: ObservableObject {
 
     @Published var settings = Settings() {
         didSet {
+            if settings.rankingMode != oldValue.rankingMode { rankingModeChanged() }
             guard settings != oldValue else { return }
             store.saveSettings(settings)
             notificador.settings = settings
@@ -391,7 +395,9 @@ final class AppModel: ObservableObject {
     private func schedulePreload() {
         guard preloadsTabs, !Bench.isOn, canFetch else { return }
         guard !ProcessInfo.processInfo.isLowPowerModeEnabled, let teamQuery else { return }
-        queries.prefetch(teamQuery) { [weak self] team in self?.rankingQuery(for: team) }
+        queries.prefetch(teamQuery) { [weak self] team in
+            self?.settings.rankingMode == .team ? self?.rankingQuery(for: team) : nil
+        }
         if let activityQuery { queries.prefetch(activityQuery) }
     }
 
@@ -682,7 +688,16 @@ final class AppModel: ObservableObject {
         store.toggleFollow(login)
         following = store.state.following
         syncScreens()
-        if canFetch, let rankingQuery { queries.prefetch(rankingQuery) }
+        if canFetch, settings.rankingMode == .team, let rankingQuery { queries.prefetch(rankingQuery) }
+    }
+
+    var notchTabs: [NotchTab] {
+        NotchTab.allCases.filter { $0 != .ranking || settings.rankingMode != .off }
+    }
+
+    private func rankingModeChanged() {
+        if settings.rankingMode == .off, notchTab == .ranking { notchTab = .queue }
+        syncScreens()
     }
 
     func loadTab(_ tab: NotchTab) {
@@ -722,9 +737,11 @@ final class AppModel: ObservableObject {
         syncingScreens = true
         defer { syncingScreens = false }
         let tab = shownTab
-        teamObserver = observing(teamObserver, tab == .team || tab == .ranking ? teamQuery : nil)
-        rankingObserver = observing(rankingObserver, tab == .ranking ? rankingQuery : nil, keepingPrevious: true)
-        activityObserver = observing(activityObserver, tab == .activity ? activityQuery : nil)
+        let board = tab == .ranking && settings.rankingMode == .team
+        let pace = tab == .ranking && settings.rankingMode == .pace
+        teamObserver = observing(teamObserver, tab == .team || board ? teamQuery : nil)
+        rankingObserver = observing(rankingObserver, board ? rankingQuery : nil, keepingPrevious: true)
+        activityObserver = observing(activityObserver, tab == .activity || pace ? activityQuery : nil)
         reposObserver = observing(reposObserver, reposShown > 0 ? reposQuery : nil)
         repoObserver = observing(repoObserver, selectedRepo.map(repoQuery))
     }
