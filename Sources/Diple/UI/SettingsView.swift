@@ -470,6 +470,7 @@ struct AccountPane: View {
 
 struct ClaudePane: View {
     @ObservedObject var model: AppModel
+    @State private var scanning = false
 
     private var repos: [String] {
         Array(Set(model.queue.all.map(\.repo))).sorted()
@@ -568,6 +569,27 @@ struct ClaudePane: View {
             }
 
             Section {
+                HStack {
+                    Text("Folder with your clones")
+                    Spacer()
+                    if let folder = model.settings.reposFolder {
+                        Text(atalho(folder))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    if scanning {
+                        ProgressView().controlSize(.small)
+                    } else if model.settings.reposFolder != nil {
+                        Button("Rescan") { scan() }
+                    }
+                    Button(model.settings.reposFolder == nil ? "Choose…" : "Change…") { chooseReposFolder() }
+                        .disabled(scanning)
+                }
+                if model.settings.reposFolder != nil, !scanning, !repos.isEmpty {
+                    Text(scanSummary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
                 if repos.isEmpty {
                     Text("The queue has not loaded yet.").foregroundStyle(.secondary)
                 }
@@ -575,7 +597,7 @@ struct ClaudePane: View {
                     HStack {
                         Text(r).font(.system(size: 12, design: .monospaced))
                         Spacer()
-                        if let u = Worktree.localPath(r, configured: model.settings.repoPaths) {
+                        if let u = model.settings.localPath(r) {
                             Text(atalho(u.path))
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(.secondary)
@@ -589,7 +611,9 @@ struct ClaudePane: View {
             } footer: {
                 Text("Diple looks in @work, @studies, dev, work, Developer, "
                      + "code and src. Each review runs in a throwaway worktree in "
-                     + "~/.diple/worktrees — your checkout is never touched.")
+                     + "~/.diple/worktrees — your checkout is never touched. "
+                     + "A folder with your clones is searched four levels deep and "
+                     + "each clone is matched by its GitHub remotes; a path you chose by hand always wins.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -601,6 +625,40 @@ struct ClaudePane: View {
 
     private func atalho(_ p: String) -> String {
         p.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+    }
+
+    private var scanSummary: String {
+        let matched = RepoScan.matched(repos, manual: model.settings.repoPaths,
+                                       scanned: model.settings.scannedRepoPaths)
+        let found = model.settings.scannedRepoPaths.count
+        return "\(found) \(found == 1 ? "repository" : "repositories") found there, "
+            + "\(matched) of the \(repos.count) below matched."
+    }
+
+    private func chooseReposFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.prompt = "Scan This Folder"
+        if let folder = model.settings.reposFolder {
+            panel.directoryURL = URL(fileURLWithPath: folder)
+        }
+        if panel.runModal() == .OK, let u = panel.url {
+            model.settings.reposFolder = u.path
+            scan()
+        }
+    }
+
+    private func scan() {
+        guard let folder = model.settings.reposFolder else { return }
+        scanning = true
+        Task {
+            let found = await Task.detached(priority: .userInitiated) {
+                RepoScan.scan(URL(fileURLWithPath: folder))
+            }.value
+            model.settings.scannedRepoPaths = found
+            scanning = false
+        }
     }
 
     private func escolher(_ repo: String) {

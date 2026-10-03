@@ -17,6 +17,8 @@ struct Settings: Codable, Sendable, Equatable {
     var reviewLanguage = "Brazilian Portuguese"
 
     var repoPaths: [String: String] = [:]
+    var reposFolder: String? = nil
+    var scannedRepoPaths: [String: String] = [:]
 
     var editor: String? = nil
     var codeTheme: String = "diple-dark"
@@ -33,6 +35,10 @@ struct Settings: Codable, Sendable, Equatable {
     var followsFocus = true
     var focusLook = FocusLook.terminal
     var rankingMode = RankingMode.off
+
+    func localPath(_ repo: String) -> URL? {
+        Worktree.localPath(repo, configured: repoPaths, scanned: scannedRepoPaths)
+    }
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -103,6 +109,8 @@ struct Settings: Codable, Sendable, Equatable {
         d.aiModel = try c.decodeIfPresent(String.self, forKey: .aiModel) ?? d.aiModel
         d.reviewLanguage = try c.decodeIfPresent(String.self, forKey: .reviewLanguage) ?? d.reviewLanguage
         d.repoPaths = try c.decodeIfPresent([String: String].self, forKey: .repoPaths) ?? d.repoPaths
+        d.reposFolder = try c.decodeIfPresent(String.self, forKey: .reposFolder) ?? d.reposFolder
+        d.scannedRepoPaths = try c.decodeIfPresent([String: String].self, forKey: .scannedRepoPaths) ?? d.scannedRepoPaths
         d.editor = try c.decodeIfPresent(String.self, forKey: .editor) ?? d.editor
         d.codeTheme = try c.decodeIfPresent(String.self, forKey: .codeTheme) ?? d.codeTheme
         d.attribution = try c.decodeIfPresent(String.self, forKey: .attribution) ?? d.attribution

@@ -380,7 +380,7 @@ final class AppModel: ObservableObject {
 
     func prefetchTargets() -> [Prefetcher.Target] {
         needsYou.prefix(Prefetcher.depth).map {
-            Prefetcher.Target(pr: $0, origin: Worktree.localPath($0.repo, configured: settings.repoPaths))
+            Prefetcher.Target(pr: $0, origin: settings.localPath($0.repo))
         }
     }
 
@@ -788,7 +788,7 @@ final class AppModel: ObservableObject {
             ))
         }
 
-        guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+        guard let origin = settings.localPath(pr.repo) else {
             runs[pr.key]?.step = .failed("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
             note(pr.key, "repository not found", fechando: true)
             return
@@ -926,7 +926,7 @@ final class AppModel: ObservableObject {
         }
         putMap(map, for: prs)
 
-        guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+        guard let origin = settings.localPath(pr.repo) else {
             notice("only the diff layer: \(pr.repo) is not on this machine. Point at the folder in Settings.")
             return
         }
@@ -1000,7 +1000,7 @@ final class AppModel: ObservableObject {
     }
 
     func openNode(_ node: MapNode, in map: PRMap, forceWeb: Bool) {
-        let fallback = Worktree.localPath(map.repo, configured: settings.repoPaths).map { [$0] } ?? []
+        let fallback = settings.localPath(map.repo).map { [$0] } ?? []
         if let message = Opener.open(
             node, in: map, editor: settings.openIn,
             roots: mapRoots[map.layoutKey] ?? fallback, forceWeb: forceWeb
