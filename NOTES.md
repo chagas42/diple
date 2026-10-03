@@ -386,6 +386,16 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+**A draft marked ready is a separate notice from one that opened.** The
+watched search returns drafts too, so a draft goes into the snapshot the first
+time it is seen and is never "new" again. When a snapshot that says
+`draft: true` meets the same PR as ready, Diple says "<author> marked a pull
+request ready for review". That holds even if the draft opened before you
+started watching: it was not up for review until now. A snapshot saved before
+`draft` was recorded has `nil` there and stays quiet, so updating does not
+announce every open PR. Both notices are `newPullRequest`, so they share one
+toggle in Settings, and one unread chip ("opened").
+
 ## The main window
 
 **The list opens wide, and a row says one thing per line.** The list column

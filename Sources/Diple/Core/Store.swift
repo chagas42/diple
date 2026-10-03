@@ -6,6 +6,7 @@ struct Snapshot: Codable, Sendable, Equatable {
     var approved: Bool
     var lastCommentAt: Date?
     var reviewRequested: Bool
+    var draft: Bool? = nil
 }
 
 struct StoredState: Codable, Sendable, Equatable {
@@ -333,7 +334,8 @@ final class Store {
                 checks: pr.checks.rawValue,
                 approved: pr.approved,
                 lastCommentAt: pr.lastComment?.at,
-                reviewRequested: reviewRequested.contains(pr.key)
+                reviewRequested: reviewRequested.contains(pr.key),
+                draft: pr.draft
             )
             next[pr.key] = now
 
@@ -386,7 +388,16 @@ final class Store {
 
         let since = state.watchedSince ?? [:]
         for pr in queue.watched where !estreia && !pr.draft {
-            guard state.prs[pr.key] == nil else { continue }
+            if let before = state.prs[pr.key] {
+                guard before.draft == true else { continue }
+                events.append(Event(
+                    id: "\(pr.key)/ready/\(pr.updatedAt.timeIntervalSince1970)",
+                    kind: .newPullRequest, key: pr.key, url: pr.url,
+                    title: "\(pr.author) marked a pull request ready for review",
+                    body: "\(pr.key) · \(pr.title)"
+                ))
+                continue
+            }
             guard let from = since[pr.repo], pr.createdAt > from else { continue }
             next[pr.key] = Snapshot(
                 updatedAt: pr.updatedAt, checks: pr.checks.rawValue, approved: pr.approved,
