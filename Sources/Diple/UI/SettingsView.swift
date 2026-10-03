@@ -3,7 +3,12 @@ import AppKit
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var pane: SettingsPane? = .general
+    @State private var pane: SettingsPane?
+
+    init(model: AppModel, pane: SettingsPane = .general) {
+        self.model = model
+        _pane = State(initialValue: pane)
+    }
 
     var body: some View {
         NavigationSplitView {
