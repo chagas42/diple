@@ -17,7 +17,7 @@ struct Settings: Codable, Sendable, Equatable {
     var reviewLanguage = "Brazilian Portuguese"
 
     var repoPaths: [String: String] = [:]
-    var reposFolder: String? = nil
+    var reposFolders: [String] = []
     var scannedRepoPaths: [String: String] = [:]
 
     var editor: String? = nil
@@ -109,7 +109,9 @@ struct Settings: Codable, Sendable, Equatable {
         d.aiModel = try c.decodeIfPresent(String.self, forKey: .aiModel) ?? d.aiModel
         d.reviewLanguage = try c.decodeIfPresent(String.self, forKey: .reviewLanguage) ?? d.reviewLanguage
         d.repoPaths = try c.decodeIfPresent([String: String].self, forKey: .repoPaths) ?? d.repoPaths
-        d.reposFolder = try c.decodeIfPresent(String.self, forKey: .reposFolder) ?? d.reposFolder
+        d.reposFolders = try c.decodeIfPresent([String].self, forKey: .reposFolders)
+            ?? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(String.self, forKey: .reposFolder).map { [$0] }
+            ?? d.reposFolders
         d.scannedRepoPaths = try c.decodeIfPresent([String: String].self, forKey: .scannedRepoPaths) ?? d.scannedRepoPaths
         d.editor = try c.decodeIfPresent(String.self, forKey: .editor) ?? d.editor
         d.codeTheme = try c.decodeIfPresent(String.self, forKey: .codeTheme) ?? d.codeTheme
@@ -129,6 +131,9 @@ struct Settings: Codable, Sendable, Equatable {
         self = d
     }
 
+    private enum LegacyKeys: String, CodingKey {
+        case reposFolder
+    }
 }
 
 enum Attribution: String, CaseIterable, Identifiable, Sendable {

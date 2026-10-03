@@ -9,17 +9,24 @@ enum RepoScan {
         let url: String
     }
 
-    static func scan(_ base: URL, maxDepth: Int = maxDepth) -> [String: String] {
+    static func scan(_ folders: [URL], maxDepth: Int = maxDepth) -> [String: String] {
         var best: [String: (rank: Int, path: String)] = [:]
-        visit(base.standardizedFileURL, depth: 0, maxDepth: maxDepth) { folder, depth, remotes in
-            for remote in remotes {
-                guard let repo = repo(fromRemote: remote.url)?.lowercased() else { continue }
-                let rank = (remote.name == "origin" ? 0 : 1000) + depth
-                if let current = best[repo], current.rank <= rank { continue }
-                best[repo] = (rank, folder.path)
+        for base in folders {
+            visit(base.standardizedFileURL, depth: 0, maxDepth: maxDepth) { folder, depth, remotes in
+                for remote in remotes {
+                    guard let repo = repo(fromRemote: remote.url)?.lowercased() else { continue }
+                    let rank = (remote.name == "origin" ? 0 : 1000) + depth
+                    if let current = best[repo], current.rank <= rank { continue }
+                    best[repo] = (rank, folder.path)
+                }
             }
         }
         return best.mapValues(\.path)
+    }
+
+    static func found(in folder: String, scanned: [String: String]) -> Int {
+        let base = URL(fileURLWithPath: folder).standardizedFileURL.path
+        return scanned.values.filter { $0 == base || $0.hasPrefix(base + "/") }.count
     }
 
     static func matched(_ repos: [String], manual: [String: String], scanned: [String: String]) -> Int {
@@ -49,7 +56,7 @@ enum RepoScan {
             guard !skipped.contains(child.lastPathComponent) else { continue }
             let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             guard values?.isDirectory == true, values?.isSymbolicLink != true else { continue }
-            visit(child, depth: depth + 1, maxDepth: maxDepth, found: found)
+            visit(folder.appendingPathComponent(child.lastPathComponent), depth: depth + 1, maxDepth: maxDepth, found: found)
         }
     }
 

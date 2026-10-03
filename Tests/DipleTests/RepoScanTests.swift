@@ -74,7 +74,7 @@ struct RepoScanTests {
     @Test func findsClonesByTheirRemotes() throws {
         try clone("work/api", remotes: ["origin": "git@github.com:Acme/API.git"])
         try clone("diple", remotes: ["origin": "https://github.com/me/diple", "upstream": "git@github.com:chagas42/diple.git"])
-        let found = RepoScan.scan(base)
+        let found = RepoScan.scan([base])
         #expect(resolved(found["acme/api"]) == path("work/api"))
         #expect(resolved(found["me/diple"]) == path("diple"))
         #expect(resolved(found["chagas42/diple"]) == path("diple"))
@@ -85,7 +85,7 @@ struct RepoScanTests {
         try clone(".cache/tool", remotes: ["origin": "git@github.com:a/tool.git"])
         try clone("a/b/c/d/e", remotes: ["origin": "git@github.com:a/deep.git"])
         try clone("a/b/c/near", remotes: ["origin": "git@github.com:a/near.git"])
-        let found = RepoScan.scan(base)
+        let found = RepoScan.scan([base])
         #expect(found["a/left-pad"] == nil)
         #expect(found["a/tool"] == nil)
         #expect(found["a/deep"] == nil)
@@ -95,7 +95,7 @@ struct RepoScanTests {
     @Test func doesNotLookInsideAClone() throws {
         try clone("app", remotes: ["origin": "git@github.com:a/app.git"])
         try clone("app/vendored", remotes: ["origin": "git@github.com:a/vendored.git"])
-        let found = RepoScan.scan(base)
+        let found = RepoScan.scan([base])
         #expect(resolved(found["a/app"]) == path("app"))
         #expect(found["a/vendored"] == nil)
     }
@@ -103,7 +103,7 @@ struct RepoScanTests {
     @Test func anOriginBeatsAnotherClonesUpstream() throws {
         try clone("a-fork", remotes: ["origin": "git@github.com:me/lib.git", "upstream": "git@github.com:team/lib.git"])
         try clone("z-lib", remotes: ["origin": "git@github.com:team/lib.git"])
-        #expect(resolved(RepoScan.scan(base)["team/lib"]) == path("z-lib"))
+        #expect(resolved(RepoScan.scan([base])["team/lib"]) == path("z-lib"))
     }
 
     @Test func aLinkedWorktreeReadsItsMainConfig() throws {
@@ -117,6 +117,58 @@ struct RepoScanTests {
 
         let config = RepoScan.configFile(checkout.appendingPathComponent(".git"))
         #expect(resolved(config?.path) == path("main/.git/config"))
+    }
+
+    @Test func foldersMergeAndTheShallowerCloneWinsAcrossThem() throws {
+        try clone("dev/diple", remotes: ["origin": "git@github.com:chagas42/diple.git"])
+        try clone("work/api", remotes: ["origin": "git@github.com:acme/api.git"])
+        try clone("work/old/diple", remotes: ["origin": "git@github.com:chagas42/diple.git"])
+        let dev = base.appendingPathComponent("dev")
+        let work = base.appendingPathComponent("work")
+        let found = RepoScan.scan([work, dev])
+        #expect(resolved(found["acme/api"]) == path("work/api"))
+        #expect(resolved(found["chagas42/diple"]) == path("dev/diple"))
+        #expect(RepoScan.found(in: dev.path, scanned: found) == 1)
+        #expect(RepoScan.found(in: work.path, scanned: found) == 1)
+    }
+
+    @Test func aTieBetweenFoldersGoesToTheOneListedFirst() throws {
+        try clone("dev/diple", remotes: ["origin": "git@github.com:chagas42/diple.git"])
+        try clone("work/diple", remotes: ["origin": "git@github.com:chagas42/diple.git"])
+        let dev = base.appendingPathComponent("dev")
+        let work = base.appendingPathComponent("work")
+        #expect(resolved(RepoScan.scan([dev, work])["chagas42/diple"]) == path("dev/diple"))
+        #expect(resolved(RepoScan.scan([work, dev])["chagas42/diple"]) == path("work/diple"))
+    }
+
+    @Test func removingAFolderDropsWhatOnlyItHeld() throws {
+        try clone("dev/diple", remotes: ["origin": "git@github.com:chagas42/diple.git"])
+        try clone("work/api", remotes: ["origin": "git@github.com:acme/api.git"])
+        try clone("work/diple", remotes: ["origin": "git@github.com:chagas42/diple.git"])
+        let dev = base.appendingPathComponent("dev")
+        let work = base.appendingPathComponent("work")
+        #expect(resolved(RepoScan.scan([work, dev])["chagas42/diple"]) == path("work/diple"))
+        let left = RepoScan.scan([dev])
+        #expect(left["acme/api"] == nil)
+        #expect(resolved(left["chagas42/diple"]) == path("dev/diple"))
+        #expect(RepoScan.scan([]).isEmpty)
+    }
+
+    @Test func aSingleSavedFolderBecomesTheFirstOfTheList() throws {
+        let legacy = #"{"reposFolder": "/Users/me/dev", "scannedRepoPaths": {"a/b": "/Users/me/dev/b"}}"#
+        let migrated = try JSONDecoder().decode(Settings.self, from: Data(legacy.utf8))
+        #expect(migrated.reposFolders == ["/Users/me/dev"])
+        #expect(migrated.scannedRepoPaths == ["a/b": "/Users/me/dev/b"])
+
+        let current = #"{"reposFolders": ["/Users/me/dev", "/Users/me/work"], "reposFolder": "/old"}"#
+        #expect(try JSONDecoder().decode(Settings.self, from: Data(current.utf8)).reposFolders
+            == ["/Users/me/dev", "/Users/me/work"])
+        #expect(try JSONDecoder().decode(Settings.self, from: Data("{}".utf8)).reposFolders.isEmpty)
+
+        var settings = Settings()
+        settings.reposFolders = ["/Users/me/dev", "/Users/me/work"]
+        let roundTrip = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(settings))
+        #expect(roundTrip.reposFolders == settings.reposFolders)
     }
 
     @Test func aPathChosenByHandWinsAndCountsAsNotMatched() {
