@@ -33,6 +33,7 @@ struct Settings: Codable, Sendable, Equatable {
     var followsFocus = true
     var focusLook = FocusLook.terminal
     var rankingMode = RankingMode.off
+    var draftsNeedYou = true
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -118,6 +119,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.followsFocus = try c.decodeIfPresent(Bool.self, forKey: .followsFocus) ?? d.followsFocus
         d.focusLook = (try? c.decodeIfPresent(FocusLook.self, forKey: .focusLook)) ?? d.focusLook
         d.rankingMode = (try? c.decodeIfPresent(RankingMode.self, forKey: .rankingMode)) ?? d.rankingMode
+        d.draftsNeedYou = try c.decodeIfPresent(Bool.self, forKey: .draftsNeedYou) ?? d.draftsNeedYou
         self = d
     }
 
