@@ -17,6 +17,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastSync: Date?
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
+    @Published private(set) var dismissed: [String: Date] = [:]
     @Published private(set) var reviewedAhead: Set<String> = []
 
     @Published var notchTab: NotchTab = .queue
@@ -531,6 +532,7 @@ final class AppModel: ObservableObject {
 
     func restoreCached() {
         unread = store.state.unread
+        dismissed = store.state.dismissed ?? [:]
         following = store.state.following
         watching = store.state.watching ?? []
         if let cached = store.state.cache.queue, queue.all.isEmpty {
@@ -644,6 +646,8 @@ final class AppModel: ObservableObject {
         if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
         queue = nova
         store.saveQueue(nova)
+        store.forgetDismissals(nova)
+        dismissed = store.state.dismissed ?? [:]
         reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
         confirmReviews(candidates)
         if let s = selected {
@@ -1058,6 +1062,15 @@ final class AppModel: ObservableObject {
         watchForReview(pr)
     }
 
+    func dismiss(_ pr: PR) {
+        store.dismiss(pr)
+        dismissed = store.state.dismissed ?? [:]
+        unread = store.state.unread
+        onCountChange?()
+    }
+
+    func isDismissed(_ pr: PR) -> Bool { Dismissals.hides(pr, dismissed) }
+
     func clearAll() {
         store.markAllRead()
         unread = store.state.unread
@@ -1130,7 +1143,7 @@ final class AppModel: ObservableObject {
         var out: [PR] = []
         for pr in reviewing + queue.all.filter({ unread.contains($0.key) }) {
             guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
-            guard !isQuiet(pr) else { continue }
+            guard !isQuiet(pr), !isDismissed(pr) else { continue }
             if seen.insert(pr.key).inserted { out.append(pr) }
         }
         return out
@@ -1239,9 +1252,9 @@ final class AppModel: ObservableObject {
     func prs(_ tab: Tab) -> [PR] {
         switch tab {
         case .needsYou:  needsYou
-        case .mine:       queue.mine
-        case .reviewing:  reviewing
-        case .following: queue.following
+        case .mine:       queue.mine.filter { !isDismissed($0) }
+        case .reviewing:  reviewing.filter { !isDismissed($0) }
+        case .following: queue.following.filter { !isDismissed($0) }
         }
     }
 

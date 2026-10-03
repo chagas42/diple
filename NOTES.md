@@ -386,6 +386,14 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+**A dismissal lasts until the pull request moves.** Hovering a row in the
+notch shows an ×, and its right-click menu has Dismiss. Diple saves the PR's
+`updatedAt` beside its key and hides it from every tab and the count while
+GitHub reports that same time. A new comment, push or review request moves
+`updatedAt`, so the PR comes back by itself; so does a bot comment, which errs
+toward showing too much rather than hiding a request. The entry is dropped
+once the PR has moved on, or a month after it left the queue.
+
 ## The main window
 
 **The list opens wide, and a row says one thing per line.** The list column
