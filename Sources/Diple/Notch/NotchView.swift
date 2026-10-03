@@ -77,27 +77,7 @@ struct NotchView: View {
 
             .opacity(hidesByFading && state == .hidden ? 0 : 1)
             .offset(x: shift)
-            .contextMenu {
-                if case .available(let version, let page) = updates.state {
-                    Button("Update to \(version)…") {
-                        if updates.canInstall { updates.install() } else { NSWorkspace.shared.open(page) }
-                    }
-                    Divider()
-                }
-                Button("Settings…") { Windows.shared.openSettings(model) }
-                Button("Main Window") { Windows.shared.openMain(model) }
-                Button(isFocused ? "Stop Focusing" : "Focus") { onFocusToggle?() }
-                if let onNap {
-                    Menu("Rehearse Nap") {
-                        Button("Short") { onNap(.short) }
-                        Button("Medium") { onNap(.medium) }
-                        Button("Long") { onNap(.long) }
-                    }
-                }
-                Divider()
-                Text("Diple \(updates.summary)")
-                Button("Quit Diple") { NSApplication.shared.terminate(nil) }
-            }
+            .contextMenu { panelMenu }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -523,6 +503,13 @@ struct NotchView: View {
                             }
                             .buttonStyle(.plain)
                             .opacity(model.dims(pr) ? 0.4 : 1)
+                            .contextMenu {
+                                if model.canMarkReady(pr) {
+                                    Button("\(ReadyForReview.confirm)…") { askToMarkReady(pr) }
+                                    Divider()
+                                }
+                                panelMenu
+                            }
                         }
                     }
                 }
@@ -534,6 +521,47 @@ struct NotchView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(.white.opacity(0.07), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder private var panelMenu: some View {
+        if case .available(let version, let page) = updates.state {
+            Button("Update to \(version)…") {
+                if updates.canInstall { updates.install() } else { NSWorkspace.shared.open(page) }
+            }
+            Divider()
+        }
+        Button("Settings…") { Windows.shared.openSettings(model) }
+        Button("Main Window") { Windows.shared.openMain(model) }
+        Button(isFocused ? "Stop Focusing" : "Focus") { onFocusToggle?() }
+        if let onNap {
+            Menu("Rehearse Nap") {
+                Button("Short") { onNap(.short) }
+                Button("Medium") { onNap(.medium) }
+                Button("Long") { onNap(.long) }
+            }
+        }
+        Divider()
+        Text("Diple \(updates.summary)")
+        Button("Quit Diple") { NSApplication.shared.terminate(nil) }
+    }
+
+    private func askToMarkReady(_ pr: PR) {
+        let ask = NSAlert()
+        ask.messageText = ReadyForReview.question
+        ask.informativeText = "\(pr.key) · \(pr.title)\n\n\(ReadyForReview.consequence)"
+        ask.addButton(withTitle: ReadyForReview.confirm)
+        ask.addButton(withTitle: "Cancel")
+        NSApp.activate()
+        guard ask.runModal() == .alertFirstButtonReturn else { return }
+        Task {
+            guard let failure = await model.markReady(pr) else { return }
+            let told = NSAlert()
+            told.alertStyle = .warning
+            told.messageText = "\(pr.key) is still a draft"
+            told.informativeText = failure
+            NSApp.activate()
+            told.runModal()
+        }
     }
 
     private func meta(_ pr: PR) -> String {

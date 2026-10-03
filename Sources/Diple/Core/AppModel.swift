@@ -156,6 +156,7 @@ final class AppModel: ObservableObject {
     @Published var tab: Tab = .needsYou
     @Published var selected: PR?
     @Published private(set) var sending = false
+    @Published private(set) var markingReady: Set<String> = []
 
     enum Tab: String, CaseIterable, Identifiable {
         case needsYou, mine, reviewing, following
@@ -293,6 +294,13 @@ final class AppModel: ObservableObject {
             await refresh()
             return
         }
+        put(fresh)
+        if queries.isFetching(.queue(watching: watching)) { queries.invalidate(.queue) }
+        if queries.isFetching(.repoPRs(repo: fresh.repo)) { queries.invalidate(.repo(fresh.repo)) }
+        queries.invalidate(.pr(fresh.key))
+    }
+
+    private func put(_ fresh: PR) {
         func swap(_ list: [PR]) -> [PR] { list.map { $0.key == fresh.key ? fresh : $0 } }
         func swap(_ q: inout Queue) {
             q.mine = swap(q.mine)
@@ -303,9 +311,29 @@ final class AppModel: ObservableObject {
         queries.setData(.queue(watching: watching)) { (o: inout SyncOutcome) in swap(&o.queue) }
         if selected?.key == fresh.key { selected = fresh }
         queries.setData(.repoPRs(repo: fresh.repo)) { (prs: inout [PR]) in prs = swap(prs) }
-        if queries.isFetching(.queue(watching: watching)) { queries.invalidate(.queue) }
-        if queries.isFetching(.repoPRs(repo: fresh.repo)) { queries.invalidate(.repo(fresh.repo)) }
-        queries.invalidate(.pr(fresh.key))
+    }
+
+    func canMarkReady(_ pr: PR) -> Bool { pr.isMine && pr.draft }
+
+    func markReady(_ pr: PR) async -> String? {
+        guard canMarkReady(pr), !markingReady.contains(pr.key) else { return nil }
+        markingReady.insert(pr.key)
+        defer { markingReady.remove(pr.key) }
+        var ready = pr
+        ready.draft = false
+        put(ready)
+        guard !queries.answersLocally else { return nil }
+        do {
+            try await client.markReadyForReview(prId: pr.id)
+            await reread(ready)
+            return nil
+        } catch {
+            var draft = queue.all.first { $0.key == pr.key } ?? pr
+            draft.draft = true
+            put(draft)
+            report(error, in: .markReady)
+            return ReadyForReview.explain(error)
+        }
     }
 
     func reportOpenFailure(_ message: String) { errorMessage = message }

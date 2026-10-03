@@ -123,7 +123,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     let url: URL
     let updatedAt: Date
     let createdAt: Date
-    let draft: Bool
+    var draft: Bool
     let author: String
     let authorAvatar: URL?
     let isMine: Bool
