@@ -17,7 +17,10 @@ enum Query {
         nodes { requestedReviewer { __typename ... on User { login } } }
       }
       latestReviews(first: 20) {
-        nodes { state author { login __typename } }
+        nodes { state submittedAt author { login __typename } }
+      }
+      timelineItems(last: 5, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+        nodes { ... on ReviewRequestedEvent { createdAt requestedReviewer { __typename ... on User { login } } } }
       }
       comments(last: 20) {
         nodes { author { login __typename } createdAt bodyText }
@@ -31,12 +34,12 @@ enum Query {
           line
           startLine
           comments(last: 10) {
-            nodes { author { login __typename } createdAt bodyText diffHunk }
+            nodes { author { login __typename } createdAt bodyText diffHunk state }
           }
         }
       }
       commits(last: 1) {
-        nodes { commit { statusCheckRollup { state } } }
+        nodes { commit { committedDate statusCheckRollup { state } } }
       }
     }
     """

@@ -62,6 +62,7 @@ struct RawPR: Decodable, Sendable {
     let reviewDecision: String?
     let reviewRequests: RawRequests?
     let latestReviews: RawReviews?
+    let timelineItems: RawRequestEvents?
     let comments: RawComments
     let reviewThreads: RawThreads
     let commits: RawCommits
@@ -76,7 +77,13 @@ struct RawPR: Decodable, Sendable {
     struct RawReviews: Decodable, Sendable { let nodes: [RawReview?] }
     struct RawReview: Decodable, Sendable {
         let state: String
+        let submittedAt: Date?
         let author: GHActor?
+    }
+    struct RawRequestEvents: Decodable, Sendable { let nodes: [RawRequestEvent?] }
+    struct RawRequestEvent: Decodable, Sendable {
+        let createdAt: Date?
+        let requestedReviewer: RawReviewer?
     }
     struct RawComments: Decodable, Sendable { let nodes: [RawComment?] }
     struct RawComment: Decodable, Sendable {
@@ -85,6 +92,7 @@ struct RawPR: Decodable, Sendable {
         let bodyText: String
 
         let diffHunk: String?
+        let state: String?
     }
     struct RawThreads: Decodable, Sendable { let nodes: [RawReviewThread?] }
     struct RawReviewThread: Decodable, Sendable {
@@ -98,7 +106,10 @@ struct RawPR: Decodable, Sendable {
     }
     struct RawCommits: Decodable, Sendable { let nodes: [RawCommitNode?] }
     struct RawCommitNode: Decodable, Sendable { let commit: RawCommit }
-    struct RawCommit: Decodable, Sendable { let statusCheckRollup: RawRollup? }
+    struct RawCommit: Decodable, Sendable {
+        let committedDate: Date?
+        let statusCheckRollup: RawRollup?
+    }
     struct RawRollup: Decodable, Sendable { let state: String }
 }
 
@@ -144,6 +155,14 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     let reviewedByOthers: Bool?
     var changesRequested: Int? = nil
     var commentReviews: Int? = nil
+    var askedAt: Date? = nil
+    var headCommittedAt: Date? = nil
+    var viewerActedAt: Date? = nil
+
+    var answeredByViewer: Bool {
+        guard let acted = viewerActedAt, let askedAt else { return false }
+        return acted > max(askedAt, headCommittedAt ?? .distantPast)
+    }
 
     var asksYouByName: Bool { askedYou == true }
     var hasNoReviews: Bool { reviewedByOthers == false }
@@ -253,7 +272,9 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         headRef = c.headRefName
         head = c.headRefOid
         baseRef = c.baseRefName
-        checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
+        let headCommit = c.commits.nodes.compactMap { $0 }.first?.commit
+        checks = CheckState(headCommit?.statusCheckRollup?.state)
+        headCommittedAt = headCommit?.committedDate
         approved = c.reviewDecision == "APPROVED"
         let reviews = Self.counted(c.latestReviews, author: c.author?.login)
         approvals = reviews.map { $0.filter { $0 == "APPROVED" }.count }
@@ -263,6 +284,18 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         askedYou = c.reviewRequests?.nodes.contains {
             $0?.requestedReviewer?.__typename == "User" && $0?.requestedReviewer?.login == meuLogin
         } ?? false
+
+        askedAt = c.timelineItems?.nodes.compactMap { $0 }
+            .filter { $0.requestedReviewer?.__typename == "Team" || $0.requestedReviewer?.login == meuLogin }
+            .compactMap(\.createdAt).max()
+        let reviewedAt = c.latestReviews?.nodes.compactMap { $0 }
+            .filter { $0.author?.login == meuLogin && $0.state != "PENDING" }
+            .compactMap(\.submittedAt) ?? []
+        let commentedAt = (c.comments.nodes + c.reviewThreads.nodes.compactMap { $0 }.flatMap(\.comments.nodes))
+            .compactMap { $0 }
+            .filter { $0.author?.login == meuLogin && $0.state != "PENDING" }
+            .map(\.createdAt)
+        viewerActedAt = (reviewedAt + commentedAt).max()
 
         func humano(_ com: RawPR.RawComment) -> Bool {
             guard let a = com.author else { return false }
