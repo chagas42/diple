@@ -41,13 +41,15 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                Picker("Cover", selection: $model.settings.focusLook) {
+                Picker("Screen while focused", selection: $model.settings.focusLook) {
                     ForEach(FocusLook.allCases) { Text($0.title).tag($0) }
                 }
             } header: {
                 Text("Focus")
             } footer: {
-                Text("What covers the open notch while you are focused.")
+                Text("While a macOS Focus is on, or after you click the eye in the open notch, opening the "
+                     + "notch shows this instead of your queue, with how long you have been focused. "
+                     + "Click the eye again to come back.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
