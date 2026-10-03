@@ -301,6 +301,14 @@ inside by hand. The glow lives in its own observable object, like the eye, so
 the 30 Hz updates redraw only the glow; with Reduce Motion it moves without
 animating.
 
+**A tooltip in the panel is drawn, not asked for.** `.help()` becomes an AppKit
+tooltip, and AppKit shows tooltips only while the app is active; the panel is
+non-activating, so Diple almost never is. The activity grid reads the pointer
+with `onContinuousHover`, which a tracking area delivers to inactive windows,
+and draws its own bubble over the grid so nothing moves. The bubble sits in a
+`ZStack` inside the overlay: an overlay alone places its content by the
+overlay's alignment and ignores the bubble's own alignment guides.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
