@@ -131,6 +131,22 @@ struct GitHubClient: Sendable {
         }
     }
 
+    func openPR(repo: String, head: String, etag: String?) async throws -> PullLookup.Result? {
+        let token = try await tokens.current()
+        var req = URLRequest(url: URL(string: "https://api.github.com/\(PullLookup.path(repo: repo, head: head))")!)
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
+        if let etag { req.setValue(etag, forHTTPHeaderField: "If-None-Match") }
+        req.timeoutInterval = 20
+        let (payload, response) = try await transport.send(req)
+        metrics.count(.requests)
+        metrics.count(.bytesIn, by: payload.count)
+        guard let http = response as? HTTPURLResponse else { return nil }
+        return PullLookup.result(status: http.statusCode, body: payload, etag: http.value(forHTTPHeaderField: "ETag"))
+    }
+
     func requiredApprovals(repo: String, branch: String) async throws -> RequiredApprovals {
         let parts = repo.split(separator: "/", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return RequiredApprovals(count: nil) }

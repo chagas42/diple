@@ -128,6 +128,44 @@ it failed too and the error stayed on screen ("could not update", or the
 offline error) until the next timer tick. Coming back now forces the fetch,
 which cancels the failing one and starts over.
 
+## Syncing after a push
+
+Diple cannot receive webhooks, so it watches the clones it already knows
+(`Worktree.localPath` for every repository in the queue, the watched list and
+Settings) and treats a local push as the webhook.
+
+**A push moves the remote-tracking ref; a commit does not.** `git push` rewrites
+`refs/remotes/<remote>/<branch>` (or `packed-refs`) in the clone, so one
+FSEventStream over each clone's common git dir sees it about a second later. A
+linked worktree's `.git` is a file (`gitdir:`), and its refs live in the folder
+its `commondir` names, so that folder is what gets watched.
+
+**The reflog tells a push from a fetch.** A fetch moves the same refs. The last
+line of `logs/refs/remotes/<remote>/<branch>` ends in `update by push` for a
+push and `fetch: …` for a fetch; a fetch that brings nothing writes no ref.
+
+**The rule.** A push to the default branch (the remote's `HEAD`, else main or
+master) syncs once. A push to a branch that already has a PR in the queue syncs
+at ~3 s and again ~12 s later, because GitHub takes seconds to update the PR.
+A push to any other branch does not touch GraphQL: it asks REST
+`pulls?head=<owner>:<branch>&state=open&per_page=1` after 10, 20 and 30 s, then
+every minute for 15 minutes, and syncs once when a PR appears (`gh pr create`
+or the web often comes minutes after the push). The head owner is the pushed
+remote's owner; the base is the watched repository owned by someone else when
+there is one, so a fork's PR is looked for upstream. At most five branches are
+watched; another push to the same branch starts its window over. A fetch syncs
+once only when it moved a branch that has a PR. Syncs are at least 10 s apart.
+
+**A 304 is free.** With `If-None-Match`, an unchanged answer is 304 and leaves
+`X-RateLimit-Used` where it was (measured: 200 → 8, ten 304s → 8, next 200 →
+9). REST `core` is also a separate budget from the GraphQL points. URLSession's
+own cache would answer 304s for us, so the request skips it
+(`reloadIgnoringLocalCacheData`) and keeps the ETag itself.
+
+**`resolvingSymlinksInPath` drops `/private`.** It turns `/private/tmp/x` into
+`/tmp/x`, while FSEvents reports `/private/tmp/x`, so no event ever matched.
+Watched roots go through `realpath(3)`.
+
 ## The notch panel
 
 **The window never resizes.** It is always the open size, pinned to the top.

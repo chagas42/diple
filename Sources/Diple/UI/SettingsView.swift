@@ -317,6 +317,7 @@ struct GeneralPane: View {
                 Text("One sync costs 1 point of 5000 per hour.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
+                Toggle("Sync right after you push from this Mac", isOn: $model.settings.syncsOnPush)
             }
 
             Section {
