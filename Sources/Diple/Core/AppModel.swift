@@ -120,6 +120,7 @@ final class AppModel: ObservableObject {
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
             MenuBarItems.measuring = settings.fitsMenuBar
+            if settings.draftsNeedYou != oldValue.draftsNeedYou { onCountChange?() }
         }
     }
 
@@ -1074,6 +1075,7 @@ final class AppModel: ObservableObject {
         case checkFailed
         case approved
         case opened
+        case yourDraft
 
         init(_ kind: EventKind) {
             switch kind {
@@ -1086,7 +1088,7 @@ final class AppModel: ObservableObject {
             }
         }
 
-        var kind: EventKind {
+        var kind: EventKind? {
             switch self {
             case .replied:         .repliedToYou
             case .commented:       .commented
@@ -1094,14 +1096,19 @@ final class AppModel: ObservableObject {
             case .checkFailed:     .checkFailed
             case .approved:        .approved
             case .opened:          .newPullRequest
+            case .yourDraft:       nil
             }
         }
 
+        var glyph: String { kind?.glyph ?? "pencil" }
+
         static func of(
-            _ key: String, unread: Set<String>, reasons: [String: EventKind], reviewRequested: Bool
+            _ key: String, unread: Set<String>, reasons: [String: EventKind], reviewRequested: Bool,
+            yourDraft: Bool = false
         ) -> NeedsReason? {
             if unread.contains(key) { return reasons[key].map(NeedsReason.init) ?? .replied }
-            return reviewRequested ? .reviewRequested : nil
+            if reviewRequested { return .reviewRequested }
+            return yourDraft ? .yourDraft : nil
         }
 
         var label: String {
@@ -1112,6 +1119,7 @@ final class AppModel: ObservableObject {
             case .checkFailed:     "check failing"
             case .approved:        "approved"
             case .opened:          "opened"
+            case .yourDraft:       "your draft"
             }
         }
     }
@@ -1121,15 +1129,20 @@ final class AppModel: ObservableObject {
             pr.key,
             unread: unread,
             reasons: store.state.unreadReasons,
-            reviewRequested: queue.toReview.contains { $0.key == pr.key }
+            reviewRequested: queue.toReview.contains { $0.key == pr.key },
+            yourDraft: waitsAsYourDraft(pr)
         )
+    }
+
+    func waitsAsYourDraft(_ pr: PR) -> Bool {
+        settings.draftsNeedYou && pr.isMine && pr.draft
     }
 
     var needsYou: [PR] {
         var seen = Set<String>()
         var out: [PR] = []
-        for pr in reviewing + queue.all.filter({ unread.contains($0.key) }) {
-            guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
+        for pr in reviewing + queue.all.filter({ unread.contains($0.key) }) + queue.mine.filter(waitsAsYourDraft) {
+            guard pr.author != queue.viewer || unread.contains(pr.key) || waitsAsYourDraft(pr) else { continue }
             guard !isQuiet(pr) else { continue }
             if seen.insert(pr.key).inserted { out.append(pr) }
         }

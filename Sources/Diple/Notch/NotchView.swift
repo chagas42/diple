@@ -684,13 +684,17 @@ struct NotchView: View {
 
     private func reasonChip(_ r: AppModel.NeedsReason) -> some View {
         HStack(spacing: 3) {
-            Image(systemName: r.kind.glyph).font(.system(size: 8, weight: .bold))
+            Image(systemName: r.glyph).font(.system(size: 8, weight: .bold))
             Text(r.label).font(.system(size: 9.5, weight: .medium))
         }
-        .foregroundStyle(colorFor(r.kind).opacity(0.95))
+        .foregroundStyle(colorFor(r).opacity(0.95))
         .padding(.horizontal, 5)
         .padding(.vertical, 1.5)
-        .background(Capsule().fill(colorFor(r.kind).opacity(0.14)))
+        .background(Capsule().fill(colorFor(r).opacity(0.14)))
+    }
+
+    private func colorFor(_ r: AppModel.NeedsReason) -> Color {
+        r.kind.map(colorFor) ?? .white.opacity(0.75)
     }
 
     private func colorFor(_ t: EventKind) -> Color {

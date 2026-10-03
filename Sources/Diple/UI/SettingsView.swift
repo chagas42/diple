@@ -319,6 +319,13 @@ struct GeneralPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Needs you") {
+                Toggle("Your drafts wait on you", isOn: $model.settings.draftsNeedYou)
+                Text("A draft of yours counts in Needs you, marked \"your draft\", until you mark it ready for review.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 HStack(spacing: 10) {
                     ForEach(RankingMode.allCases) { mode in

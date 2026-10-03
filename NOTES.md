@@ -386,6 +386,15 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+**Your drafts wait on you, after everything else.** With Settings → General →
+Needs you on (the default), every draft you authored is in Needs you. It comes
+after review requests and unread pull requests, marked "your draft". No event
+puts it there: it is not unread and does not alert. An unread reason (a reply,
+a failing check) outranks it, the same way it outranks `reviewRequested`.
+Needs you, the menu bar count and the notch count all read `needsYou`, so
+turning it off lowers all three at once. The toggle calls `onCountChange` so
+the closed notch does not wait for the next sync.
+
 ## The main window
 
 **The list opens wide, and a row says one thing per line.** The list column
