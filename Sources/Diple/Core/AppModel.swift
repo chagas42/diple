@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import os
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -119,6 +120,7 @@ final class AppModel: ObservableObject {
             focus.follows = settings.followsFocus
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
+            if settings.syncsOnNotifications != oldValue.syncsOnNotifications { restartFeed() }
             MenuBarItems.measuring = settings.fitsMenuBar
         }
     }
@@ -412,6 +414,9 @@ final class AppModel: ObservableObject {
         }
     }
     private var pollTask: Task<Void, Never>?
+    private var feedTask: Task<Void, Never>?
+    private(set) var feed = ChangeFeed()
+    private static let feedLog = Logger(subsystem: "com.chagas42.diple", category: "feed")
     private let reachability = Reachability()
     private(set) var network = NetworkState()
     @Published var isOnline = true
@@ -449,6 +454,7 @@ final class AppModel: ObservableObject {
         }
 
         restartTimer()
+        restartFeed()
         reachability.onChange = { [weak self] state in
             self?.network = state
             self?.setOnline(state.online)
@@ -461,7 +467,13 @@ final class AppModel: ObservableObject {
             Task { @MainActor in
                 self?.refetchShown()
                 await self?.refresh(full: true)
+                self?.restartFeed()
             }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.stopFeed() }
         }
     }
 
@@ -566,6 +578,40 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func restartFeed() {
+        stopFeed()
+        guard started, settings.syncsOnNotifications, isOnline, !feed.isOff,
+              !queries.answersLocally, !Bench.isOn else { return }
+        feedTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let interval = self?.feed.interval else { return }
+                try? await Task.sleep(for: .seconds(interval), tolerance: .seconds(interval * 0.1))
+                guard !Task.isCancelled, let self, await self.pollFeed() else { return }
+            }
+        }
+    }
+
+    private func stopFeed() {
+        feedTask?.cancel()
+        feedTask = nil
+    }
+
+    func pollFeed() async -> Bool {
+        guard let reply = try? await client.notifications(feed) else { return true }
+        let verdict = feed.absorb(reply, watching: watching, muted: settings.mutedRepos)
+        Self.feedLog.info("notifications \(reply.status, privacy: .public) \(String(describing: verdict), privacy: .public) next in \(Int(self.feed.interval), privacy: .public)s")
+        switch verdict {
+        case .wake:
+            await refresh()
+            restartTimer()
+        case .off:
+            return false
+        case .unchanged, .quiet:
+            break
+        }
+        return true
+    }
+
     func setNotchOpen(_ open: Bool) {
         guard open != notchOpen else { return }
         notchOpen = open
@@ -583,11 +629,13 @@ final class AppModel: ObservableObject {
     func setOnline(_ online: Bool) {
         let cameBack = online && !isOnline
         isOnline = online
+        if !online { stopFeed() }
         guard cameBack else { return }
         refetchShown()
         Task {
             await refresh(force: true)
             restartTimer()
+            restartFeed()
         }
     }
 

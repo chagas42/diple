@@ -317,6 +317,10 @@ struct GeneralPane: View {
                 Text("One sync costs 1 point of 5000 per hour.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
+                Toggle("Sync early on GitHub notifications", isOn: $model.settings.syncsOnNotifications)
+                Text("Checks your GitHub notifications every minute, which costs no sync points, and syncs right away when one of your pull requests moves.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
             }
 
             Section {

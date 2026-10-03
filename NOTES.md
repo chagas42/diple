@@ -80,6 +80,31 @@ reason. New comments, inline replies and pushes do move `updatedAt`: across
 sync does one full fetch anyway, so anything GitHub changes without moving
 `updatedAt` is at most half an hour stale.
 
+**Notifications are a free doorbell.** Diple cannot receive webhooks, so it
+polls REST `GET /notifications?per_page=5` with `If-Modified-Since` and
+`If-None-Match` from the previous answer. A `304` does not count against the
+rate limit: over three rounds of one `200` and three `304`s, `X-RateLimit-Used`
+moved only on the `200`s. A `200` costs 1 point of the REST `core` budget,
+never a GraphQL point, and weighs ~23 KB. `X-Poll-Interval` answered `60`
+every time and is the floor between polls. Only a pull request thread newer
+than the last one seen wakes the sync — one you are involved in anywhere, or
+any thread in a watched repository — and the wake pushes the next regular
+tick back, so it moves a sync earlier instead of adding one. `401`, `403` and
+`404` switch the feed off until relaunch; the regular timer carries on.
+Diple never marks a thread read.
+
+**`URLSession` hides the `304`.** With the default cache policy a repeated
+`GET /notifications` is answered from `URLCache` in 2 ms with old data, and a
+hand-written `If-Modified-Since` comes back as a `200` carrying the cached
+body. The feed request uses `.reloadIgnoringLocalCacheData`, which passes the
+real `304` through.
+
+**The unread list's `Last-Modified` is its newest unread thread**, not the
+newest thread: with three read threads updated later that day, it still
+matched the `updated_at` of the newest unread one. That is why the feed reads
+the unread list — a thread you already read only shows up again once new
+activity makes it unread.
+
 **Three small searches beat one aggregated one.** GitHub runs aliased searches
 one after another; three requests in parallel return in ~1.4 s instead of
 ~2.4 s, for 3 points a cycle instead of 1 — about 180 of the 5000 an hour.
