@@ -100,6 +100,12 @@ struct DipleApp: App {
         }
         .menuBarExtraStyle(.window)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    Windows.shared.openSettings(model, pane: .general)
+                    Task { await Updates.shared.check() }
+                }
+            }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") { Windows.shared.openSettings(model) }
                     .keyboardShortcut(",")

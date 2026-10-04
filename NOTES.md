@@ -553,6 +553,15 @@ below 26 it keeps the old controls, toolbar and sidebar in compatibility mode.
 `LSMinimumSystemVersion` as the minimum. `otool -l <binary> | grep -A4
 LC_BUILD_VERSION` shows what a build got.
 
+**Every build is a different app to Accessibility.** An ad-hoc signature has
+no certificate, so its designated requirement is the code hash (`codesign -d
+-r- Diple.app` prints `cdhash H"…"`), and TCC stores that requirement with the
+grant. A new build or an update no longer matches it: `AXIsProcessTrusted()`
+returns false while System Settings → Privacy & Security → Accessibility still
+shows Diple switched on. Removing Diple from the list with − and asking again
+(`AXIsProcessTrustedWithOptions` with the prompt) records the running build. Settings → Appearance → Menu bar says so
+while it waits, and re-reads the trust every second until it is granted.
+
 **Start at login registers this copy.** `SMAppService.mainApp` records the
 bundle that called it, at the path it ran from, so turning it on from a build
 in `build/` starts that build at login. Its status, not a stored setting, is

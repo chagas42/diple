@@ -61,18 +61,33 @@ struct AppearanceSettings: View {
                             if $0, !MenuBarItems.allowed { MenuBarItems.askForAccess() }
                         }
                     ))
-                    Text("This macOS only tells Diple where the menu bar icons are with Accessibility "
-                         + "permission, and only on the main display. Otherwise the count moves to the left "
-                         + "of the notch so no icon is covered.")
+                    Text("On this version of macOS, Diple can see where the menu bar icons are only with "
+                         + "Accessibility permission, and only on the main display. Without it, the count "
+                         + "stays left of the notch so it never covers an icon.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                     if model.settings.fitsMenuBar, !accessible {
-                        HStack {
-                            Text("Waiting for Accessibility permission.")
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Waiting for Accessibility permission.")
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(.orange)
+                                Spacer()
+                                Button("Ask Again") { MenuBarItems.askForAccess() }
+                                Button("Open Accessibility") { NSWorkspace.shared.open(MenuBarItems.accessibilityPane) }
+                            }
+                            Text("If Diple is already on in that list, the permission belongs to an earlier copy "
+                                 + "of Diple: every update or new build counts as a different app. Select Diple, "
+                                 + "remove it with the − button, then click Ask Again.")
                                 .font(.system(size: 10.5))
-                                .foregroundStyle(.orange)
-                            Spacer()
-                            Button("Open Accessibility") { NSWorkspace.shared.open(MenuBarItems.accessibilityPane) }
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .task {
+                            while !Task.isCancelled, !accessible {
+                                try? await Task.sleep(for: .seconds(1))
+                                accessible = MenuBarItems.allowed
+                            }
                         }
                     }
                 }
