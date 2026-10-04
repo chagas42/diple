@@ -279,7 +279,7 @@ struct ReposPane: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(name).font(.system(size: 12.5, design: .monospaced))
-                            Text("\(quantos) na queue")
+                            Text(quantos == 1 ? "1 pull request" : "\(quantos) pull requests")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
                         }
@@ -313,13 +313,19 @@ struct GeneralPane: View {
     var body: some View {
         Form {
             Section("Sync") {
-                Picker("Every", selection: $model.settings.interval) {
-                    Text("30 seconds").tag(TimeInterval(30))
-                    Text("1 minute").tag(TimeInterval(60))
-                    Text("5 minutes").tag(TimeInterval(300))
-                    Text("15 minutes").tag(TimeInterval(900))
+                HStack {
+                    Picker("Every", selection: $model.settings.interval) {
+                        Text("30 seconds").tag(TimeInterval(30))
+                        Text("1 minute").tag(TimeInterval(60))
+                        Text("5 minutes").tag(TimeInterval(300))
+                        Text("15 minutes").tag(TimeInterval(900))
+                    }
+                    Button("Sync Now") { Task { await model.refreshVisible() } }
+                        .disabled(model.loading)
                 }
-                Text("One sync costs 1 point of 5000 per hour.")
+                Text("Each sync spends about \(pointsPerSync) of the 5,000 GitHub API points your account "
+                     + "gets per hour, so \(pointsPerHour) an hour at this interval. "
+                     + "gh and anything else using your token draw from the same budget.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -403,8 +409,6 @@ struct GeneralPane: View {
 
             Section {
                 HStack {
-                    Button("Sync now") { Task { await model.refreshVisible() } }
-                        .disabled(model.loading)
                     Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
                     Spacer()
                     Button("Quit Diple") { NSApplication.shared.terminate(nil) }
@@ -423,6 +427,10 @@ struct GeneralPane: View {
 }
 
 extension GeneralPane {
+    private var pointsPerSync: Int { Query.heartbeatSearches.count }
+
+    private var pointsPerHour: Int { pointsPerSync * Int(3600 / model.settings.interval) }
+
     @ViewBuilder private var updateStatus: some View {
         switch updates.state {
         case .idle, .checking:
