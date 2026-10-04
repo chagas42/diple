@@ -25,6 +25,18 @@ struct ActivityDay: Identifiable, Sendable, Equatable, Codable {
     var id: TimeInterval { date.timeIntervalSince1970 }
 
     enum CodingKeys: String, CodingKey { case date, reviews }
+
+    var tooltip: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "EEE, MMM d"
+        let count = switch reviews {
+        case 0: "No reviews"
+        case 1: "1 review"
+        default: "\(reviews) reviews"
+        }
+        return "\(f.string(from: date)) — \(count)"
+    }
 }
 
 enum ActivityHistory {
