@@ -28,6 +28,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var countedReviews: [String: Date] = [:]
     var reviewDay: String? = nil
     var reviewsThatDay = 0
+    var dismissed: [String: Date]? = nil
 
     init() {}
 
@@ -51,6 +52,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.countedReviews = (try? c.decodeIfPresent([String: Date].self, forKey: .countedReviews)) ?? d.countedReviews
         d.reviewDay = try c.decodeIfPresent(String.self, forKey: .reviewDay)
         d.reviewsThatDay = try c.decodeIfPresent(Int.self, forKey: .reviewsThatDay) ?? d.reviewsThatDay
+        d.dismissed = try? c.decodeIfPresent([String: Date].self, forKey: .dismissed)
         self = d
     }
 
@@ -242,6 +244,21 @@ final class Store {
     func markRead(_ key: String) {
         state.unread.remove(key)
         state.unreadReasons[key] = nil
+        save()
+    }
+
+    func dismiss(_ pr: PR) {
+        state.dismissed = (state.dismissed ?? [:]).merging([pr.key: pr.updatedAt]) { _, new in new }
+        state.unread.remove(pr.key)
+        state.unreadReasons[pr.key] = nil
+        save()
+    }
+
+    func forgetDismissals(_ queue: Queue, now: Date = Date()) {
+        guard let dismissed = state.dismissed else { return }
+        let kept = Dismissals.kept(dismissed, queue: queue, now: now)
+        guard kept != dismissed else { return }
+        state.dismissed = kept
         save()
     }
 
