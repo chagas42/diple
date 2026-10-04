@@ -65,9 +65,14 @@ final class Windows: NSObject, NSWindowDelegate {
         syncDockPolicy()
     }
 
-    func openSettings(_ model: AppModel) {
+    func openSettings(_ model: AppModel, pane: SettingsPane? = nil) {
         NSApp.activate(ignoringOtherApps: true)
         if let j = settings {
+            if let pane {
+                let frame = j.frame
+                j.contentViewController = NSHostingController(rootView: SettingsView(model: model, pane: pane))
+                j.setFrame(frame, display: true)
+            }
             j.makeKeyAndOrderFront(nil)
             syncDockPolicy()
             return
@@ -75,7 +80,7 @@ final class Windows: NSObject, NSWindowDelegate {
         let j = make(
             title: "Diple Settings",
             size: NSSize(width: 860, height: 620),
-            content: SettingsView(model: model)
+            content: SettingsView(model: model, pane: pane ?? .general)
         )
         j.contentMinSize = SettingsView.minimum
         j.setFrameAutosaveName("diple.settings")
