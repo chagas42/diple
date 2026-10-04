@@ -147,6 +147,36 @@ struct GitHubClient: Sendable {
         return PullLookup.result(status: http.statusCode, body: payload, etag: http.value(forHTTPHeaderField: "ETag"))
     }
 
+    func notifications(_ feed: ChangeFeed) async throws -> ChangeFeed.Reply {
+        func once() async throws -> ChangeFeed.Reply {
+            let token = try await tokens.current()
+            var req = URLRequest(url: URL(string: "https://api.github.com/\(ChangeFeed.path)")!)
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+            req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
+            for (field, value) in feed.conditionalHeaders { req.setValue(value, forHTTPHeaderField: field) }
+            req.timeoutInterval = 20
+            let (payload, response) = try await metrics.measure(.request) {
+                try await transport.send(req)
+            }
+            metrics.count(.requests)
+            metrics.count(.bytesIn, by: payload.count)
+            let http = response as? HTTPURLResponse
+            return ChangeFeed.Reply(
+                status: http?.statusCode ?? 0,
+                lastModified: http?.value(forHTTPHeaderField: "Last-Modified"),
+                etag: http?.value(forHTTPHeaderField: "ETag"),
+                pollInterval: http?.value(forHTTPHeaderField: "X-Poll-Interval").flatMap(TimeInterval.init),
+                body: payload
+            )
+        }
+        let reply = try await once()
+        guard reply.status == 401 else { return reply }
+        await tokens.invalidate()
+        return try await once()
+    }
+
     func requiredApprovals(repo: String, branch: String) async throws -> RequiredApprovals {
         let parts = repo.split(separator: "/", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return RequiredApprovals(count: nil) }

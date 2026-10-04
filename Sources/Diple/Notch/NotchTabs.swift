@@ -403,6 +403,7 @@ struct PaceView: View {
 
 struct ActivityTab: View {
     @ObservedObject var model: AppModel
+    @State private var hovered: ActivityDay.ID?
 
     private static let scale: [Color] = [
         Color(red: 0.10, green: 0.31, blue: 0.27),
@@ -439,11 +440,24 @@ struct ActivityTab: View {
                                         RoundedRectangle(cornerRadius: side * 0.22, style: .continuous)
                                             .fill(color(d.reviews))
                                             .frame(width: side, height: side)
-                                            .help(tooltip(d))
+                                            .overlay {
+                                                if hovered == d.id {
+                                                    RoundedRectangle(cornerRadius: side * 0.22, style: .continuous)
+                                                        .stroke(.white.opacity(0.7), lineWidth: 1)
+                                                }
+                                            }
                                     }
                                 }
                             }
                         }
+                        .contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let p): hovered = day(at: p, side: side)?.id
+                            case .ended: hovered = nil
+                            }
+                        }
+                        .overlay(alignment: .topLeading) { bubble(side: side, width: CGFloat(weeks.count) * (side + gap) - gap) }
                     }
                 }
                 footer
@@ -539,13 +553,37 @@ struct ActivityTab: View {
         return f.string(from: first.date)
     }
 
-    private func tooltip(_ d: ActivityDay) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "MMMM d"
-        let day = f.string(from: d.date)
-        return d.reviews == 0 ? "\(day): no reviews"
-                              : "\(day): \(d.reviews) review\(d.reviews == 1 ? "" : "s")"
+    private func day(at p: CGPoint, side: CGFloat) -> ActivityDay? {
+        let pitch = side + gap
+        guard p.x >= 0, p.y >= 0 else { return nil }
+        let col = Int(p.x / pitch), row = Int(p.y / pitch)
+        guard col < weeks.count, row < weeks[col].count else { return nil }
+        return weeks[col][row]
+    }
+
+    private func bubble(side: CGFloat, width: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+            if let id = hovered,
+               let col = weeks.firstIndex(where: { $0.contains { $0.id == id } }),
+               let row = weeks[col].firstIndex(where: { $0.id == id }) {
+                let pitch = side + gap
+                let centerX = CGFloat(col) * pitch + side / 2
+                let below = row < 2
+                Text(weeks[col][row].tooltip)
+                    .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(Color(white: 0.16), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
+                    .fixedSize()
+                    .alignmentGuide(.leading) { d in -min(max(0, centerX - d.width / 2), max(0, width - d.width)) }
+                    .alignmentGuide(.top) { d in
+                        below ? -(CGFloat(row + 1) * pitch + 2) : -(CGFloat(row) * pitch - d.height - 4)
+                    }
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private func color(_ n: Int) -> Color {

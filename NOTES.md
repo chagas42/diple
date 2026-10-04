@@ -80,6 +80,31 @@ reason. New comments, inline replies and pushes do move `updatedAt`: across
 sync does one full fetch anyway, so anything GitHub changes without moving
 `updatedAt` is at most half an hour stale.
 
+**Notifications are a free doorbell.** Diple cannot receive webhooks, so it
+polls REST `GET /notifications?per_page=5` with `If-Modified-Since` and
+`If-None-Match` from the previous answer. A `304` does not count against the
+rate limit: over three rounds of one `200` and three `304`s, `X-RateLimit-Used`
+moved only on the `200`s. A `200` costs 1 point of the REST `core` budget,
+never a GraphQL point, and weighs ~23 KB. `X-Poll-Interval` answered `60`
+every time and is the floor between polls. Only a pull request thread newer
+than the last one seen wakes the sync — one you are involved in anywhere, or
+any thread in a watched repository — and the wake pushes the next regular
+tick back, so it moves a sync earlier instead of adding one. `401`, `403` and
+`404` switch the feed off until relaunch; the regular timer carries on.
+Diple never marks a thread read.
+
+**`URLSession` hides the `304`.** With the default cache policy a repeated
+`GET /notifications` is answered from `URLCache` in 2 ms with old data, and a
+hand-written `If-Modified-Since` comes back as a `200` carrying the cached
+body. The feed request uses `.reloadIgnoringLocalCacheData`, which passes the
+real `304` through.
+
+**The unread list's `Last-Modified` is its newest unread thread**, not the
+newest thread: with three read threads updated later that day, it still
+matched the `updated_at` of the newest unread one. That is why the feed reads
+the unread list — a thread you already read only shows up again once new
+activity makes it unread.
+
 **Three small searches beat one aggregated one.** GitHub runs aliased searches
 one after another; three requests in parallel return in ~1.4 s instead of
 ~2.4 s, for 3 points a cycle instead of 1 — about 180 of the 5000 an hour.
@@ -339,6 +364,14 @@ inside by hand. The glow lives in its own observable object, like the eye, so
 the 30 Hz updates redraw only the glow; with Reduce Motion it moves without
 animating.
 
+**A tooltip in the panel is drawn, not asked for.** `.help()` becomes an AppKit
+tooltip, and AppKit shows tooltips only while the app is active; the panel is
+non-activating, so Diple almost never is. The activity grid reads the pointer
+with `onContinuousHover`, which a tracking area delivers to inactive windows,
+and draws its own bubble over the grid so nothing moves. The bubble sits in a
+`ZStack` inside the overlay: an overlay alone places its content by the
+overlay's alignment and ignores the bubble's own alignment guides.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
@@ -358,8 +391,8 @@ with a line of its own: the terminal one, a small zsh window of fixed size (so l
 notifications are paused and waits at a blinking prompt; leaving types `exit`
 and prints how long the focus lasted. The cover lingers 1.8 s for that goodbye
 before fading. The time counts seconds for the first minute, so it never sits
-at 0. It lives in memory only. Settings → Appearance → Focus picks the cover
-(Terminal by default, Breathing, Pomodoro). Clicking the eye during a macOS
+at 0. It lives in memory only. Settings → Appearance → Focus → Screen while focused picks the cover
+(Terminal by default, Breathing moon, Pomodoro timer). Clicking the eye during a macOS
 Focus sets that Focus aside, since Diple cannot end it: Diple stays out of focus
 until the macOS Focus ends, and the next one is followed again. The eye in the open panel
 follows the pointer from where it sits (top left, 41pt in, halfway down the
@@ -423,6 +456,14 @@ count and alerts, while keeping them dimmed in Reviewing. A quiet request
 speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
+
+**A dismissal lasts until the pull request moves.** Hovering a row in the
+notch shows an ×, and its right-click menu has Dismiss. Diple saves the PR's
+`updatedAt` beside its key and hides it from every tab and the count while
+GitHub reports that same time. A new comment, push or review request moves
+`updatedAt`, so the PR comes back by itself; so does a bot comment, which errs
+toward showing too much rather than hiding a request. The entry is dropped
+once the PR has moved on, or a month after it left the queue.
 
 ## The main window
 
@@ -582,6 +623,15 @@ below 26 it keeps the old controls, toolbar and sidebar in compatibility mode.
 `make app` rewrites the field with `vtool` to the SDK actually used, keeping
 `LSMinimumSystemVersion` as the minimum. `otool -l <binary> | grep -A4
 LC_BUILD_VERSION` shows what a build got.
+
+**Every build is a different app to Accessibility.** An ad-hoc signature has
+no certificate, so its designated requirement is the code hash (`codesign -d
+-r- Diple.app` prints `cdhash H"…"`), and TCC stores that requirement with the
+grant. A new build or an update no longer matches it: `AXIsProcessTrusted()`
+returns false while System Settings → Privacy & Security → Accessibility still
+shows Diple switched on. Removing Diple from the list with − and asking again
+(`AXIsProcessTrustedWithOptions` with the prompt) records the running build. Settings → Appearance → Menu bar says so
+while it waits, and re-reads the trust every second until it is granted.
 
 **Start at login registers this copy.** `SMAppService.mainApp` records the
 bundle that called it, at the path it ran from, so turning it on from a build
