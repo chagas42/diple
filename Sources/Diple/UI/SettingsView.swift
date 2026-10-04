@@ -274,7 +274,7 @@ struct ReposPane: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(name).font(.system(size: 12.5, design: .monospaced))
-                            Text("\(quantos) na queue")
+                            Text(quantos == 1 ? "1 pull request" : "\(quantos) pull requests")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
                         }
