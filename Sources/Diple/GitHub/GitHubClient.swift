@@ -309,6 +309,38 @@ extension GitHubClient {
         )
     }
 
+    func comment(prId: String, body: String) async throws {
+        let since = Date().addingTimeInterval(-Self.clockSlack)
+        try await landing(check: { try await self.commentedLast(prId: prId, since: since) }) {
+            _ = try await self.mutate(
+                """
+                mutation($s: ID!, $b: String!) {
+                  addComment(input: { subjectId: $s, body: $b }) { commentEdge { node { id } } }
+                }
+                """,
+                ["s": prId, "b": body]
+            )
+        }
+    }
+
+    func commentedLast(prId: String, since: Date) async throws -> Bool {
+        let d = try await check("""
+        node(id: "\(escaped(prId))") { ... on PullRequest {
+          comments(last: 1) { nodes { author { login } createdAt } }
+        } }
+        """)
+        let last = (((d["node"] as? [String: Any])?["comments"] as? [String: Any])?["nodes"] as? [[String: Any]])?.last
+        let author = (last?["author"] as? [String: Any])?["login"] as? String
+        guard let me = Self.login(d), author == me, let at = Self.date(last?["createdAt"]) else { return false }
+        return at >= since
+    }
+
+    static func isOffDiff(_ error: Error) -> Bool {
+        guard case ClientError.graphql(let messages) = error else { return false }
+        let text = messages.joined(separator: " ").lowercased()
+        return ["could not be resolved", "part of the diff", "line must", "position"].contains { text.contains($0) }
+    }
+
     func resolve(threadId: String) async throws {
         try await landing(check: { try await self.isResolved(threadId: threadId) }) {
             try await self.sendResolve(threadId: threadId)

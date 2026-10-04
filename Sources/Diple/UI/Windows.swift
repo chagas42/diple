@@ -28,9 +28,31 @@ final class Windows: NSObject, NSWindowDelegate {
         }
     }
 
+    static func fitted(_ frame: NSRect, in visible: NSRect) -> NSRect {
+        var f = frame
+        f.size.width = min(f.width, visible.width)
+        f.size.height = min(f.height, visible.height)
+        f.origin.x = min(max(f.minX, visible.minX), visible.maxX - f.width)
+        f.origin.y = min(max(f.minY, visible.minY), visible.maxY - f.height)
+        return f
+    }
+
+    static func host<C: View>(_ content: C) -> NSHostingController<C> {
+        let host = NSHostingController(rootView: content)
+        host.sizingOptions = [.minSize]
+        return host
+    }
+
+    private func fit(_ j: NSWindow) {
+        guard let visible = (j.screen ?? NSScreen.main)?.visibleFrame else { return }
+        let f = Self.fitted(j.frame, in: visible)
+        if f != j.frame { j.setFrame(f, display: false) }
+    }
+
     func openMain(_ model: AppModel) {
         NSApp.activate(ignoringOtherApps: true)
         if let j = main {
+            fit(j)
             j.makeKeyAndOrderFront(nil)
             syncDockPolicy()
             return
@@ -41,6 +63,7 @@ final class Windows: NSObject, NSWindowDelegate {
             content: MainWindowView(model: model)
         )
         j.setFrameAutosaveName("diple.main")
+        fit(j)
         j.delegate = self
         main = j
         j.makeKeyAndOrderFront(nil)
@@ -70,7 +93,7 @@ final class Windows: NSObject, NSWindowDelegate {
         if let j = settings {
             if let pane {
                 let frame = j.frame
-                j.contentViewController = NSHostingController(rootView: SettingsView(model: model, pane: pane))
+                j.contentViewController = Self.host(SettingsView(model: model, pane: pane))
                 j.setFrame(frame, display: true)
             }
             j.makeKeyAndOrderFront(nil)
@@ -84,6 +107,7 @@ final class Windows: NSObject, NSWindowDelegate {
         )
         j.contentMinSize = SettingsView.minimum
         j.setFrameAutosaveName("diple.settings")
+        fit(j)
         j.delegate = self
         settings = j
         j.makeKeyAndOrderFront(nil)
@@ -96,7 +120,7 @@ final class Windows: NSObject, NSWindowDelegate {
         if let j = map {
             j.title = "Map · \(pr.key)"
             let frame = j.frame
-            j.contentViewController = NSHostingController(rootView: content)
+            j.contentViewController = Self.host(content)
             j.setFrame(frame, display: true)
             j.makeKeyAndOrderFront(nil)
             syncDockPolicy()
@@ -104,6 +128,7 @@ final class Windows: NSObject, NSWindowDelegate {
         }
         let j = make(title: "Map · \(pr.key)", size: NSSize(width: 1280, height: 820), content: content)
         j.setFrameAutosaveName("diple.map")
+        fit(j)
         j.delegate = self
         map = j
         j.makeKeyAndOrderFront(nil)
@@ -127,7 +152,7 @@ final class Windows: NSObject, NSWindowDelegate {
         )
         j.title = title
         j.toolbarStyle = .unified
-        j.contentViewController = NSHostingController(rootView: content)
+        j.contentViewController = resizable ? Self.host(content) : NSHostingController(rootView: content)
         j.setContentSize(size)
         j.isReleasedWhenClosed = false
         j.center()
