@@ -103,7 +103,7 @@ struct PopoverView: View {
                           unread: model.unread, open: { model.open($0, from: .menuBar) })
 
                     if model.queue.all.isEmpty && !model.loading {
-                        Text("Nada na queue.")
+                        Text("Nothing in your queue.")
                             .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 8)
