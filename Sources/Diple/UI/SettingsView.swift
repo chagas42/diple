@@ -318,7 +318,9 @@ struct GeneralPane: View {
                     Button("Sync Now") { Task { await model.refreshVisible() } }
                         .disabled(model.loading)
                 }
-                Text("One sync costs 1 point of 5000 per hour.")
+                Text("Each sync spends about \(pointsPerSync) of the 5,000 GitHub API points your account "
+                     + "gets per hour, so \(pointsPerHour) an hour at this interval. "
+                     + "gh and anything else using your token draw from the same budget.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -420,6 +422,10 @@ struct GeneralPane: View {
 }
 
 extension GeneralPane {
+    private var pointsPerSync: Int { Query.heartbeatSearches.count }
+
+    private var pointsPerHour: Int { pointsPerSync * Int(3600 / model.settings.interval) }
+
     @ViewBuilder private var updateStatus: some View {
         switch updates.state {
         case .idle, .checking:
