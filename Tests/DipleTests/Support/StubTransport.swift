@@ -7,12 +7,14 @@ final class StubTransport: Transport, @unchecked Sendable {
         var body = Data()
         var delay: Duration = .zero
         var failure: URLError.Code?
+        var headers: [String: String] = [:]
     }
 
     private let lock = NSLock()
     private var handler: @Sendable (String) -> Reply
     private var recorded: [String] = []
     private var rawBodies: [Data] = []
+    private var sentRequests: [URLRequest] = []
     private var sentOnMain = 0
     private var inFlight = 0
     private var peak = 0
@@ -27,6 +29,7 @@ final class StubTransport: Transport, @unchecked Sendable {
 
     var queries: [String] { lock.withLock { recorded } }
     var bodies: [Data] { lock.withLock { rawBodies } }
+    var requests: [URLRequest] { lock.withLock { sentRequests } }
     var requestsOnMainThread: Int { lock.withLock { sentOnMain } }
     var peakConcurrency: Int { lock.withLock { peak } }
 
@@ -42,6 +45,7 @@ final class StubTransport: Transport, @unchecked Sendable {
         let reply = lock.withLock {
             recorded.append(query)
             rawBodies.append(request.httpBody ?? Data())
+            sentRequests.append(request)
             if onMain { sentOnMain += 1 }
             inFlight += 1
             peak = max(peak, inFlight)
@@ -51,7 +55,7 @@ final class StubTransport: Transport, @unchecked Sendable {
         if reply.delay > .zero { try await Task.sleep(for: reply.delay) }
         if let code = reply.failure { throw URLError(code) }
         let response = HTTPURLResponse(
-            url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: nil
+            url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: reply.headers
         )!
         return (reply.body, response)
     }

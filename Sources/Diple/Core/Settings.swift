@@ -12,6 +12,7 @@ struct Settings: Codable, Sendable, Equatable {
 
     var mutedRepos: Set<String> = []
     var interval: TimeInterval = 60
+    var syncsOnNotifications = true
 
     var aiModel = "opus"
     var reviewLanguage = "Brazilian Portuguese"
@@ -106,6 +107,7 @@ struct Settings: Codable, Sendable, Equatable {
         d.stackPerPR = try c.decodeIfPresent(Bool.self, forKey: .stackPerPR) ?? d.stackPerPR
         d.mutedRepos = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRepos) ?? d.mutedRepos
         d.interval = try c.decodeIfPresent(TimeInterval.self, forKey: .interval) ?? d.interval
+        d.syncsOnNotifications = try c.decodeIfPresent(Bool.self, forKey: .syncsOnNotifications) ?? d.syncsOnNotifications
         d.aiModel = try c.decodeIfPresent(String.self, forKey: .aiModel) ?? d.aiModel
         d.reviewLanguage = try c.decodeIfPresent(String.self, forKey: .reviewLanguage) ?? d.reviewLanguage
         d.repoPaths = try c.decodeIfPresent([String: String].self, forKey: .repoPaths) ?? d.repoPaths
