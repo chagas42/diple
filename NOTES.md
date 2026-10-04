@@ -301,6 +301,14 @@ inside by hand. The glow lives in its own observable object, like the eye, so
 the 30 Hz updates redraw only the glow; with Reduce Motion it moves without
 animating.
 
+**A tooltip in the panel is drawn, not asked for.** `.help()` becomes an AppKit
+tooltip, and AppKit shows tooltips only while the app is active; the panel is
+non-activating, so Diple almost never is. The activity grid reads the pointer
+with `onContinuousHover`, which a tracking area delivers to inactive windows,
+and draws its own bubble over the grid so nothing moves. The bubble sits in a
+`ZStack` inside the overlay: an overlay alone places its content by the
+overlay's alignment and ignores the bubble's own alignment guides.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
@@ -320,8 +328,8 @@ with a line of its own: the terminal one, a small zsh window of fixed size (so l
 notifications are paused and waits at a blinking prompt; leaving types `exit`
 and prints how long the focus lasted. The cover lingers 1.8 s for that goodbye
 before fading. The time counts seconds for the first minute, so it never sits
-at 0. It lives in memory only. Settings → Appearance → Focus picks the cover
-(Terminal by default, Breathing, Pomodoro). Clicking the eye during a macOS
+at 0. It lives in memory only. Settings → Appearance → Focus → Screen while focused picks the cover
+(Terminal by default, Breathing moon, Pomodoro timer). Clicking the eye during a macOS
 Focus sets that Focus aside, since Diple cannot end it: Diple stays out of focus
 until the macOS Focus ends, and the next one is followed again. The eye in the open panel
 follows the pointer from where it sits (top left, 41pt in, halfway down the
@@ -544,6 +552,15 @@ below 26 it keeps the old controls, toolbar and sidebar in compatibility mode.
 `make app` rewrites the field with `vtool` to the SDK actually used, keeping
 `LSMinimumSystemVersion` as the minimum. `otool -l <binary> | grep -A4
 LC_BUILD_VERSION` shows what a build got.
+
+**Every build is a different app to Accessibility.** An ad-hoc signature has
+no certificate, so its designated requirement is the code hash (`codesign -d
+-r- Diple.app` prints `cdhash H"…"`), and TCC stores that requirement with the
+grant. A new build or an update no longer matches it: `AXIsProcessTrusted()`
+returns false while System Settings → Privacy & Security → Accessibility still
+shows Diple switched on. Removing Diple from the list with − and asking again
+(`AXIsProcessTrustedWithOptions` with the prompt) records the running build. Settings → Appearance → Menu bar says so
+while it waits, and re-reads the trust every second until it is granted.
 
 **Start at login registers this copy.** `SMAppService.mainApp` records the
 bundle that called it, at the path it ran from, so turning it on from a build
