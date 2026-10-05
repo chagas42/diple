@@ -25,6 +25,9 @@ struct AppearanceSettings: View {
                 Toggle("Blink", isOn: $model.settings.eyeBlinks)
                     .disabled(!model.settings.showsEye)
                 Toggle("Lean toward the pointer", isOn: $model.settings.liquidNotch)
+                Picker("Open on hover", selection: $model.settings.hoverOpening) {
+                    ForEach(HoverOpening.allCases) { Text($0.title).tag($0) }
+                }
                 Picker("Count", selection: $model.settings.countSide) {
                     ForEach(CountSide.allCases) { Text($0.title).tag($0) }
                 }

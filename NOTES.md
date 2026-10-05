@@ -163,7 +163,23 @@ feedback loop.
 **Hover is decided by pointer position, not by events.** SwiftUI's `onHover`
 fires during the resize itself: open, layout changes, exit fires, close,
 re-enter. The 30 Hz tick that drives the eye also decides hover, with
-asymmetric hysteresis — enters tight, leaves with 14pt of slack.
+asymmetric hysteresis — enters tight, leaves with 16pt of slack.
+
+**Opening waits for the pointer to mean it.** The notch sits right where the
+pointer crosses on its way to menu bar items, so opening on the first tick
+inside opened it on every pass. `HoverIntent` opens only after the pointer
+has stayed inside for 150 ms while moving slower than 700 pt/s, measured over
+the last ~100 ms of tick samples. A pointer homing in on a target slows to a
+few hundred pt/s in its last stretch, while a sweep across the bar is well
+over 1000 pt/s as it crosses, so the threshold sits between the two; at 30 Hz
+the dwell is five ticks. A press that begins inside opens at once, read from
+`NSEvent.pressedMouseButtons` on the same tick, since the idle panel ignores
+mouse events and never sees the click. The zone that opens is the resting
+shape plus the cutout, one point taller so the top pixel counts: the lean
+toward the pointer only changes how the notch looks, or it would reach out and
+grab a passing pointer. Settings → Appearance → Notch → Open on hover →
+Instantly drops the wait. Time comes from `clock`, so films and tests run it
+on their own time.
 
 **Hovering an alert holds it, it does not open the panel.** Opening on hover
 replaced the alert with the queue before its buttons could be reached, and the
@@ -624,7 +640,8 @@ scripted pointer is placed from `frame / fps`, and each frame waits for its
 own deadline; SwiftUI animations still run on the wall clock, so if capture
 falls behind (the recorder says so) they look faster than the pointer. The
 pointer timer does not run while filming: each frame calls `followPointer()`,
-which is what the timer calls.
+which is what the timer calls. The notch's `clock` is the frame's time too, so
+the hover wait is measured against the scripted pointer.
 
 **Updating through Homebrew refreshes the tap first.** `brew upgrade` only
 refreshes taps when its last refresh is older than a day, so right after a
