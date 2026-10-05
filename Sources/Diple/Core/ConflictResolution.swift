@@ -12,7 +12,7 @@ extension AppModel {
     func resolveRun(_ key: String) -> ResolveRun? { resolves[key] }
 
     func canResolveConflicts(_ pr: PR) -> Bool {
-        pr.conflicts && pr.canUpdateBranch != false
+        pr.conflicts && pr.isMine
     }
 
     func resolveConflicts(_ pr: PR) async {

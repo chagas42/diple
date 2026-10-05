@@ -77,7 +77,6 @@ enum Demo {
             commentReviews: reply != nil ? 1 : 0
         )
         made.mergeable = conflicts ? .conflicting : .mergeable
-        made.canUpdateBranch = true
         return made
     }
 

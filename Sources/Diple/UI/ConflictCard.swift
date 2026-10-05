@@ -55,9 +55,7 @@ struct ConflictCard: View {
 
     private var subtitle: String {
         if run == nil {
-            return pr.canUpdateBranch == false
-                ? "You can't push to this branch, so only its author can resolve them."
-                : "Claude merges \(pr.baseRef) in a worktree on this Mac, resolves the conflicts, runs the project's tests and pushes."
+            return "Claude merges \(pr.baseRef) in a worktree on this Mac, resolves the conflicts, runs the project's tests and pushes."
         }
         return run?.running == true ? "This runs on this Mac and can take a few minutes." : "Merged \(pr.baseRef) into \(pr.headRef)."
     }

@@ -60,7 +60,6 @@ struct RawPR: Decodable, Sendable {
     let repository: RawRepo
     var headRepository: RawRepo? = nil
     var mergeable: String? = nil
-    var viewerCanUpdateBranch: Bool? = nil
     let author: GHActor?
     let reviewDecision: String?
     let reviewRequests: RawRequests?
@@ -149,7 +148,6 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     var commentReviews: Int? = nil
 
     var mergeable: Mergeable? = nil
-    var canUpdateBranch: Bool? = nil
     var headRepo: String? = nil
 
     var conflicts: Bool { mergeable == .conflicting }
@@ -263,7 +261,6 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         head = c.headRefOid
         baseRef = c.baseRefName
         mergeable = c.mergeable.map(Mergeable.init(github:))
-        canUpdateBranch = c.viewerCanUpdateBranch
         headRepo = c.headRepository?.nameWithOwner
         checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         approved = c.reviewDecision == "APPROVED"

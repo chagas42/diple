@@ -13,7 +13,6 @@ enum Query {
       repository { nameWithOwner }
       headRepository { nameWithOwner }
       mergeable
-      viewerCanUpdateBranch
       author { login __typename avatarUrl(size: 64) }
       reviewDecision
       reviewRequests(first: 20) {

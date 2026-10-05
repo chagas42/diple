@@ -514,7 +514,10 @@ no `node_modules`), `Cargo.toml`, `go.mod`, or a `test:` target in a
 push, merge, rebase, reset, checkout, `gh`, `curl` and the web. A fork is
 pushed to its own repository, by swapping the repo in the origin URL. With
 "Push resolved conflicts without asking" off, it stops after the commit and
-waits for Push. Tested with the real claude on a realistic conflict (a
+waits for Push. For now only your own pull requests get the button; others
+only show the Conflicts mark. `viewerCanUpdateBranch` is not a push permission:
+it backs GitHub's "Update branch" button, which is off exactly when the branch
+conflicts, so it said false to the repository's admin on their own PR. Tested with the real claude on a realistic conflict (a
 discount on one side, rounding to cents on the other): 3 runs, all kept both.
 
 **A thread's code is parsed once, and shows only what the comment marks.** On
