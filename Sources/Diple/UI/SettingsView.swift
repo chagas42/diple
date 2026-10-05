@@ -541,6 +541,19 @@ struct ClaudePane: View {
             }
 
             Section {
+                Toggle("Push resolved conflicts without asking", isOn: $model.settings.pushesResolvedConflicts)
+                Text("Resolve with Claude merges the base branch into the pull request in its own worktree. "
+                     + "Claude may edit files there and read git; it never commits, pushes or reaches the network. "
+                     + "Diple runs the project's tests, commits the merge and pushes it, never with force. "
+                     + "Turned off, Diple stops before pushing and waits for you.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Resolving conflicts")
+            }
+
+            Section {
                 HStack(spacing: 22) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("ALLOWED")

@@ -11,6 +11,9 @@ enum Query {
       headRefOid
       baseRefName
       repository { nameWithOwner }
+      headRepository { nameWithOwner }
+      mergeable
+      viewerCanUpdateBranch
       author { login __typename avatarUrl(size: 64) }
       reviewDecision
       reviewRequests(first: 20) {
@@ -70,6 +73,7 @@ enum Query {
       updatedAt
       isDraft
       reviewDecision
+      mergeable
       commits(last: 1) {
         nodes { commit { statusCheckRollup { state } } }
       }

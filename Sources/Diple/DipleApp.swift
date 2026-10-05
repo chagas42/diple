@@ -58,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 Windows.shared.openMain(model)
                 try? await Task.sleep(for: .milliseconds(600))
                 model.selected = pr
+                if CommandLine.arguments.contains("--resolve") { await model.resolveConflicts(pr) }
             }
         }
 
