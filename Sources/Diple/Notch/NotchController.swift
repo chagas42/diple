@@ -37,6 +37,7 @@ final class NotchController: ObservableObject {
     private var collapseTask: Task<Void, Never>?
 
     private var outsideSince: Date?
+    private var intent = HoverIntent()
 
     private var holdingAlert = false
     var afterHover: Duration = .seconds(1.5)
@@ -45,6 +46,7 @@ final class NotchController: ObservableObject {
     private var wingTimer: Timer?
 
     var pointer: @MainActor () -> CGPoint = { NSEvent.mouseLocation }
+    var pressed: @MainActor () -> Bool = { NSEvent.pressedMouseButtons & 1 != 0 }
     var fullScreen: @MainActor () -> Bool = { NotchGeometry.current().isUnderFullScreen }
     var fullScreenArriving: (@MainActor () -> Bool)?
     var wakes = !Film.isOn && !Bench.isOn && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -494,11 +496,15 @@ final class NotchController: ObservableObject {
         }
         checkArriving()
 
-        let isOpen = state == .open
-        let inside = isOpen ? hotZone.insetBy(dx: -16, dy: -16).contains(m)
-                            : hotZone.contains(m)
+        intent.opening = opensOnHover()
+        let opens = intent.feed(
+            at: clock(), pointer: m,
+            zone: HoverIntent.zone(notch: g.rect(g.closed), shape: shape),
+            pressed: pressed()
+        ) == .open
 
         if case .alert = state {
+            let inside = hotZone.contains(m)
             if inside, !holdingAlert {
                 holdingAlert = true
                 collapseTask?.cancel()
@@ -509,19 +515,26 @@ final class NotchController: ObservableObject {
             return
         }
 
-        if inside {
+        guard state == .open else {
             outsideSince = nil
-            open()
+            if opens { open() }
             return
         }
 
-        guard isOpen else { outsideSince = nil; return }
+        if hotZone.insetBy(dx: -16, dy: -16).contains(m) {
+            outsideSince = nil
+            return
+        }
 
-        let now = Date()
+        let now = clock()
         if outsideSince == nil { outsideSince = now }
         if now.timeIntervalSince(outsideSince!) >= 0.18 {
             closeNow()
         }
+    }
+
+    lazy var opensOnHover: @MainActor () -> HoverOpening = { [weak self] in
+        self?.model?.settings.hoverOpening ?? .afterPause
     }
 
     static let openEyeX: CGFloat = 14 + 16 + 11

@@ -431,6 +431,9 @@ struct ReviewMarks: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            if pr.conflicts {
+                mark("arrow.triangle.merge", "Conflicts", .orange, "This branch conflicts with \(pr.baseRef)")
+            }
             if let a = ApprovalCount(pr: pr, required: required) {
                 mark(a.met ? "checkmark.circle.fill" : "checkmark.circle", a.text, a.met ? .green : .secondary,
                      a.required.map { "\(a.approvals) of the \($0) approvals this branch needs" }

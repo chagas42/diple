@@ -10,7 +10,10 @@ enum Query {
       headRefName
       headRefOid
       baseRefName
-      repository { nameWithOwner }
+      repository { nameWithOwner viewerPermission }
+      headRepository { nameWithOwner viewerPermission }
+      maintainerCanModify
+      mergeable
       author { login __typename avatarUrl(size: 64) }
       reviewDecision
       reviewRequests(first: 20) {
@@ -73,6 +76,7 @@ enum Query {
       updatedAt
       isDraft
       reviewDecision
+      mergeable
       commits(last: 1) {
         nodes { commit { statusCheckRollup { state } } }
       }

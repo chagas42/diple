@@ -33,6 +33,9 @@ struct DetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 status
+                if model.canResolveConflicts(pr) || model.resolveRun(pr.key) != nil {
+                    ConflictCard(model: model, pr: pr)
+                }
 
                 HStack {
                     Picker("", selection: $section) {
