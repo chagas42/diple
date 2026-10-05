@@ -198,6 +198,11 @@ Watched roots go through `realpath(3)`.
 
 ## The notch panel
 
+**There is no menu bar item.** The notch is drawn on every screen, with or
+without a physical notch, so a `MenuBarExtra` shown on screens without one put
+Diple there twice: the drawn notch and a `⟩ 3` item next to it. The app's only
+scene is an empty `Settings` that carries the menu commands.
+
 **The window never resizes.** It is always the open size, pinned to the top.
 What animates is the shape drawn inside it. Resizing the window on every
 transition was the source of both the stuttering animation and a hover
