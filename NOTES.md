@@ -728,7 +728,18 @@ runs `brew update` first. Homebrew quits a running cask app before replacing
 it and reopens it after, so Diple does not kill itself; a final `open` covers
 a run where it did not. If the command ends and this Diple is still running,
 the version on disk decides: newer means relaunch into it, unchanged means
-the install failed and Settings says so, instead of spinning forever.
+the install failed and Settings says so, instead of spinning forever. Newer
+now ends as "ready" with a Restart button rather than relaunching on its own.
+
+**A direct install downloads, verifies, then waits for Restart.** Diple used to
+run `install.sh`, which `pkill`s Diple halfway, so nothing could show progress
+or ask. Now Diple downloads the release zip itself (`URLSession.bytes`, a
+progress update every 64 KB, about 65 for a 4 MB release), checks it against
+the `.sha256` asset and unpacks it with `ditto` into a temporary folder; nothing
+in /Applications changes. Settings shows the bar, then "Version X is ready" and
+**Restart and Install**. That quits Diple and leaves a small script that waits
+for the pid to exit, replaces /Applications/Diple.app with the staged copy,
+clears the quarantine flag, registers it with Launch Services and opens it.
 
 ## Measuring
 
