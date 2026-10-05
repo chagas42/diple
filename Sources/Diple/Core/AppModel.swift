@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import os
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -17,6 +18,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastSync: Date?
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
+    @Published private(set) var dismissed: [String: Date] = [:]
     @Published private(set) var reviewedAhead: Set<String> = []
 
     @Published var notchTab: NotchTab = .queue
@@ -87,6 +89,7 @@ final class AppModel: ObservableObject {
     }
 
     @Published private(set) var runs: [String: ReviewRun] = [:]
+    @Published var resolves: [String: ResolveRun] = [:]
 
     func run(_ key: String) -> ReviewRun? { runs[key] }
     func isReviewing(_ key: String) -> Bool { runs[key]?.step != nil && !finished(key) }
@@ -119,6 +122,8 @@ final class AppModel: ObservableObject {
             focus.follows = settings.followsFocus
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
+            if settings.syncsOnPush != oldValue.syncsOnPush || settings.repoPaths != oldValue.repoPaths { rewatchPushes() }
+            if settings.syncsOnNotifications != oldValue.syncsOnNotifications { restartFeed() }
             MenuBarItems.measuring = settings.fitsMenuBar
         }
     }
@@ -335,6 +340,7 @@ final class AppModel: ObservableObject {
     func toggleWatch(_ repo: String) {
         store.toggleWatch(repo)
         watching = store.state.watching ?? []
+        rewatchPushes()
         guard lastSync != nil, canFetch else { return }
         bindQueue()
     }
@@ -380,7 +386,7 @@ final class AppModel: ObservableObject {
 
     func prefetchTargets() -> [Prefetcher.Target] {
         needsYou.prefix(Prefetcher.depth).map {
-            Prefetcher.Target(pr: $0, origin: Worktree.localPath($0.repo, configured: settings.repoPaths))
+            Prefetcher.Target(pr: $0, origin: settings.localPath($0.repo))
         }
     }
 
@@ -412,6 +418,10 @@ final class AppModel: ObservableObject {
         }
     }
     private var pollTask: Task<Void, Never>?
+    private let pushWatch = PushWatch()
+    private var feedTask: Task<Void, Never>?
+    private(set) var feed = ChangeFeed()
+    private static let feedLog = Logger(subsystem: "com.chagas42.diple", category: "feed")
     private let reachability = Reachability()
     private(set) var network = NetworkState()
     @Published var isOnline = true
@@ -449,20 +459,56 @@ final class AppModel: ObservableObject {
         }
 
         restartTimer()
+        restartFeed()
         reachability.onChange = { [weak self] state in
             self?.network = state
             self?.setOnline(state.online)
         }
         reachability.start()
 
+        pushWatch.onSync = { [weak self] in await self?.refresh() }
+        pushWatch.lookup = { [client] repo, head, etag in try? await client.openPR(repo: repo, head: head, etag: etag) }
+        pushWatch.hasPR = { [weak self] repos, branch in
+            self?.queue.all.contains { repos.contains($0.repo) && $0.headRef == branch } ?? false
+        }
+        rewatchPushes()
+
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.pushWatch.stop() }
+        }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
+                self?.rewatchPushes()
                 self?.refetchShown()
                 await self?.refresh(full: true)
+                self?.restartFeed()
             }
         }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.stopFeed() }
+        }
+    }
+
+    var localClones: [PushWatch.Clone] {
+        let repos = Set(queue.all.map(\.repo)).union(watching).union(settings.repoPaths.keys)
+        let found = repos.sorted().compactMap { repo in
+            Worktree.localPath(repo, configured: settings.repoPaths).map { ($0, repo) }
+        }
+        return Dictionary(grouping: found, by: \.0).map { PushWatch.Clone(checkout: $0.key, repos: $0.value.map(\.1)) }
+    }
+
+    private func rewatchPushes() {
+        guard started, isOnline, settings.syncsOnPush, !queries.answersLocally, !Bench.isOn else {
+            pushWatch.stop()
+            return
+        }
+        pushWatch.watch(localClones)
     }
 
     func startTelemetry() {
@@ -531,6 +577,7 @@ final class AppModel: ObservableObject {
 
     func restoreCached() {
         unread = store.state.unread
+        dismissed = store.state.dismissed ?? [:]
         following = store.state.following
         watching = store.state.watching ?? []
         if let cached = store.state.cache.queue, queue.all.isEmpty {
@@ -566,6 +613,40 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func restartFeed() {
+        stopFeed()
+        guard started, settings.syncsOnNotifications, isOnline, !feed.isOff,
+              !queries.answersLocally, !Bench.isOn else { return }
+        feedTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let interval = self?.feed.interval else { return }
+                try? await Task.sleep(for: .seconds(interval), tolerance: .seconds(interval * 0.1))
+                guard !Task.isCancelled, let self, await self.pollFeed() else { return }
+            }
+        }
+    }
+
+    private func stopFeed() {
+        feedTask?.cancel()
+        feedTask = nil
+    }
+
+    func pollFeed() async -> Bool {
+        guard let reply = try? await client.notifications(feed) else { return true }
+        let verdict = feed.absorb(reply, watching: watching, muted: settings.mutedRepos)
+        Self.feedLog.info("notifications \(reply.status, privacy: .public) \(String(describing: verdict), privacy: .public) next in \(Int(self.feed.interval), privacy: .public)s")
+        switch verdict {
+        case .wake:
+            await refresh()
+            restartTimer()
+        case .off:
+            return false
+        case .unchanged, .quiet:
+            break
+        }
+        return true
+    }
+
     func setNotchOpen(_ open: Bool) {
         guard open != notchOpen else { return }
         notchOpen = open
@@ -582,12 +663,16 @@ final class AppModel: ObservableObject {
 
     func setOnline(_ online: Bool) {
         let cameBack = online && !isOnline
+        let wentAway = !online && isOnline
         isOnline = online
+        if cameBack || wentAway { rewatchPushes() }
+        if !online { stopFeed() }
         guard cameBack else { return }
         refetchShown()
         Task {
             await refresh(force: true)
             restartTimer()
+            restartFeed()
         }
     }
 
@@ -644,6 +729,9 @@ final class AppModel: ObservableObject {
         if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
         queue = nova
         store.saveQueue(nova)
+        rewatchPushes()
+        store.forgetDismissals(nova)
+        dismissed = store.state.dismissed ?? [:]
         reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
         confirmReviews(candidates)
         if let s = selected {
@@ -788,7 +876,7 @@ final class AppModel: ObservableObject {
             ))
         }
 
-        guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+        guard let origin = settings.localPath(pr.repo) else {
             runs[pr.key]?.step = .failed("could not find \(pr.repo) on this machine. Point at the folder in Settings.")
             note(pr.key, "repository not found", fechando: true)
             return
@@ -926,7 +1014,7 @@ final class AppModel: ObservableObject {
         }
         putMap(map, for: prs)
 
-        guard let origin = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+        guard let origin = settings.localPath(pr.repo) else {
             notice("only the diff layer: \(pr.repo) is not on this machine. Point at the folder in Settings.")
             return
         }
@@ -1000,7 +1088,7 @@ final class AppModel: ObservableObject {
     }
 
     func openNode(_ node: MapNode, in map: PRMap, forceWeb: Bool) {
-        let fallback = Worktree.localPath(map.repo, configured: settings.repoPaths).map { [$0] } ?? []
+        let fallback = settings.localPath(map.repo).map { [$0] } ?? []
         if let message = Opener.open(
             node, in: map, editor: settings.openIn,
             roots: mapRoots[map.layoutKey] ?? fallback, forceWeb: forceWeb
@@ -1057,6 +1145,15 @@ final class AppModel: ObservableObject {
         unread = store.state.unread
         watchForReview(pr)
     }
+
+    func dismiss(_ pr: PR) {
+        store.dismiss(pr)
+        dismissed = store.state.dismissed ?? [:]
+        unread = store.state.unread
+        onCountChange?()
+    }
+
+    func isDismissed(_ pr: PR) -> Bool { Dismissals.hides(pr, dismissed) }
 
     func clearAll() {
         store.markAllRead()
@@ -1130,7 +1227,7 @@ final class AppModel: ObservableObject {
         var out: [PR] = []
         for pr in reviewing + queue.all.filter({ unread.contains($0.key) }) {
             guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
-            guard !isQuiet(pr) else { continue }
+            guard !isQuiet(pr), !isDismissed(pr) else { continue }
             if seen.insert(pr.key).inserted { out.append(pr) }
         }
         return out
@@ -1239,9 +1336,9 @@ final class AppModel: ObservableObject {
     func prs(_ tab: Tab) -> [PR] {
         switch tab {
         case .needsYou:  needsYou
-        case .mine:       Self.draftsLast(queue.mine)
-        case .reviewing:  reviewing
-        case .following: queue.following
+        case .mine:       Self.draftsLast(queue.mine.filter { !isDismissed($0) })
+        case .reviewing:  reviewing.filter { !isDismissed($0) }
+        case .following: queue.following.filter { !isDismissed($0) }
         }
     }
 

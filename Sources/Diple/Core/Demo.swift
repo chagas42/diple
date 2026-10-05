@@ -17,7 +17,7 @@ enum Demo {
         _ repo: String, _ number: Int, _ title: String,
         author: String, mine: Bool,
         checks: CheckState = .passing, approved: Bool = false, draft: Bool = false,
-        minutes: Double, head: String, base: String = "main",
+        minutes: Double, head: String, base: String = "main", conflicts: Bool = false,
         reply: (String, String, Int, String)? = nil,
         askedYou: Bool = false
     ) -> PR {
@@ -52,7 +52,7 @@ enum Demo {
             )
         }
 
-        return PR(
+        var made = PR(
             id: "\(repo)#\(number)",
             repo: repo,
             number: number,
@@ -76,6 +76,8 @@ enum Demo {
             changesRequested: number % 5 == 1 ? 1 : 0,
             commentReviews: reply != nil ? 1 : 0
         )
+        made.mergeable = conflicts ? .conflicting : .mergeable
+        return made
     }
 
     static let queue: Queue = {
@@ -95,7 +97,7 @@ enum Demo {
                    head: "you/skip-own-companies", base: "you/bill-demo-companies"),
                 pr("acme/orders-api", 7841, "feat: never charge internal accounts for overage",
                    author: viewer, mine: true, minutes: 95,
-                   head: "you/roaming-own-companies",
+                   head: "you/roaming-own-companies", conflicts: true,
                    reply: ("nina-costa", "src/orders/orders-module.ts", 102,
                            "Doesn't storing the provider on the account leak a billing detail into the domain?")),
                 pr("acme/mobile", 844, "feat: move the app routes under /app/v1",

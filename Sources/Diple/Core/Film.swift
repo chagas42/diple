@@ -32,7 +32,9 @@ enum Film {
         let beats: (NotchController, AppModel) -> [Beat]
     }
 
-    static let scenes: [Scene] = [tour, approach, focus, focusBreathing, focusPomodoro, focusMoon, rankingModes]
+    static let scenes: [Scene] = [tour, approach, focus, focusBreathing, focusPomodoro, focusMoon, rankingModes, hoverIntent]
+
+    private static var elapsed: Double = 0
 
     static func roll(notch: NotchController, model: AppModel) async {
         let video = option("--video").map { URL(fileURLWithPath: $0) }
@@ -46,6 +48,8 @@ enum Film {
         notch.fullScreen = { false }
         notch.fullScreenArriving = { false }
         notch.pointer = { CGPoint(x: -10_000, y: -10_000) }
+        notch.pressed = { false }
+        notch.clock = { Date(timeIntervalSinceReferenceDate: elapsed) }
         notch.refreshIdle()
 
         guard let view = notch.panelContentView else { exit(1) }
@@ -76,6 +80,7 @@ enum Film {
             beat.act()
             say("beat \(beat.name): state=\(notch.state) tab=\(model.notchTab)")
             for frame in 0..<clock.frames(in: beat.seconds) {
+                elapsed = clock.time(ofFrame: index)
                 var tip: CGPoint?
                 if let path = beat.pointer {
                     let p = path.at(clock.time(ofFrame: frame))
@@ -236,5 +241,19 @@ extension Film {
         Beat(name: "02-pace", seconds: 3) { model.settings.rankingMode = .pace },
         Beat(name: "03-pace-month", seconds: 2.4) { model.rankPeriod = .month },
     ] }
-}
 
+    static let passAndArrive = HumanPath(start: CGPoint(x: -330, y: 30), legs: [
+        .init(to: CGPoint(x: 330, y: 26), seconds: 0.5, pause: 0.8),
+        .init(to: CGPoint(x: 150, y: 120), seconds: 0.6, pause: 0.4),
+        .init(to: CGPoint(x: 20, y: 20), seconds: 1.2, pause: 1.8),
+    ], bow: 4)
+
+    static let hoverIntent = Scene(name: "hover-intent", crop: .panel) { notch, model in [
+        Beat(name: "01-resting", seconds: 0.6) {
+            model.notchTab = .queue
+            model.tab = .needsYou
+            notch.closeNow()
+        },
+        Beat(name: "02-pass-then-arrive", seconds: passAndArrive.duration, pointer: passAndArrive),
+    ] }
+}

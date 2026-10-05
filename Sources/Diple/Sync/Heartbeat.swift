@@ -5,16 +5,26 @@ struct Beat: Sendable, Equatable {
     let draft: Bool
     let checks: CheckState
     let approved: Bool
+    var mergeable: Mergeable? = nil
 
-    init(updatedAt: Date, draft: Bool, checks: CheckState, approved: Bool) {
+    init(updatedAt: Date, draft: Bool, checks: CheckState, approved: Bool, mergeable: Mergeable? = nil) {
         self.updatedAt = updatedAt
         self.draft = draft
         self.checks = checks
         self.approved = approved
+        self.mergeable = mergeable
     }
 
     init(_ pr: PR) {
-        self.init(updatedAt: pr.updatedAt, draft: pr.draft, checks: pr.checks, approved: pr.approved)
+        self.init(updatedAt: pr.updatedAt, draft: pr.draft, checks: pr.checks, approved: pr.approved,
+                  mergeable: pr.mergeable)
+    }
+
+    func matches(_ fresh: Beat) -> Bool {
+        guard updatedAt == fresh.updatedAt, draft == fresh.draft, checks == fresh.checks, approved == fresh.approved
+        else { return false }
+        guard let now = fresh.mergeable, now != .unknown else { return true }
+        return now == mergeable
     }
 }
 
@@ -37,7 +47,7 @@ struct Heartbeat: Sendable, Equatable {
         var seen = Set<String>()
         return all.compactMap { row in
             guard seen.insert(row.id).inserted else { return nil }
-            guard let known = previous[row.id], Beat(known) == row.beat else { return row.id }
+            guard let known = previous[row.id], Beat(known).matches(row.beat) else { return row.id }
             return nil
         }
     }
@@ -76,6 +86,7 @@ struct RawHeartbeat: Decodable, Sendable {
         let updatedAt: Date
         let isDraft: Bool
         let reviewDecision: String?
+        var mergeable: String? = nil
         let commits: RawPR.RawCommits
 
         var row: Heartbeat.Row {
@@ -83,7 +94,8 @@ struct RawHeartbeat: Decodable, Sendable {
                 updatedAt: updatedAt,
                 draft: isDraft,
                 checks: CheckState(commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state),
-                approved: reviewDecision == "APPROVED"
+                approved: reviewDecision == "APPROVED",
+                mergeable: mergeable.map(Mergeable.init(github:))
             ))
         }
     }

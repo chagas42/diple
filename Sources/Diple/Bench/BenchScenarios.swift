@@ -119,7 +119,7 @@ enum BenchScenarios {
         }
         let repo = String(target[..<hash])
         let settings = Store().state.settings
-        guard let origin = Worktree.localPath(repo, configured: settings.repoPaths) else {
+        guard let origin = settings.localPath(repo) else {
             Bench.fail("\(repo) is not on this machine")
         }
         let client = GitHubClient()
