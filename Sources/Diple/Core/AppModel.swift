@@ -89,6 +89,7 @@ final class AppModel: ObservableObject {
     }
 
     @Published private(set) var runs: [String: ReviewRun] = [:]
+    @Published var resolves: [String: ResolveRun] = [:]
 
     func run(_ key: String) -> ReviewRun? { runs[key] }
     func isReviewing(_ key: String) -> Bool { runs[key]?.step != nil && !finished(key) }

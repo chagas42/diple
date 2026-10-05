@@ -535,6 +535,41 @@ bots.
 
 ## The PR detail
 
+**Resolve with Claude is a fixed pipeline with Claude in two slots.** GitHub's
+`mergeable` rides in the PR and in the heartbeat (`UNKNOWN`, which GitHub
+answers while it computes, never counts as a change), so a branch that starts
+conflicting is read again on the next beat. Resolving runs in its own worktree
+(`<pr>-resolve`, next to the AI review's), in this order: fetch the base, run
+the project's checks on the PR as it is, `git merge --no-ff`, Claude resolves
+the conflicted files (up to 3 tries until no marker is left), the checks run
+again and Claude fixes what the merge broke (up to 3 tries), then Diple
+commits and pushes to the head branch, never with force. Checks that already
+failed before the merge are reported and not used, so Claude is never asked to
+"fix" a test that needs a database. The checks come from the project:
+`Package.swift`, a `package.json` test script (installing first when there is
+no `node_modules`), `Cargo.toml`, `go.mod`, or a `test:` target in a
+`Makefile`. Claude may edit files and read git there, and is denied commit,
+push, merge, rebase, reset, checkout, `gh`, `curl` and the web. A fork is
+pushed to its own repository, by swapping the repo in the origin URL. With
+"Push resolved conflicts without asking" off, it stops after the commit and
+waits for Push. The button shows on your own pull requests and on anyone's you can push to:
+the head repository gives you write, or the author allows maintainer edits
+and you can write to the base (a fork like danilofuchs/diple into
+chagas42/diple). On someone else's pull request it always stops before the
+push and waits for you, whatever the setting, so a teammate's branch does not
+move under them unannounced. Two people resolving the same pull request
+cannot overwrite each other, because the push never forces: the second push is
+rejected. Diple then fetches the branch again; when the base is already in it,
+the card says "Someone already resolved it" with that commit, and when the
+branch moved for another reason (the author pushed meanwhile) it starts once
+more from the new tip and gives up only if it moves again. On one Mac, a
+`<worktree>.lock` file holding the pid keeps a second Diple (a dev build next
+to the installed one) from removing the worktree mid-run; a lock whose process
+is gone is taken over. `viewerCanUpdateBranch` is not a push permission:
+it backs GitHub's "Update branch" button, which is off exactly when the branch
+conflicts, so it said false to the repository's admin on their own PR. Tested with the real claude on a realistic conflict (a
+discount on one side, rounding to cents on the other): 3 runs, all kept both.
+
 **A thread's code is parsed once, and shows only what the comment marks.** On
 a new file GitHub's `diffHunk` is the whole file down to the commented line,
 hundreds of lines. `DiffHunkView` used to split and highlight it in `init`, and
