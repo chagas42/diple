@@ -55,7 +55,8 @@ struct ConflictCard: View {
 
     private var subtitle: String {
         if run == nil {
-            return "Claude merges \(pr.baseRef) in a worktree on this Mac, resolves the conflicts, runs the project's tests and pushes."
+            let push = pr.isMine ? "pushes" : "waits for you before pushing to \(pr.author)'s branch"
+            return "Claude merges \(pr.baseRef) in a worktree on this Mac, resolves the conflicts, runs the project's tests and \(push)."
         }
         return run?.running == true ? "This runs on this Mac and can take a few minutes." : "Merged \(pr.baseRef) into \(pr.headRef)."
     }

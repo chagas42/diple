@@ -12,7 +12,7 @@ extension AppModel {
     func resolveRun(_ key: String) -> ResolveRun? { resolves[key] }
 
     func canResolveConflicts(_ pr: PR) -> Bool {
-        pr.conflicts && pr.isMine
+        pr.conflicts && (pr.isMine || pr.canPush == true)
     }
 
     func resolveConflicts(_ pr: PR) async {
@@ -56,7 +56,7 @@ extension AppModel {
         let job = ConflictResolver.Job(
             folder: folder, title: pr.title, baseRef: pr.baseRef, headRef: pr.headRef,
             pushURL: ConflictResolver.pushURL(origin: originURL, repo: pr.repo, headRepo: pr.headRepo),
-            pushes: settings.pushesResolvedConflicts
+            pushes: settings.pushesResolvedConflicts && pr.isMine
         )
         let resolver = ConflictResolver(claude: ConflictResolver.liveClaude(model: settings.aiModel))
         let key = pr.key

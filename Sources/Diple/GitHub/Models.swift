@@ -59,6 +59,7 @@ struct RawPR: Decodable, Sendable {
     let baseRefName: String
     let repository: RawRepo
     var headRepository: RawRepo? = nil
+    var maintainerCanModify: Bool? = nil
     var mergeable: String? = nil
     let author: GHActor?
     let reviewDecision: String?
@@ -68,7 +69,10 @@ struct RawPR: Decodable, Sendable {
     let reviewThreads: RawThreads
     let commits: RawCommits
 
-    struct RawRepo: Decodable, Sendable { let nameWithOwner: String }
+    struct RawRepo: Decodable, Sendable {
+        let nameWithOwner: String
+        var viewerPermission: String? = nil
+    }
     struct RawRequests: Decodable, Sendable { let nodes: [RawRequest?] }
     struct RawRequest: Decodable, Sendable { let requestedReviewer: RawReviewer? }
     struct RawReviewer: Decodable, Sendable {
@@ -149,6 +153,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
 
     var mergeable: Mergeable? = nil
     var headRepo: String? = nil
+    var canPush: Bool? = nil
 
     var conflicts: Bool { mergeable == .conflicting }
 
@@ -231,6 +236,14 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
 
     var key: String { "\(repo)#\(number)" }
 
+    static let writes: Set<String> = ["WRITE", "MAINTAIN", "ADMIN"]
+
+    static func canPush(head: String?, base: String?, maintainerCanModify: Bool?) -> Bool? {
+        guard head != nil || base != nil else { return nil }
+        if let head, writes.contains(head) { return true }
+        return maintainerCanModify == true && base.map(writes.contains) == true
+    }
+
     static let countedReviews: Set<String> = ["APPROVED", "CHANGES_REQUESTED", "COMMENTED"]
 
     static func counted(_ raw: RawPR.RawReviews?, author: String?) -> [String]? {
@@ -262,6 +275,8 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         baseRef = c.baseRefName
         mergeable = c.mergeable.map(Mergeable.init(github:))
         headRepo = c.headRepository?.nameWithOwner
+        canPush = Self.canPush(head: c.headRepository?.viewerPermission, base: c.repository.viewerPermission,
+                               maintainerCanModify: c.maintainerCanModify)
         checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
         approved = c.reviewDecision == "APPROVED"
         let reviews = Self.counted(c.latestReviews, author: c.author?.login)

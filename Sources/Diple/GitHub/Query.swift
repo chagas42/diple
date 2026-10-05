@@ -10,8 +10,9 @@ enum Query {
       headRefName
       headRefOid
       baseRefName
-      repository { nameWithOwner }
-      headRepository { nameWithOwner }
+      repository { nameWithOwner viewerPermission }
+      headRepository { nameWithOwner viewerPermission }
+      maintainerCanModify
       mergeable
       author { login __typename avatarUrl(size: 64) }
       reviewDecision

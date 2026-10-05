@@ -514,8 +514,12 @@ no `node_modules`), `Cargo.toml`, `go.mod`, or a `test:` target in a
 push, merge, rebase, reset, checkout, `gh`, `curl` and the web. A fork is
 pushed to its own repository, by swapping the repo in the origin URL. With
 "Push resolved conflicts without asking" off, it stops after the commit and
-waits for Push. For now only your own pull requests get the button; others
-only show the Conflicts mark. `viewerCanUpdateBranch` is not a push permission:
+waits for Push. The button shows on your own pull requests and on anyone's you can push to:
+the head repository gives you write, or the author allows maintainer edits
+and you can write to the base (a fork like danilofuchs/diple into
+chagas42/diple). On someone else's pull request it always stops before the
+push and waits for you, whatever the setting, so a teammate's branch does not
+move under them unannounced. `viewerCanUpdateBranch` is not a push permission:
 it backs GitHub's "Update branch" button, which is off exactly when the branch
 conflicts, so it said false to the repository's admin on their own PR. Tested with the real claude on a realistic conflict (a
 discount on one side, rounding to cents on the other): 3 runs, all kept both.
