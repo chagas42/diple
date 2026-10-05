@@ -25,6 +25,9 @@ struct AppearanceSettings: View {
                 Toggle("Blink", isOn: $model.settings.eyeBlinks)
                     .disabled(!model.settings.showsEye)
                 Toggle("Lean toward the pointer", isOn: $model.settings.liquidNotch)
+                Picker("Open on hover", selection: $model.settings.hoverOpening) {
+                    ForEach(HoverOpening.allCases) { Text($0.title).tag($0) }
+                }
                 Picker("Count", selection: $model.settings.countSide) {
                     ForEach(CountSide.allCases) { Text($0.title).tag($0) }
                 }
@@ -41,13 +44,15 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                Picker("Cover", selection: $model.settings.focusLook) {
+                Picker("Screen while focused", selection: $model.settings.focusLook) {
                     ForEach(FocusLook.allCases) { Text($0.title).tag($0) }
                 }
             } header: {
                 Text("Focus")
             } footer: {
-                Text("What covers the open notch while you are focused.")
+                Text("While a macOS Focus is on, or after you click the eye in the open notch, opening the "
+                     + "notch shows this instead of your queue, with how long you have been focused. "
+                     + "Click the eye again to come back.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -61,18 +66,33 @@ struct AppearanceSettings: View {
                             if $0, !MenuBarItems.allowed { MenuBarItems.askForAccess() }
                         }
                     ))
-                    Text("This macOS only tells Diple where the menu bar icons are with Accessibility "
-                         + "permission, and only on the main display. Otherwise the count moves to the left "
-                         + "of the notch so no icon is covered.")
+                    Text("On this version of macOS, Diple can see where the menu bar icons are only with "
+                         + "Accessibility permission, and only on the main display. Without it, the count "
+                         + "stays left of the notch so it never covers an icon.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                     if model.settings.fitsMenuBar, !accessible {
-                        HStack {
-                            Text("Waiting for Accessibility permission.")
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Waiting for Accessibility permission.")
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(.orange)
+                                Spacer()
+                                Button("Ask Again") { MenuBarItems.askForAccess() }
+                                Button("Open Accessibility") { NSWorkspace.shared.open(MenuBarItems.accessibilityPane) }
+                            }
+                            Text("If Diple is already on in that list, the permission belongs to an earlier copy "
+                                 + "of Diple: every update or new build counts as a different app. Select Diple, "
+                                 + "remove it with the − button, then click Ask Again.")
                                 .font(.system(size: 10.5))
-                                .foregroundStyle(.orange)
-                            Spacer()
-                            Button("Open Accessibility") { NSWorkspace.shared.open(MenuBarItems.accessibilityPane) }
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .task {
+                            while !Task.isCancelled, !accessible {
+                                try? await Task.sleep(for: .seconds(1))
+                                accessible = MenuBarItems.allowed
+                            }
                         }
                     }
                 }

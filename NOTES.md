@@ -67,12 +67,17 @@ so films still show it.
 **Ranking periods are calendar periods.** Week runs from Monday 00:00, month
 from the 1st, quarter from the first day of its calendar quarter (Jan, Apr,
 Jul, Oct), all in the Mac's time zone, so each starts again from zero instead
-of sliding over the last 7 or 30 days. The search is `created:>=` the local
-start day; GitHub search has no review-date filter, so a period counts pull
-requests created in it that the person reviewed, and a PR opened on Friday and
-reviewed on Monday stays in the week it was opened. When two periods start on
-the same day (October 1st opens both the month and the quarter), their
-searches are the same.
+of sliding over the last 7 or 30 days.
+
+**A review counts in the period it was made.** GitHub search has no
+review-date filter, so the board used to count PRs *created* in the period
+that the person reviewed: on a Monday, reviewing last week's PRs moved Month
+but never Week (4 against the 7 reviewed that morning). Each person's search is
+now `reviewed-by:<login> updated:>=<exact start>` with `first: 100` and
+`reviews(author:, last: 1) { submittedAt }`, and a PR counts when that last
+review is inside the period. A review updates the PR, so nothing reviewed in
+the period is left out of `updated:>=`. All people stay in one aliased query
+at 1 point each; a person with more than 100 such PRs gets up to 4 more pages.
 
 **Points are not the problem, bytes are.** The full queue costs 1 point but
 weighs ~430 KB and takes 4–6 s, almost all of it comment bodies and diff
@@ -90,6 +95,31 @@ reason. New comments, inline replies and pushes do move `updatedAt`: across
 **The heartbeat is trusted for thirty minutes.** After that, and on wake, the
 sync does one full fetch anyway, so anything GitHub changes without moving
 `updatedAt` is at most half an hour stale.
+
+**Notifications are a free doorbell.** Diple cannot receive webhooks, so it
+polls REST `GET /notifications?per_page=5` with `If-Modified-Since` and
+`If-None-Match` from the previous answer. A `304` does not count against the
+rate limit: over three rounds of one `200` and three `304`s, `X-RateLimit-Used`
+moved only on the `200`s. A `200` costs 1 point of the REST `core` budget,
+never a GraphQL point, and weighs ~23 KB. `X-Poll-Interval` answered `60`
+every time and is the floor between polls. Only a pull request thread newer
+than the last one seen wakes the sync — one you are involved in anywhere, or
+any thread in a watched repository — and the wake pushes the next regular
+tick back, so it moves a sync earlier instead of adding one. `401`, `403` and
+`404` switch the feed off until relaunch; the regular timer carries on.
+Diple never marks a thread read.
+
+**`URLSession` hides the `304`.** With the default cache policy a repeated
+`GET /notifications` is answered from `URLCache` in 2 ms with old data, and a
+hand-written `If-Modified-Since` comes back as a `200` carrying the cached
+body. The feed request uses `.reloadIgnoringLocalCacheData`, which passes the
+real `304` through.
+
+**The unread list's `Last-Modified` is its newest unread thread**, not the
+newest thread: with three read threads updated later that day, it still
+matched the `updated_at` of the newest unread one. That is why the feed reads
+the unread list — a thread you already read only shows up again once new
+activity makes it unread.
 
 **Three small searches beat one aggregated one.** GitHub runs aliased searches
 one after another; three requests in parallel return in ~1.4 s instead of
@@ -139,7 +169,50 @@ it failed too and the error stayed on screen ("could not update", or the
 offline error) until the next timer tick. Coming back now forces the fetch,
 which cancels the failing one and starts over.
 
+## Syncing after a push
+
+Diple cannot receive webhooks, so it watches the clones it already knows
+(`Worktree.localPath` for every repository in the queue, the watched list and
+Settings) and treats a local push as the webhook.
+
+**A push moves the remote-tracking ref; a commit does not.** `git push` rewrites
+`refs/remotes/<remote>/<branch>` (or `packed-refs`) in the clone, so one
+FSEventStream over each clone's common git dir sees it about a second later. A
+linked worktree's `.git` is a file (`gitdir:`), and its refs live in the folder
+its `commondir` names, so that folder is what gets watched.
+
+**The reflog tells a push from a fetch.** A fetch moves the same refs. The last
+line of `logs/refs/remotes/<remote>/<branch>` ends in `update by push` for a
+push and `fetch: …` for a fetch; a fetch that brings nothing writes no ref.
+
+**The rule.** A push to the default branch (the remote's `HEAD`, else main or
+master) syncs once. A push to a branch that already has a PR in the queue syncs
+at ~3 s and again ~12 s later, because GitHub takes seconds to update the PR.
+A push to any other branch does not touch GraphQL: it asks REST
+`pulls?head=<owner>:<branch>&state=open&per_page=1` after 10, 20 and 30 s, then
+every minute for 15 minutes, and syncs once when a PR appears (`gh pr create`
+or the web often comes minutes after the push). The head owner is the pushed
+remote's owner; the base is the watched repository owned by someone else when
+there is one, so a fork's PR is looked for upstream. At most five branches are
+watched; another push to the same branch starts its window over. A fetch syncs
+once only when it moved a branch that has a PR. Syncs are at least 10 s apart.
+
+**A 304 is free.** With `If-None-Match`, an unchanged answer is 304 and leaves
+`X-RateLimit-Used` where it was (measured: 200 → 8, ten 304s → 8, next 200 →
+9). REST `core` is also a separate budget from the GraphQL points. URLSession's
+own cache would answer 304s for us, so the request skips it
+(`reloadIgnoringLocalCacheData`) and keeps the ETag itself.
+
+**`resolvingSymlinksInPath` drops `/private`.** It turns `/private/tmp/x` into
+`/tmp/x`, while FSEvents reports `/private/tmp/x`, so no event ever matched.
+Watched roots go through `realpath(3)`.
+
 ## The notch panel
+
+**There is no menu bar item.** The notch is drawn on every screen, with or
+without a physical notch, so a `MenuBarExtra` shown on screens without one put
+Diple there twice: the drawn notch and a `⟩ 3` item next to it. The app's only
+scene is an empty `Settings` that carries the menu commands.
 
 **The window never resizes.** It is always the open size, pinned to the top.
 What animates is the shape drawn inside it. Resizing the window on every
@@ -149,7 +222,23 @@ feedback loop.
 **Hover is decided by pointer position, not by events.** SwiftUI's `onHover`
 fires during the resize itself: open, layout changes, exit fires, close,
 re-enter. The 30 Hz tick that drives the eye also decides hover, with
-asymmetric hysteresis — enters tight, leaves with 14pt of slack.
+asymmetric hysteresis — enters tight, leaves with 16pt of slack.
+
+**Opening waits for the pointer to mean it.** The notch sits right where the
+pointer crosses on its way to menu bar items, so opening on the first tick
+inside opened it on every pass. `HoverIntent` opens only after the pointer
+has stayed inside for 150 ms while moving slower than 700 pt/s, measured over
+the last ~100 ms of tick samples. A pointer homing in on a target slows to a
+few hundred pt/s in its last stretch, while a sweep across the bar is well
+over 1000 pt/s as it crosses, so the threshold sits between the two; at 30 Hz
+the dwell is five ticks. A press that begins inside opens at once, read from
+`NSEvent.pressedMouseButtons` on the same tick, since the idle panel ignores
+mouse events and never sees the click. The zone that opens is the resting
+shape plus the cutout, one point taller so the top pixel counts: the lean
+toward the pointer only changes how the notch looks, or it would reach out and
+grab a passing pointer. Settings → Appearance → Notch → Open on hover →
+Instantly drops the wait. Time comes from `clock`, so films and tests run it
+on their own time.
 
 **Hovering an alert holds it, it does not open the panel.** Opening on hover
 replaced the alert with the queue before its buttons could be reached, and the
@@ -312,6 +401,14 @@ inside by hand. The glow lives in its own observable object, like the eye, so
 the 30 Hz updates redraw only the glow; with Reduce Motion it moves without
 animating.
 
+**A tooltip in the panel is drawn, not asked for.** `.help()` becomes an AppKit
+tooltip, and AppKit shows tooltips only while the app is active; the panel is
+non-activating, so Diple almost never is. The activity grid reads the pointer
+with `onContinuousHover`, which a tracking area delivers to inactive windows,
+and draws its own bubble over the grid so nothing moves. The bubble sits in a
+`ZStack` inside the overlay: an overlay alone places its content by the
+overlay's alignment and ignores the bubble's own alignment guides.
+
 **`fullScreenAuxiliary`** in the panel's collection behavior is what keeps it
 visible over a fullscreen app. `becomesKeyOnlyIfNeeded` is what stops a
 non-activating panel from eating the first click on every button.
@@ -331,8 +428,8 @@ with a line of its own: the terminal one, a small zsh window of fixed size (so l
 notifications are paused and waits at a blinking prompt; leaving types `exit`
 and prints how long the focus lasted. The cover lingers 1.8 s for that goodbye
 before fading. The time counts seconds for the first minute, so it never sits
-at 0. It lives in memory only. Settings → Appearance → Focus picks the cover
-(Terminal by default, Breathing, Pomodoro). Clicking the eye during a macOS
+at 0. It lives in memory only. Settings → Appearance → Focus → Screen while focused picks the cover
+(Terminal by default, Breathing moon, Pomodoro timer). Clicking the eye during a macOS
 Focus sets that Focus aside, since Diple cannot end it: Diple stays out of focus
 until the macOS Focus ends, and the next one is followed again. The eye in the open panel
 follows the pointer from where it sits (top left, 41pt in, halfway down the
@@ -397,6 +494,14 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+**A dismissal lasts until the pull request moves.** Hovering a row in the
+notch shows an ×, and its right-click menu has Dismiss. Diple saves the PR's
+`updatedAt` beside its key and hides it from every tab and the count while
+GitHub reports that same time. A new comment, push or review request moves
+`updatedAt`, so the PR comes back by itself; so does a bot comment, which errs
+toward showing too much rather than hiding a request. The entry is dropped
+once the PR has moved on, or a month after it left the queue.
+
 ## The main window
 
 **The list opens wide, and a row says one thing per line.** The list column
@@ -445,6 +550,41 @@ no approval, change request or comment review from anyone but the author and
 bots.
 
 ## The PR detail
+
+**Resolve with Claude is a fixed pipeline with Claude in two slots.** GitHub's
+`mergeable` rides in the PR and in the heartbeat (`UNKNOWN`, which GitHub
+answers while it computes, never counts as a change), so a branch that starts
+conflicting is read again on the next beat. Resolving runs in its own worktree
+(`<pr>-resolve`, next to the AI review's), in this order: fetch the base, run
+the project's checks on the PR as it is, `git merge --no-ff`, Claude resolves
+the conflicted files (up to 3 tries until no marker is left), the checks run
+again and Claude fixes what the merge broke (up to 3 tries), then Diple
+commits and pushes to the head branch, never with force. Checks that already
+failed before the merge are reported and not used, so Claude is never asked to
+"fix" a test that needs a database. The checks come from the project:
+`Package.swift`, a `package.json` test script (installing first when there is
+no `node_modules`), `Cargo.toml`, `go.mod`, or a `test:` target in a
+`Makefile`. Claude may edit files and read git there, and is denied commit,
+push, merge, rebase, reset, checkout, `gh`, `curl` and the web. A fork is
+pushed to its own repository, by swapping the repo in the origin URL. With
+"Push resolved conflicts without asking" off, it stops after the commit and
+waits for Push. The button shows on your own pull requests and on anyone's you can push to:
+the head repository gives you write, or the author allows maintainer edits
+and you can write to the base (a fork like danilofuchs/diple into
+chagas42/diple). On someone else's pull request it always stops before the
+push and waits for you, whatever the setting, so a teammate's branch does not
+move under them unannounced. Two people resolving the same pull request
+cannot overwrite each other, because the push never forces: the second push is
+rejected. Diple then fetches the branch again; when the base is already in it,
+the card says "Someone already resolved it" with that commit, and when the
+branch moved for another reason (the author pushed meanwhile) it starts once
+more from the new tip and gives up only if it moves again. On one Mac, a
+`<worktree>.lock` file holding the pid keeps a second Diple (a dev build next
+to the installed one) from removing the worktree mid-run; a lock whose process
+is gone is taken over. `viewerCanUpdateBranch` is not a push permission:
+it backs GitHub's "Update branch" button, which is off exactly when the branch
+conflicts, so it said false to the repository's admin on their own PR. Tested with the real claude on a realistic conflict (a
+discount on one side, rounding to cents on the other): 3 runs, all kept both.
 
 **A thread's code is parsed once, and shows only what the comment marks.** On
 a new file GitHub's `diffHunk` is the whole file down to the commented line,
@@ -556,6 +696,15 @@ below 26 it keeps the old controls, toolbar and sidebar in compatibility mode.
 `LSMinimumSystemVersion` as the minimum. `otool -l <binary> | grep -A4
 LC_BUILD_VERSION` shows what a build got.
 
+**Every build is a different app to Accessibility.** An ad-hoc signature has
+no certificate, so its designated requirement is the code hash (`codesign -d
+-r- Diple.app` prints `cdhash H"…"`), and TCC stores that requirement with the
+grant. A new build or an update no longer matches it: `AXIsProcessTrusted()`
+returns false while System Settings → Privacy & Security → Accessibility still
+shows Diple switched on. Removing Diple from the list with − and asking again
+(`AXIsProcessTrustedWithOptions` with the prompt) records the running build. Settings → Appearance → Menu bar says so
+while it waits, and re-reads the trust every second until it is granted.
+
 **Start at login registers this copy.** `SMAppService.mainApp` records the
 bundle that called it, at the path it ran from, so turning it on from a build
 in `build/` starts that build at login. Its status, not a stored setting, is
@@ -585,7 +734,8 @@ scripted pointer is placed from `frame / fps`, and each frame waits for its
 own deadline; SwiftUI animations still run on the wall clock, so if capture
 falls behind (the recorder says so) they look faster than the pointer. The
 pointer timer does not run while filming: each frame calls `followPointer()`,
-which is what the timer calls.
+which is what the timer calls. The notch's `clock` is the frame's time too, so
+the hover wait is measured against the scripted pointer.
 
 **Updating through Homebrew refreshes the tap first.** `brew upgrade` only
 refreshes taps when its last refresh is older than a day, so right after a

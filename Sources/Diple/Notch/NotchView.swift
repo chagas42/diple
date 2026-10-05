@@ -57,6 +57,7 @@ struct NotchView: View {
     let onClose: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hoveredRow: String?
 
     var body: some View {
         let _ = Metrics.shared.body("NotchView")
@@ -495,6 +496,7 @@ struct NotchView: View {
                                     Text(pr.updatedAt.formatted(.relative(presentation: .numeric)))
                                         .font(.system(size: 10.5, design: .monospaced))
                                         .foregroundStyle(.white.opacity(0.35))
+                                        .opacity(hoveredRow == pr.key ? 0 : 1)
                                 }
                                 .padding(.horizontal, 13)
                                 .padding(.vertical, 10)
@@ -503,12 +505,19 @@ struct NotchView: View {
                             }
                             .buttonStyle(.plain)
                             .opacity(model.dims(pr) ? 0.4 : 1)
+                            .overlay(alignment: .trailing) {
+                                if hoveredRow == pr.key {
+                                    dismissButton(pr)
+                                }
+                            }
+                            .onHover { inside in
+                                if inside { hoveredRow = pr.key } else if hoveredRow == pr.key { hoveredRow = nil }
+                            }
                             .contextMenu {
                                 if model.canMarkReady(pr) {
                                     Button("\(ReadyForReview.confirm)…") { askToMarkReady(pr) }
-                                    Divider()
                                 }
-                                panelMenu
+                                Button("Dismiss") { model.dismiss(pr) }
                             }
                         }
                     }
@@ -562,6 +571,20 @@ struct NotchView: View {
             NSApp.activate()
             told.runModal()
         }
+    }
+
+    private func dismissButton(_ pr: PR) -> some View {
+        Button { withAnimation(.easeOut(duration: 0.18)) { model.dismiss(pr) } } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 20, height: 20)
+                .background(.white.opacity(0.1), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 11)
+        .help("Dismiss until something new happens on it")
     }
 
     private func meta(_ pr: PR) -> String {
