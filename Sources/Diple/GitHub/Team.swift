@@ -147,23 +147,34 @@ extension GitHubClient {
 
     func fetchRanking(org: String, people: [Person], from: Date) async throws -> [RankRow] {
         guard !people.isEmpty else { return [] }
-        let cutoff = RankPeriod.day(from)
-
         let targets = Array(people.prefix(30))
-        let searches = targets.enumerated().map { i, p in
-            """
-              u\(i): search(query: "is:pr org:\(org) reviewed-by:\(p.login) created:>=\(cutoff)", \
-            type: ISSUE, first: 1) { issueCount }
-            """
-        }.joined(separator: "\n")
 
-        let json = try await raw("{\n\(searches)\n}")
-        let data = json["data"] as? [String: Any] ?? [:]
-        return targets.enumerated().compactMap { i, p in
-            guard let n = (data["u\(i)"] as? [String: Any])?["issueCount"] as? Int else { return nil }
-            return RankRow(person: p, reviews: n)
+        func search(_ p: Person, after: String?) -> String {
+            let page = after.map { ", after: \"\($0)\"" } ?? ""
+            return """
+            search(query: "\(RankingPage.query(org: org, login: p.login, from: from))", \
+            type: ISSUE, first: 100\(page)) { issueCount pageInfo { hasNextPage endCursor } \
+            nodes { ... on PullRequest { reviews(author: "\(p.login)", last: 1) { nodes { submittedAt } } } } }
+            """
         }
-        .sorted { $0.reviews > $1.reviews }
+
+        let json = try await raw("{\n" + targets.enumerated().map { i, p in "  u\(i): " + search(p, after: nil) }.joined(separator: "\n") + "\n}")
+        let data = json["data"] as? [String: Any] ?? [:]
+
+        var rows: [RankRow] = []
+        for (i, p) in targets.enumerated() {
+            guard var page = RankingPage(data["u\(i)"], from: from) else { continue }
+            var reviews = page.reviewed
+            for _ in 0..<RankingPage.extraPages {
+                guard let next = page.next else { break }
+                let more = try await raw("{\n  u: " + search(p, after: next) + "\n}")
+                guard let following = RankingPage((more["data"] as? [String: Any])?["u"], from: from) else { break }
+                reviews += following.reviewed
+                page = following
+            }
+            rows.append(RankRow(person: p, reviews: reviews))
+        }
+        return rows.sorted { $0.reviews > $1.reviews }
     }
 
     func fetchReviewCounts(org: String, login: String, from: Date, to: Date = Date()) async throws -> [Date: Int] {
@@ -197,5 +208,31 @@ extension GitHubClient {
             throw ClientError.graphql(errors.compactMap { $0["message"] as? String })
         }
         return obj
+    }
+}
+
+struct RankingPage {
+    static let extraPages = 4
+
+    let reviewed: Int
+    let next: String?
+
+    static func query(org: String, login: String, from: Date) -> String {
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime]
+        return "is:pr org:\(org) reviewed-by:\(login) updated:>=\(fmt.string(from: from))"
+    }
+
+    init?(_ value: Any?, from: Date) {
+        guard let search = value as? [String: Any], search["issueCount"] is Int else { return nil }
+        let fmt = ISO8601DateFormatter()
+        let nodes = search["nodes"] as? [[String: Any]] ?? []
+        reviewed = nodes.filter { node in
+            let last = ((node["reviews"] as? [String: Any])?["nodes"] as? [[String: Any]])?.last
+            guard let at = (last?["submittedAt"] as? String).flatMap(fmt.date(from:)) else { return false }
+            return at >= from
+        }.count
+        let info = search["pageInfo"] as? [String: Any]
+        next = (info?["hasNextPage"] as? Bool) == true ? info?["endCursor"] as? String : nil
     }
 }
