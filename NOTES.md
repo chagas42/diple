@@ -56,12 +56,17 @@ so films still show it.
 **Ranking periods are calendar periods.** Week runs from Monday 00:00, month
 from the 1st, quarter from the first day of its calendar quarter (Jan, Apr,
 Jul, Oct), all in the Mac's time zone, so each starts again from zero instead
-of sliding over the last 7 or 30 days. The search is `created:>=` the local
-start day; GitHub search has no review-date filter, so a period counts pull
-requests created in it that the person reviewed, and a PR opened on Friday and
-reviewed on Monday stays in the week it was opened. When two periods start on
-the same day (October 1st opens both the month and the quarter), their
-searches are the same.
+of sliding over the last 7 or 30 days.
+
+**A review counts in the period it was made.** GitHub search has no
+review-date filter, so the board used to count PRs *created* in the period
+that the person reviewed: on a Monday, reviewing last week's PRs moved Month
+but never Week (4 against the 7 reviewed that morning). Each person's search is
+now `reviewed-by:<login> updated:>=<exact start>` with `first: 100` and
+`reviews(author:, last: 1) { submittedAt }`, and a PR counts when that last
+review is inside the period. A review updates the PR, so nothing reviewed in
+the period is left out of `updated:>=`. All people stay in one aliased query
+at 1 point each; a person with more than 100 such PRs gets up to 4 more pages.
 
 **Points are not the problem, bytes are.** The full queue costs 1 point but
 weighs ~430 KB and takes 4–6 s, almost all of it comment bodies and diff
