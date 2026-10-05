@@ -5,8 +5,6 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     let notch = NotchController()
 
-    @Published var showsMenuBarItem = true
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = AppModel.shared
         model.onEvent = { [weak self] event in self?.notch.alert(event) }
@@ -16,7 +14,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         model.onTick = { [weak self] t in self?.notch.tick(t) }
         notch.mount(model: model)
         model.start()
-        checkScreen()
         Task { await Worktree.pruneStale() }
 
         if Bench.scenario == "notch-idle" {
@@ -67,21 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 await Film.roll(notch: notch, model: model)
             }
         }
-
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.checkScreen() }
-        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         AppModel.shared.flushState()
-    }
-
-    private func checkScreen() {
-        showsMenuBarItem = !NotchGeometry.current().hasNotch
     }
 }
 
@@ -90,15 +76,7 @@ struct DipleApp: App {
     @ObservedObject private var model = AppModel.shared
 
     var body: some Scene {
-        MenuBarExtra(isInserted: Binding(
-            get: { delegate.showsMenuBarItem },
-            set: { _ in }
-        )) {
-            PopoverView(model: model)
-        } label: {
-            Text(model.count > 0 ? "⟩ \(model.count)" : "⟩")
-        }
-        .menuBarExtraStyle(.window)
+        SwiftUI.Settings { EmptyView() }
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") {
