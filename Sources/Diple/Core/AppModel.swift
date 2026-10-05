@@ -121,6 +121,7 @@ final class AppModel: ObservableObject {
             focus.follows = settings.followsFocus
             if settings.shareUsage != oldValue.shareUsage { telemetry.setConsent(settings.shareUsage) }
             if settings.interval != oldValue.interval { restartTimer() }
+            if settings.syncsOnPush != oldValue.syncsOnPush || settings.repoPaths != oldValue.repoPaths { rewatchPushes() }
             if settings.syncsOnNotifications != oldValue.syncsOnNotifications { restartFeed() }
             MenuBarItems.measuring = settings.fitsMenuBar
         }
@@ -338,6 +339,7 @@ final class AppModel: ObservableObject {
     func toggleWatch(_ repo: String) {
         store.toggleWatch(repo)
         watching = store.state.watching ?? []
+        rewatchPushes()
         guard lastSync != nil, canFetch else { return }
         bindQueue()
     }
@@ -415,6 +417,7 @@ final class AppModel: ObservableObject {
         }
     }
     private var pollTask: Task<Void, Never>?
+    private let pushWatch = PushWatch()
     private var feedTask: Task<Void, Never>?
     private(set) var feed = ChangeFeed()
     private static let feedLog = Logger(subsystem: "com.chagas42.diple", category: "feed")
@@ -462,10 +465,23 @@ final class AppModel: ObservableObject {
         }
         reachability.start()
 
+        pushWatch.onSync = { [weak self] in await self?.refresh() }
+        pushWatch.lookup = { [client] repo, head, etag in try? await client.openPR(repo: repo, head: head, etag: etag) }
+        pushWatch.hasPR = { [weak self] repos, branch in
+            self?.queue.all.contains { repos.contains($0.repo) && $0.headRef == branch } ?? false
+        }
+        rewatchPushes()
+
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.pushWatch.stop() }
+        }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
+                self?.rewatchPushes()
                 self?.refetchShown()
                 await self?.refresh(full: true)
                 self?.restartFeed()
@@ -476,6 +492,22 @@ final class AppModel: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.stopFeed() }
         }
+    }
+
+    var localClones: [PushWatch.Clone] {
+        let repos = Set(queue.all.map(\.repo)).union(watching).union(settings.repoPaths.keys)
+        let found = repos.sorted().compactMap { repo in
+            Worktree.localPath(repo, configured: settings.repoPaths).map { ($0, repo) }
+        }
+        return Dictionary(grouping: found, by: \.0).map { PushWatch.Clone(checkout: $0.key, repos: $0.value.map(\.1)) }
+    }
+
+    private func rewatchPushes() {
+        guard started, isOnline, settings.syncsOnPush, !queries.answersLocally, !Bench.isOn else {
+            pushWatch.stop()
+            return
+        }
+        pushWatch.watch(localClones)
     }
 
     func startTelemetry() {
@@ -630,7 +662,9 @@ final class AppModel: ObservableObject {
 
     func setOnline(_ online: Bool) {
         let cameBack = online && !isOnline
+        let wentAway = !online && isOnline
         isOnline = online
+        if cameBack || wentAway { rewatchPushes() }
         if !online { stopFeed() }
         guard cameBack else { return }
         refetchShown()
@@ -694,6 +728,7 @@ final class AppModel: ObservableObject {
         if !candidates.isEmpty { onReviewsPending?(candidates.map(\.key), count) }
         queue = nova
         store.saveQueue(nova)
+        rewatchPushes()
         store.forgetDismissals(nova)
         dismissed = store.state.dismissed ?? [:]
         reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }

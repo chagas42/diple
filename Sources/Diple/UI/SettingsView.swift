@@ -332,6 +332,7 @@ struct GeneralPane: View {
                 Text("Checks your GitHub notifications every minute, which costs no sync points, and syncs right away when one of your pull requests moves.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
+                Toggle("Sync right after you push from this Mac", isOn: $model.settings.syncsOnPush)
             }
 
             Section {
