@@ -519,7 +519,15 @@ the head repository gives you write, or the author allows maintainer edits
 and you can write to the base (a fork like danilofuchs/diple into
 chagas42/diple). On someone else's pull request it always stops before the
 push and waits for you, whatever the setting, so a teammate's branch does not
-move under them unannounced. `viewerCanUpdateBranch` is not a push permission:
+move under them unannounced. Two people resolving the same pull request
+cannot overwrite each other, because the push never forces: the second push is
+rejected. Diple then fetches the branch again; when the base is already in it,
+the card says "Someone already resolved it" with that commit, and when the
+branch moved for another reason (the author pushed meanwhile) it starts once
+more from the new tip and gives up only if it moves again. On one Mac, a
+`<worktree>.lock` file holding the pid keeps a second Diple (a dev build next
+to the installed one) from removing the worktree mid-run; a lock whose process
+is gone is taken over. `viewerCanUpdateBranch` is not a push permission:
 it backs GitHub's "Update branch" button, which is off exactly when the branch
 conflicts, so it said false to the repository's admin on their own PR. Tested with the real claude on a realistic conflict (a
 discount on one side, rounding to cents on the other): 3 runs, all kept both.

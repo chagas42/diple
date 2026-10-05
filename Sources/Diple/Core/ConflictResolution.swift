@@ -41,6 +41,12 @@ extension AppModel {
             finish(.failed(step: "clone", reason: "Diple needs a local clone of \(pr.repo). Point at it in Settings → Repositories."))
             return
         }
+        let lock = ResolveLock.at(Self.resolveFolder(pr))
+        guard lock.acquire() else {
+            finish(.failed(step: "lock", reason: "Already resolving \(pr.key) on this Mac, in another Diple."))
+            return
+        }
+        defer { lock.release() }
         say("preparing a worktree for \(pr.key)")
         let folder: URL
         do {
@@ -65,7 +71,7 @@ extension AppModel {
         }
         finish(outcome)
 
-        if case .pushed = outcome {
+        if outcome.isDone {
             _ = try? await Worktree.git(["worktree", "remove", "--force", folder.path], in: origin)
             resolves[pr.key]?.folder = nil
             await reread(pr)
@@ -92,6 +98,10 @@ extension AppModel {
 
     func dismissResolve(_ pr: PR) { resolves[pr.key] = nil }
 
+    static func resolveFolder(_ pr: PR) -> URL {
+        Worktree.root.appendingPathComponent("\(pr.repo.replacingOccurrences(of: "/", with: "-"))-\(pr.number)-resolve")
+    }
+
     static func resolveWorktree(origin: URL, pr: PR) async throws -> URL {
         let review = try await Worktree.prepare(origin: origin, repo: pr.repo, pr: pr.number, base: pr.baseRef, head: pr.head ?? "")
         let target = review.deletingLastPathComponent().appendingPathComponent(review.lastPathComponent + "-resolve")
@@ -100,5 +110,14 @@ extension AppModel {
         }
         try await Worktree.git(["worktree", "add", "--detach", target.path, "refs/diple/pr-\(pr.number)"], in: origin)
         return target
+    }
+}
+
+extension ConflictResolver.Outcome {
+    var isDone: Bool {
+        switch self {
+        case .pushed, .alreadyResolved: true
+        case .committed, .failed: false
+        }
     }
 }

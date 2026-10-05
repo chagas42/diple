@@ -202,6 +202,65 @@ import Testing
         #expect(!ConflictResolver.hasMarkers(merged))
     }
 
+    static func clone(_ r: Repo, as name: String) async -> URL {
+        let dir = r.root.appendingPathComponent(name)
+        _ = await Shell.live.git(["clone", "-q", "-b", "feature", r.remote.path, dir.path], in: r.root)
+        _ = await Shell.live.git(["config", "user.email", "o@example.invalid"], in: dir)
+        _ = await Shell.live.git(["config", "user.name", "Other"], in: dir)
+        return dir
+    }
+
+    @Test func whoeverPushesSecondSeesItAlreadyResolved() async throws {
+        let r = try await Self.conflicting()
+        let other = await Self.clone(r, as: "other")
+        let resolver = ConflictResolver(claude: Self.writer("HELLO, WORLD\n", into: "greet.txt"))
+
+        let firstOutcome = await resolver.resolve(r.job()) { _ in }
+        guard case .pushed = firstOutcome else { Issue.record("first did not push"); return }
+        let first = (await r.git(["rev-parse", "feature"], in: r.remote)).output.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let job = ConflictResolver.Job(folder: other, title: "feat: greet louder", baseRef: "main", headRef: "feature",
+                                       pushURL: r.remote.path, pushes: true)
+        let outcome = await resolver.resolve(job) { _ in }
+        #expect(outcome == .alreadyResolved(commit: first))
+        #expect((await r.git(["rev-parse", "feature"], in: r.remote)).output.trimmingCharacters(in: .whitespacesAndNewlines) == first)
+    }
+
+    @Test func aPushFromTheAuthorMidwayIsKeptAndResolvedAgain() async throws {
+        let r = try await Self.conflicting()
+        let author = await Self.clone(r, as: "author")
+        try "notes\n".write(to: author.appendingPathComponent("notes.txt"), atomically: true, encoding: .utf8)
+        _ = await Shell.live.git(["add", "-A"], in: author)
+        _ = await Shell.live.git(["commit", "-qm", "author keeps going"], in: author)
+        _ = await Shell.live.git(["push", "-q", "origin", "feature"], in: author)
+
+        let steps = Lines()
+        let resolver = ConflictResolver(claude: Self.writer("HELLO, WORLD\n", into: "greet.txt"))
+        let outcome = await resolver.resolve(r.job()) { steps.add($0) }
+        guard case .pushed = outcome else { Issue.record("\(outcome)"); return }
+        #expect(steps.all.contains { $0.contains("starting again") })
+        #expect(await r.remoteFile("notes.txt") == "notes\n")
+        #expect(await r.remoteFile("greet.txt") == "HELLO, WORLD\n")
+    }
+
+    @Test func anotherDipleResolvingThePullRequestHoldsTheLock() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("diple-lock-\(UUID().uuidString)")
+        let lock = ResolveLock.at(dir.appendingPathComponent("acme-api-1-resolve"))
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try "\(getppid())".write(to: lock.file, atomically: true, encoding: .utf8)
+        #expect(!lock.acquire())
+        try "999999".write(to: lock.file, atomically: true, encoding: .utf8)
+        #expect(lock.acquire())
+        lock.release()
+        #expect(!FileManager.default.fileExists(atPath: lock.file.path))
+    }
+
+    @Test func gitsRejectionsAreRecognised() {
+        #expect(ConflictResolver.isRejected(" ! [rejected]        HEAD -> feature (fetch first)"))
+        #expect(ConflictResolver.isRejected("error: failed to push some refs\nhint: Updates were rejected because the tip of your current branch is behind (non-fast-forward)"))
+        #expect(!ConflictResolver.isRejected("fatal: Authentication failed"))
+    }
+
     @Test func markersAreFoundOnlyAtTheStartOfALine() {
         #expect(ConflictResolver.hasMarkers("a\n<<<<<<< HEAD\nb\n=======\nc\n>>>>>>> main\n"))
         #expect(!ConflictResolver.hasMarkers("let x = \"<<<<<<< not a marker\"\n// =======\n"))
@@ -233,3 +292,9 @@ final class Counter: @unchecked Sendable {
     var value: Int { lock.lock(); defer { lock.unlock() }; return n }
 }
 
+final class Lines: @unchecked Sendable {
+    private let lock = NSLock()
+    private var list: [String] = []
+    func add(_ s: String) { lock.lock(); list.append(s); lock.unlock() }
+    var all: [String] { lock.lock(); defer { lock.unlock() }; return list }
+}

@@ -29,7 +29,7 @@ struct ConflictCard: View {
 
     private var tint: Color {
         switch run?.outcome {
-        case .pushed?: .green
+        case .pushed?, .alreadyResolved?: .green
         case .failed?: .red
         default: .orange
         }
@@ -37,7 +37,7 @@ struct ConflictCard: View {
 
     private var icon: String {
         switch run?.outcome {
-        case .pushed?: "checkmark.circle.fill"
+        case .pushed?, .alreadyResolved?: "checkmark.circle.fill"
         case .committed?: "arrow.up.circle"
         case .failed?: "exclamationmark.triangle.fill"
         case nil: run == nil ? "arrow.triangle.merge" : "sparkles"
@@ -47,6 +47,7 @@ struct ConflictCard: View {
     private var title: String {
         switch run?.outcome {
         case .pushed?: "Conflicts resolved and pushed"
+        case .alreadyResolved?: "Someone already resolved it"
         case .committed?: "Resolved locally, ready to push"
         case .failed(let step, _)?: "Could not resolve (\(step))"
         case nil: run == nil ? "Conflicts with \(pr.baseRef)" : "Claude is resolving the conflicts"
@@ -90,6 +91,10 @@ struct ConflictCard: View {
 
     @ViewBuilder private func result(_ outcome: ConflictResolver.Outcome, folder: URL?) -> some View {
         switch outcome {
+        case .alreadyResolved(let commit):
+            Text("\(pr.headRef) already has \(pr.baseRef) merged in, at \(commit.prefix(7)). Nothing was pushed from this Mac.")
+                .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         case .pushed(let commit, let report), .committed(let commit, let report):
             VStack(alignment: .leading, spacing: 6) {
                 if !report.files.isEmpty {

@@ -66,6 +66,7 @@ struct ConflictResolver: Sendable {
         case pushed(commit: String, report: Report)
         case committed(commit: String, report: Report)
         case failed(step: String, reason: String)
+        case alreadyResolved(commit: String)
     }
 
     struct Report: Sendable, Equatable {
@@ -81,6 +82,10 @@ struct ConflictResolver: Sendable {
     var claude: @Sendable (_ prompt: String, _ folder: URL) async -> Shell.Result
 
     func resolve(_ job: Job, progress: @Sendable (String) async -> Void) async -> Outcome {
+        await resolve(job, retrying: true, progress: progress)
+    }
+
+    private func resolve(_ job: Job, retrying: Bool, progress: @Sendable (String) async -> Void) async -> Outcome {
         let folder = job.folder
         var report = Report()
 
@@ -88,6 +93,8 @@ struct ConflictResolver: Sendable {
         guard await shell.git(["fetch", "origin", job.baseRef], in: folder).ok else {
             return .failed(step: "fetch", reason: "could not fetch \(job.baseRef) from origin")
         }
+        let base = (await shell.git(["rev-parse", "FETCH_HEAD"], in: folder)).output
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
         let command = TestCommand.detect(in: folder)
         var baselineGreen = false
@@ -98,7 +105,7 @@ struct ConflictResolver: Sendable {
         }
 
         await progress("merging \(job.baseRef)")
-        let merge = await shell.git(["merge", "--no-edit", "--no-ff", "FETCH_HEAD"], in: folder)
+        let merge = await shell.git(["merge", "--no-edit", "--no-ff", base], in: folder)
         let conflicted = await conflictedFiles(in: folder)
         if !merge.ok, conflicted.isEmpty {
             return .failed(step: "merge", reason: Self.tail(merge.output))
@@ -150,8 +157,29 @@ struct ConflictResolver: Sendable {
         guard job.pushes else { return .committed(commit: sha, report: report) }
         await progress("pushing to \(job.headRef)")
         let push = await shell.git(["push", job.pushURL, "HEAD:refs/heads/\(job.headRef)"], in: folder)
-        guard push.ok else { return .failed(step: "push", reason: Self.tail(push.output)) }
-        return .pushed(commit: sha, report: report)
+        if push.ok { return .pushed(commit: sha, report: report) }
+        guard Self.isRejected(push.output) else { return .failed(step: "push", reason: Self.tail(push.output)) }
+
+        await progress("\(job.headRef) moved on GitHub, reading it again")
+        guard await shell.git(["fetch", job.pushURL, job.headRef], in: folder).ok else {
+            return .failed(step: "push", reason: Self.tail(push.output))
+        }
+        let remote = (await shell.git(["rev-parse", "FETCH_HEAD"], in: folder)).output
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if await shell.git(["merge-base", "--is-ancestor", base, remote], in: folder).ok {
+            return .alreadyResolved(commit: remote)
+        }
+        guard retrying else {
+            return .failed(step: "push", reason: "\(job.headRef) kept moving while resolving, try again")
+        }
+        await progress("starting again from the new \(job.headRef)")
+        _ = await shell.git(["reset", "--hard", remote], in: folder)
+        return await resolve(job, retrying: false, progress: progress)
+    }
+
+    static func isRejected(_ output: String) -> Bool {
+        let text = output.lowercased()
+        return ["[rejected]", "non-fast-forward", "fetch first", "stale info"].contains { text.contains($0) }
     }
 
     private func runChecks(_ command: TestCommand, in folder: URL) async -> Shell.Result {
@@ -291,5 +319,27 @@ struct TestCommand: Sendable, Equatable {
             return TestCommand(label: "make test", steps: [Step(executable: "make", arguments: ["test"])])
         }
         return nil
+    }
+}
+
+struct ResolveLock {
+    let file: URL
+
+    static func at(_ folder: URL) -> ResolveLock {
+        ResolveLock(file: folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + ".lock"))
+    }
+
+    func acquire(pid: Int32 = ProcessInfo.processInfo.processIdentifier) -> Bool {
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let held = try? String(contentsOf: file, encoding: .utf8),
+           let other = Int32(held.trimmingCharacters(in: .whitespacesAndNewlines)),
+           other != pid, kill(other, 0) == 0 || errno == EPERM {
+            return false
+        }
+        return (try? "\(pid)".write(to: file, atomically: true, encoding: .utf8)) != nil
+    }
+
+    func release() {
+        try? FileManager.default.removeItem(at: file)
     }
 }
