@@ -20,6 +20,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             Task { @MainActor in await BenchScenarios.notchIdle(notch: notch) }
         }
 
+        if let i = CommandLine.arguments.firstIndex(of: "--rehearse-update"), Demo.isOn {
+            let hold = i + 1 < CommandLine.arguments.count ? Double(CommandLine.arguments[i + 1]) : nil
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                await Updates.shared.rehearse(holdingAt: hold)
+            }
+        }
+
         if CommandLine.arguments.contains("--rehearse-review"), Demo.isOn {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2))

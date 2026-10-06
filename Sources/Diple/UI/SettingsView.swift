@@ -356,9 +356,13 @@ struct GeneralPane: View {
                 LabeledContent("Version", value: updates.summary)
                 HStack {
                     updateStatus
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: updates.state)
                     Spacer()
                     Button("Release Notes") { NSWorkspace.shared.open(updates.releaseNotes) }
-                    if case .available(_, let page) = updates.state {
+                    if case .ready = updates.state {
+                        Button("Restart and Install") { updates.restartAndInstall() }
+                            .buttonStyle(.borderedProminent)
+                    } else if case .available(_, let page) = updates.state {
                         if updates.canInstall {
                             Button("Update Now") { updates.install() }
                                 .buttonStyle(.borderedProminent)
@@ -446,10 +450,24 @@ extension GeneralPane {
             Text("Version \(version) is out").foregroundStyle(.orange)
         case .failed:
             Text("Could not reach GitHub").foregroundStyle(.secondary)
+        case .downloading(let version, let received, let total):
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Downloading \(version)… \(Self.megabytes(received)) of \(Self.megabytes(total))")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                ProgressView(value: Double(received), total: Double(max(total, 1)))
+                    .progressViewStyle(.linear)
+                    .frame(maxWidth: 260)
+                    .animation(.easeOut(duration: 0.2), value: received)
+            }
+        case .ready(let version):
+            Label("Version \(version) is ready", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .transition(.scale.combined(with: .opacity))
         case .installing(let version):
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Installing \(version)… Diple will restart.").foregroundStyle(.secondary)
+                Text("Updating to \(version) with Homebrew…").foregroundStyle(.secondary)
             }
         case .installFailed(let version, _):
             Text("Version \(version) is out").foregroundStyle(.orange)
@@ -457,7 +475,14 @@ extension GeneralPane {
     }
 
     private var isInstalling: Bool {
-        if case .installing = updates.state { true } else { false }
+        switch updates.state {
+        case .installing, .downloading, .ready: true
+        default: false
+        }
+    }
+
+    static func megabytes(_ bytes: Int64) -> String {
+        String(format: "%.1f MB", Double(bytes) / 1_000_000)
     }
 }
 
