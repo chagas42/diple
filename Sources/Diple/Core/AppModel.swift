@@ -276,10 +276,20 @@ final class AppModel: ObservableObject {
         posting.insert(finding.id)
         defer { posting.remove(finding.id) }
         do {
-            try await client.startThread(
-                prId: pr.id, path: finding.path, line: finding.line,
-                body: signed(finding.comment ?? finding.summary, on: pr)
-            )
+            let changed = (try? await queries.fetch(Queries.changedFiles(pr)))?.files.map(\.path) ?? []
+            let body = signed(finding.comment ?? finding.summary, on: pr)
+            switch FindingPlace.choose(path: finding.path, line: finding.line, inline: finding.inline, changed: changed) {
+            case .line(let path, let line):
+                do {
+                    try await client.startThread(prId: pr.id, path: path, line: line, body: body)
+                } catch where GitHubClient.isOffDiff(error) {
+                    try await client.startThread(prId: pr.id, path: path, line: nil, body: "Line \(line): " + body)
+                }
+            case .file(let path):
+                try await client.startThread(prId: pr.id, path: path, line: nil, body: body)
+            case .conversation:
+                try await client.comment(prId: pr.id, body: "`\(finding.location)`: " + body)
+            }
             posted.insert(finding.id)
             telemetry.capture(.findingPosted)
             await reread(pr)

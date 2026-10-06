@@ -493,6 +493,13 @@ once the PR has moved on, or a month after it left the queue.
 
 ## The main window
 
+**A window does not grow with its content.** `NSHostingController` sizes its
+window to the SwiftUI content's ideal size by default, so a long AI review made
+the main window 1467pt tall on a 1112pt screen, and autosave kept it: the
+bottom sat behind the Dock and below the screen, and the scroll seemed to stop
+early. Resizable windows host with `sizingOptions = [.minSize]`, and every
+window is fitted into the screen's visible frame when it opens.
+
 **The list opens wide, and a row says one thing per line.** The list column
 opens at 520pt (380 to 680). A row is the title with a short time (`7h`,
 `3d`) on the first line, and `repo #n`, the last commenter and a trail of
@@ -648,6 +655,14 @@ whole decode, which moves the file aside as unreadable. Every field added after
 the first release is optional with a computed accessor.
 
 ## The deep review
+
+**A finding is posted where GitHub will take it.** The model's path and line
+are a guess: it wrote `files.c:744` for a 372-line `src/files.c`, and GitHub
+refuses a line comment outside the diff, so posting failed on every try. A
+bare file name is matched against the PR's changed files (one match only); a
+line GitHub calls off the diff is posted on the file instead, starting with
+`Line N:`; a finding marked for the conversation (`inline: false`), or whose
+file is not in the PR, becomes a PR comment that names the location.
 
 **It exists only where the skill does.** When `~/.claude/skills/diple-review/SKILL.md`
 is on the machine, the AI review runs it; otherwise it falls back to the plain
