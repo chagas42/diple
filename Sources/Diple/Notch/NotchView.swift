@@ -81,8 +81,16 @@ struct NotchView: View {
             .contextMenu {
                 if case .available(let version, let page) = updates.state {
                     Button("Update to \(version)…") {
-                        if updates.canInstall { updates.install() } else { NSWorkspace.shared.open(page) }
+                        if updates.canInstall {
+                            updates.install()
+                            Windows.shared.openSettings(model, pane: .general)
+                        } else {
+                            NSWorkspace.shared.open(page)
+                        }
                     }
+                    Divider()
+                } else if case .ready(let version) = updates.state {
+                    Button("Restart to Install \(version)") { updates.restartAndInstall() }
                     Divider()
                 }
                 Button("Settings…") { Windows.shared.openSettings(model) }
