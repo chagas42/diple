@@ -1336,13 +1336,17 @@ final class AppModel: ObservableObject {
     func prs(_ tab: Tab) -> [PR] {
         switch tab {
         case .needsYou:  needsYou
-        case .mine:       queue.mine.filter { !isDismissed($0) }
+        case .mine:       Self.draftsLast(queue.mine.filter { !isDismissed($0) })
         case .reviewing:  reviewing.filter { !isDismissed($0) }
         case .following: queue.following.filter { !isDismissed($0) }
         }
     }
 
     func count(_ tab: Tab) -> Int { prs(tab).count }
+
+    static func draftsLast(_ prs: [PR]) -> [PR] {
+        prs.filter { !$0.draft } + prs.filter(\.draft)
+    }
 
     @Published private(set) var requirements: [String: Int] = [:]
 
@@ -1398,6 +1402,6 @@ final class AppModel: ObservableObject {
 
     var rest: [PR] {
         let urgentes = Set(needsYou.map(\.key))
-        return queue.mine.filter { !urgentes.contains($0.key) }
+        return Self.draftsLast(queue.mine).filter { !urgentes.contains($0.key) }
     }
 }
