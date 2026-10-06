@@ -444,7 +444,11 @@ first showed up (one small query per PR, at most five per sync). A PR opened
 from Diple is also checked every 10 s for 30 minutes, at most three at a time,
 so the strip shows seconds after you review; that PR leaves Needs you at once,
 before the next sync. The count keeps its old number until the strip plays,
-drops the moment a sheet leaves it, and the sheet falls into a small drawer
+drops the moment a sheet leaves it (as low as the real count, so the
+reviewed PR has to be gone from it by then: a request that arrived while Diple
+was open also marked the PR unread, and Needs you counts unread PRs too, so a
+review you are counted for clears an unread that is only the request; one
+about a reply or a failing check stays), and the sheet falls into a small drawer
 whose number (today's reviews) goes up as it lands, so the two numbers move
 together. The drawer always sits at the strip's right end; when the count is on
 the left (a tight menu bar), the sheet first drops to the strip and glides

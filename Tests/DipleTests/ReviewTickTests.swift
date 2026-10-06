@@ -341,6 +341,22 @@ import Testing
         #expect(model.reviewedAhead.isEmpty)
     }
 
+    @Test func aReviewOfARequestThatArrivedWhileOpenLeavesTheCountAtOnce() async throws {
+        let world = World(.realistic())
+        let model = Self.model(world)
+        model.settings.alerts[EventKind.reviewRequested.rawValue] = false
+        await model.refresh(full: true)
+        world.world.toReview.append(FakeWorld.pr(41, author: "newcomer", viewer: "you"))
+        await model.refresh(full: true)
+        let pr = try #require(model.reviewing.first { $0.number == 141 })
+        #expect(model.unread.contains(pr.key))
+        let before = model.count
+
+        model.reviewedFromDiple(pr.key, at: Date(), verdict: .approved)
+        #expect(model.count == before - 1)
+        #expect(!model.unread.contains(pr.key))
+    }
+
     @Test func turningItOffTicksNothingFromSync() async throws {
         var start = FakeWorld.realistic()
         start.toReview.append(FakeWorld.pr(40, author: "newcomer", viewer: "you"))

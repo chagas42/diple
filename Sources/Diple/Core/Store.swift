@@ -241,6 +241,11 @@ final class Store {
         return true
     }
 
+    func answeredReview(_ key: String) {
+        guard state.unread.contains(key), state.unreadReasons[key] == .reviewRequested else { return }
+        markRead(key)
+    }
+
     func markRead(_ key: String) {
         state.unread.remove(key)
         state.unreadReasons[key] = nil
