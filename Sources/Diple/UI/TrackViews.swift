@@ -25,7 +25,8 @@ struct TrackedSection: View {
     var body: some View {
         Section {
             HStack {
-                TextField("github.com/owner/repo/pull/123", text: $link)
+                TextField("Pull request link", text: $link, prompt: Text("github.com/owner/repo/pull/123"))
+                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
                 Button(adding ? "Adding…" : "Track", action: add)

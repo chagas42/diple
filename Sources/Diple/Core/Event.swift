@@ -60,7 +60,7 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
         case .checkFailed:     "check failing"
         case .approved:       "approved your PR"
         case .newPullRequest: "opened a pull request"
-        case .tracked:        "updated a PR you track"
+        case .tracked:        "PR you track"
         }
     }
 }
