@@ -500,6 +500,33 @@ GitHub reports that same time. A new comment, push or review request moves
 toward showing too much rather than hiding a request. The entry is dropped
 once the PR has moved on, or a month after it left the queue.
 
+## Onboarding
+
+**Nine steps, shown once per version.** `StoredState.onboarded` holds the
+version seen; anyone below `Onboarding.version` gets it on launch, new and
+existing users alike, with their current settings already filled in. Settings →
+General → Show Onboarding opens it again. Demo, film and bench never open it on
+their own; `--onboarding <step>` does, and `--celebrate` presses the last button
+in demo for recordings.
+
+**The stage is scripted, not decorative.** Each step runs a loop in
+`NotchStage` (`.task(id: step)`, so leaving a step cancels it): a cursor moves
+on easing curves, the eye's gaze is set toward each destination so it follows,
+avatars get picked, days light up in a wave, bars move. The settings it shows
+are the real ones, so the notch preview changes as the toggles do.
+
+**The window is a fixed 720 × 652 and must not track its content.** With
+`maxHeight: .infinity` and a hosting controller that follows content, the team
+step grew the window to 2042pt, and once AppKit crashed in an update-constraints
+loop. The window hosts with `sizingOptions = []` and the content has an exact
+frame.
+
+**The team is picked, then narrowed.** `primaryOrg` overrides the guess from
+the queue; `teams` (stored as `org/slug`) makes Team and the ranking list only
+those teams' members, through a separate `teams` cache key, so picking none
+keeps the whole organization. Work days replace "weekends too": a saved file
+with that on becomes Monday to Friday, off becomes every day.
+
 ## The main window
 
 **A window does not grow with its content.** `NSHostingController` sizes its

@@ -14,6 +14,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         model.onTick = { [weak self] t in self?.notch.tick(t) }
         notch.mount(model: model)
         model.start()
+        let asked = CommandLine.arguments.firstIndex(of: "--onboarding")
+        if asked != nil || (model.needsOnboarding && !Demo.isOn && !Film.isOn && !Bench.isOn) {
+            let step = asked.flatMap { i in i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) : nil }
+                .flatMap(Onboarding.Step.init(rawValue:)) ?? .welcome
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                Windows.shared.openOnboarding(model, at: step) { self?.notch.rehearse(.long, after: .milliseconds(400)) }
+            }
+        }
         Task { await Worktree.pruneStale() }
 
         if Bench.scenario == "notch-idle" {

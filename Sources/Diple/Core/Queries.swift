@@ -17,6 +17,14 @@ enum Queries {
         ) { try await $0.fetchTeam(org: org) }
     }
 
+    static func teams(org: String, slugs: [String]) -> CacheQuery<[Person]> {
+        let slugs = slugs.sorted()
+        return CacheQuery(
+            key: .teams(org: org, slugs: slugs), tags: [.team],
+            staleAfter: .seconds(24 * 3600), forgetAfter: .seconds(7 * 24 * 3600), persists: true
+        ) { try await $0.fetchTeams(org: org, slugs: slugs) }
+    }
+
     static func ranking(org: String, period: RankPeriod, logins: [String]) -> CacheQuery<[RankRow]> {
         let logins = logins.sorted()
         return CacheQuery(

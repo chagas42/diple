@@ -9,6 +9,7 @@ final class Windows: NSObject, NSWindowDelegate {
     private var settings: NSWindow?
     private var map: NSWindow?
     private var feedback: NSWindow?
+    private var onboarding: NSWindow?
 
     var mainIsVisible: Bool {
         guard let main, main.isVisible, !main.isMiniaturized else { return false }
@@ -16,7 +17,7 @@ final class Windows: NSObject, NSWindowDelegate {
     }
 
     private func syncDockPolicy() {
-        let anyOpen = [main, settings, map, feedback].contains { $0?.isVisible == true }
+        let anyOpen = [main, settings, map, feedback, onboarding].contains { $0?.isVisible == true }
         NSApp.setActivationPolicy(anyOpen ? .regular : .accessory)
         if anyOpen { NSApp.activate(ignoringOtherApps: true) }
     }
@@ -66,6 +67,33 @@ final class Windows: NSObject, NSWindowDelegate {
         fit(j)
         j.delegate = self
         main = j
+        j.makeKeyAndOrderFront(nil)
+        syncDockPolicy()
+    }
+
+    func openOnboarding(_ model: AppModel, at step: Onboarding.Step = .welcome, then done: @escaping () -> Void) {
+        NSApp.activate(ignoringOtherApps: true)
+        onboarding?.close()
+        var j: NSWindow!
+        j = make(
+            title: "Welcome to Diple",
+            size: NSSize(width: 720, height: 620),
+            content: OnboardingView(model: model, start: step, celebrates: Demo.isOn && CommandLine.arguments.contains("--celebrate")) { [weak self] in
+                model.finishOnboarding()
+                j?.close()
+                self?.onboarding = nil
+                done()
+            }
+        )
+        j.styleMask.remove(.resizable)
+        (j.contentViewController as? NSHostingController<OnboardingView>)?.sizingOptions = []
+        j.setContentSize(NSSize(width: 720, height: 620))
+        j.titlebarAppearsTransparent = true
+        j.titleVisibility = .hidden
+        j.isMovableByWindowBackground = true
+        j.delegate = self
+        onboarding = j
+        j.center()
         j.makeKeyAndOrderFront(nil)
         syncDockPolicy()
     }

@@ -776,7 +776,21 @@ final class AppModel: ObservableObject {
         errorMessage = m
     }
 
-    var org: String { Self.organization(of: queue.all) }
+    var org: String { settings.primaryOrg ?? Self.organization(of: queue.all) }
+
+    var needsOnboarding: Bool { (store.state.onboarded ?? 0) < Onboarding.version }
+
+    func finishOnboarding() { store.markOnboarded(Onboarding.version) }
+
+    func myOrganizations() async -> [GitHubClient.Org] {
+        if queries.answersLocally { return Demo.organizations }
+        return (try? await client.fetchMyOrganizations()) ?? []
+    }
+
+    func myTeams(in org: String) async -> [GitHubClient.TeamRef] {
+        if queries.answersLocally { return Demo.teams }
+        return (try? await client.fetchMyTeams(org: org, viewer: queue.viewer)) ?? []
+    }
 
     nonisolated static func organization(of prs: [PR]) -> String {
         let known = prs.contains { $0.ownerIsOrganization != nil }
@@ -809,7 +823,9 @@ final class AppModel: ObservableObject {
     }
 
     private var teamQuery: CacheQuery<[Person]>? {
-        org.isEmpty ? nil : reporting(Queries.team(org: org), in: .loadTab)
+        guard !org.isEmpty else { return nil }
+        let slugs = settings.teams(in: org)
+        return reporting(slugs.isEmpty ? Queries.team(org: org) : Queries.teams(org: org, slugs: slugs), in: .loadTab)
     }
 
     private var rankingQuery: CacheQuery<[RankRow]>? { rankingQuery(for: team) }

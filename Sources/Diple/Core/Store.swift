@@ -15,6 +15,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var unreadReasons: [String: EventKind] = [:]
 
     var hasRunBefore: Bool = false
+    var onboarded: Int? = nil
     var watchedSince: [String: Date]? = nil
 
     var following: Set<String> = []
@@ -40,6 +41,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.unread = try c.decodeIfPresent(Set<String>.self, forKey: .unread) ?? d.unread
         d.unreadReasons = (try? c.decodeIfPresent([String: EventKind].self, forKey: .unreadReasons)) ?? d.unreadReasons
         d.hasRunBefore = try c.decodeIfPresent(Bool.self, forKey: .hasRunBefore) ?? d.hasRunBefore
+        d.onboarded = try c.decodeIfPresent(Int.self, forKey: .onboarded)
         d.watchedSince = try c.decodeIfPresent([String: Date].self, forKey: .watchedSince)
         d.following = try c.decodeIfPresent(Set<String>.self, forKey: .following) ?? d.following
         d.watching = try c.decodeIfPresent(Set<String>.self, forKey: .watching) ?? d.watching
@@ -239,6 +241,11 @@ final class Store {
         state.lastActiveDay = day
         save()
         return true
+    }
+
+    func markOnboarded(_ version: Int) {
+        state.onboarded = version
+        save()
     }
 
     func markRead(_ key: String) {
