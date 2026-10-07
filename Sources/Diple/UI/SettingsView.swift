@@ -187,6 +187,8 @@ struct NotificationsPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            TrackedSection(model: model)
+
             Section("Your reviews") {
                 Toggle("Show each review you send in the notch", isOn: $model.settings.showsReviews)
                 Text("A thin strip slides out of the notch with the PR, and a sheet drops from "
@@ -245,6 +247,7 @@ struct NotificationsPane: View {
         case .checkFailed:     "A check failed on one of your PRs"
         case .approved:       "Someone approved your PR"
         case .newPullRequest: "A pull request opened in a repository you watch"
+        case .tracked:        "A PR you track changed"
         }
     }
 
@@ -256,6 +259,7 @@ struct NotificationsPane: View {
         case .checkFailed:     "Only on the first failure; retries do not repeat."
         case .approved:       "Usually enough to see when you open the queue."
         case .newPullRequest: "Only repositories you starred, only what opens from now on, and never a draft."
+        case .tracked:        "Commits, comments, reviews, checks, and the merge that ends tracking."
         }
     }
 }
