@@ -561,8 +561,6 @@ struct LaunchButton: View {
     }
 }
 
-/// A view that reports press, release and Force Touch pressure. With a deep-click
-/// pressure configuration the trackpad gives a real second click at stage 2.
 struct PressSurface: NSViewRepresentable {
     let onDown: () -> Void
     let onUp: () -> Void
@@ -594,8 +592,6 @@ struct PressSurface: NSViewRepresentable {
     }
 }
 
-/// The celebration: reviewed sheets, approval checks and "Approved" labels
-/// floating up from the bottom, slow enough to read.
 struct ReviewBurst: View {
     let start: Date
 

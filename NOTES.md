@@ -537,6 +537,15 @@ an `NSHostingView` with `sizingOptions = []`, the content fills the window
 and each step sits in a `ScrollView`, so a step with more rows scrolls instead
 of pushing the window taller.
 
+**The last button is held, not clicked.** A Mac plays haptics only while a
+finger is on the trackpad, so a click followed by a fill gave nothing to feel.
+The button fills while it is held, ticks at each quarter, and its view sets an
+`NSPressureConfiguration` with `.primaryDeepClick`, so pressing harder gives the
+trackpad's real second click (`event.stage == 2`) and finishes at once. Let go
+early and it springs back. The celebration that follows throws up reviewed
+sheets, approval checks and "Approved" labels slowly enough to read, with each
+label sized to its text.
+
 **The team is picked, then narrowed.** `primaryOrg` overrides the guess from
 the queue; `teams` (stored as `org/slug`) makes Team and the ranking list only
 those teams' members, through a separate `teams` cache key, so picking none
