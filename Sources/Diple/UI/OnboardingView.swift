@@ -163,11 +163,14 @@ struct NotchStage: View {
     @State private var ring = false
 
     static let eyeAt = CGPoint(x: 240, y: 19)
+    static let rightEyeAt = CGPoint(x: 480, y: 19)
     static let command = "gh auth status"
     static let avatars: [CGFloat] = [284, 322, 360, 398, 436]
 
     private var settings: Settings { model.settings }
     private var showsEye: Bool { settings.showsEye || step == .tryIt }
+    private var eyeOnRight: Bool { settings.countSide == .left && step != .tryIt }
+    private var eyeCenter: CGPoint { eyeOnRight ? Self.rightEyeAt : Self.eyeAt }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -214,7 +217,7 @@ struct NotchStage: View {
     }
 
     private func gaze(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: max(-1, min(1, (p.x - Self.eyeAt.x) / 240)), y: max(-1, min(1, (p.y - Self.eyeAt.y) / 120)))
+        CGPoint(x: max(-1, min(1, (p.x - eyeCenter.x) / 240)), y: max(-1, min(1, (p.y - eyeCenter.y) / 120)))
     }
 
     private func move(_ p: CGPoint, _ seconds: Double = 0.9) async {
@@ -308,9 +311,9 @@ struct NotchStage: View {
     private var notch: some View {
         let side = settings.countSide
         return HStack(spacing: 0) {
-            wing(showEye: showsEye && (side == .right || step == .tryIt), showCount: side == .left && step != .tryIt)
+            wing(showEye: showsEye && !eyeOnRight, showCount: side == .left && step != .tryIt)
             Spacer(minLength: 120)
-            wing(showEye: false, showCount: side == .right || step == .tryIt)
+            wing(showEye: showsEye && eyeOnRight, showCount: side == .right || step == .tryIt)
         }
         .frame(width: 300, height: 38)
         .background(UnevenRoundedRectangle(bottomLeadingRadius: 14, bottomTrailingRadius: 14).fill(.black))
@@ -384,8 +387,13 @@ struct NotchStage: View {
                 }
             }
         case .notch:
-            Text("Changes show here as you make them.")
-                .font(.system(size: 12.5)).foregroundStyle(.white.opacity(0.6))
+            DiffHunkView(hunk: AppearanceSettings.sample, path: "refund-policy.ts", folds: false)
+                .environment(\.codeTheme, CodeTheme.named(settings.codeTheme))
+                .frame(width: 440)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .scaleEffect(0.72, anchor: .top)
+                .frame(height: 160, alignment: .top)
+                .animation(.easeInOut(duration: 0.25), value: settings.codeTheme)
         case .hours:
             VStack(spacing: 10) {
                 HStack(spacing: 10) {
@@ -689,7 +697,7 @@ struct NotchStep: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            StepHeader(title: "Make the notch yours", detail: "Everything here changes the preview above as you go.")
+            StepHeader(title: "Make the notch yours", detail: "The notch and the code above change as you pick.")
             OnboardingCard {
                 Toggle("Show the eye", isOn: $model.settings.showsEye)
                 Toggle("Let it blink", isOn: $model.settings.eyeBlinks).disabled(!model.settings.showsEye)
@@ -701,6 +709,10 @@ struct NotchStep: View {
                 Picker("Code theme", selection: $model.settings.codeTheme) {
                     ForEach(CodeTheme.all) { Text($0.name).tag($0.id) }
                 }
+                Text("Colors only the code in diffs, threads and AI reviews, shown above. The rest of Diple follows your Mac's appearance.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .font(.system(size: 13))

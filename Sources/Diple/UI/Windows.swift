@@ -23,6 +23,9 @@ final class Windows: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        if let closing = notification.object as? NSWindow, closing === onboarding {
+            onboardingShown(false)
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(60))
             self.syncDockPolicy()
@@ -71,9 +74,12 @@ final class Windows: NSObject, NSWindowDelegate {
         syncDockPolicy()
     }
 
+    var onboardingShown: (Bool) -> Void = { _ in }
+
     func openOnboarding(_ model: AppModel, at step: Onboarding.Step = .welcome, then done: @escaping () -> Void) {
         NSApp.activate(ignoringOtherApps: true)
         onboarding?.close()
+        onboardingShown(true)
         let size = NSSize(width: 720, height: 620)
         let j = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
