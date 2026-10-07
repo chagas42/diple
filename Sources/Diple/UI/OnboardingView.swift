@@ -78,7 +78,7 @@ struct OnboardingView: View {
                 LaunchButton(title: "Start using Diple", presses: celebrates) {
                     celebration = Date()
                     Task {
-                        try? await Task.sleep(for: .milliseconds(2600))
+                        try? await Task.sleep(for: .milliseconds(3700))
                         finish()
                     }
                 }
@@ -595,28 +595,27 @@ struct PressSurface: NSViewRepresentable {
 }
 
 /// The celebration: reviewed sheets, approval checks and "Approved" labels
-/// thrown up from the bottom, the things a review leaves behind.
+/// floating up from the bottom, slow enough to read.
 struct ReviewBurst: View {
     let start: Date
 
     enum Kind { case sheet, check, approved }
 
     struct Piece {
-        let kind: Kind, x: CGFloat, vx: CGFloat, vy: CGFloat, spin: Double, phase: Double, delay: Double, scale: CGFloat
+        let kind: Kind, x: CGFloat, vx: CGFloat, vy: CGFloat, tilt: Double, phase: Double, delay: Double, scale: CGFloat
     }
 
     static let approve = Color(red: 0.16, green: 0.63, blue: 0.29)
+    static let life: Double = 3.4
+    static let gravity: CGFloat = 260
 
     private let pieces: [Piece] = {
-        let cannons: [(x: CGFloat, vx: ClosedRange<CGFloat>)] = [(0.04, 120...480), (0.96, -480 ... -120), (0.5, -240...240)]
-        return (0..<120).map { i in
-            let c = cannons[i % cannons.count]
-            let roll = Double.random(in: 0..<1)
-            let kind: Kind = roll < 0.45 ? .sheet : roll < 0.8 ? .check : .approved
-            return Piece(kind: kind, x: c.x, vx: .random(in: c.vx), vy: .random(in: -1150 ... -720),
-                         spin: kind == .sheet ? .random(in: -3...3) : .random(in: -6...6),
-                         phase: .random(in: 0...6.28), delay: .random(in: 0...0.4),
-                         scale: .random(in: 0.8...1.15))
+        let kinds: [Kind] = [.sheet, .check, .approved, .sheet, .check]
+        return (0..<45).map { i in
+            Piece(kind: kinds[i % kinds.count],
+                  x: .random(in: 0.12...0.88), vx: .random(in: -45...45), vy: .random(in: -560 ... -380),
+                  tilt: .random(in: -0.35...0.35), phase: .random(in: 0...6.28),
+                  delay: Double(i) * 0.022 + .random(in: 0...0.12), scale: .random(in: 0.95...1.2))
         }
     }()
 
@@ -624,47 +623,51 @@ struct ReviewBurst: View {
         TimelineView(.animation) { context in
             Canvas { g, size in
                 let t = context.date.timeIntervalSince(start)
+                let label = g.resolve(Text("✓ Approved").font(.system(size: 12, weight: .bold)).foregroundColor(.white))
+                let labelSize = label.measure(in: CGSize(width: 200, height: 40))
                 for p in pieces {
                     let s = t - p.delay
-                    guard s > 0, s < 3.2 else { continue }
-                    let gravity: CGFloat = p.kind == .sheet ? 700 : 900
-                    let flutter = p.kind == .sheet ? sin(s * 6 + p.phase) * 14 : 0
-                    let x = p.x * size.width + p.vx * s + flutter
-                    let y = size.height + p.vy * s + gravity * s * s / 2
-                    guard y < size.height + 40 else { continue }
+                    guard s > 0, s < Self.life else { continue }
+                    let sway = sin(s * 2.4 + p.phase)
+                    let x = p.x * size.width + p.vx * s + (p.kind == .sheet ? sway * 18 : sway * 6)
+                    let y = size.height + 20 + p.vy * s + Self.gravity * s * s / 2
+                    guard y < size.height + 60 else { continue }
                     var piece = g
                     piece.translateBy(x: x, y: y)
-                    piece.rotate(by: .radians(p.spin * s))
+                    piece.rotate(by: .radians(p.tilt + (p.kind == .sheet ? sway * 0.35 : sway * 0.08)))
                     piece.scaleBy(x: p.scale, y: p.scale)
-                    piece.opacity = max(0, 1 - s / 3.2)
-                    draw(p.kind, in: &piece)
+                    let fadeIn = min(1, s / 0.25), fadeOut = min(1, (Self.life - s) / 1.0)
+                    piece.opacity = max(0, min(fadeIn, fadeOut))
+                    draw(p.kind, in: &piece, label: label, labelSize: labelSize)
                 }
             }
         }
         .allowsHitTesting(false)
     }
 
-    private func draw(_ kind: Kind, in g: inout GraphicsContext) {
+    private func draw(_ kind: Kind, in g: inout GraphicsContext, label: GraphicsContext.ResolvedText, labelSize: CGSize) {
         switch kind {
         case .sheet:
-            let page = CGRect(x: -11, y: -14, width: 22, height: 28)
-            g.fill(Path(roundedRect: page, cornerRadius: 2.5), with: .color(.white))
-            g.stroke(Path(roundedRect: page, cornerRadius: 2.5), with: .color(.black.opacity(0.18)), lineWidth: 0.8)
-            for (i, w) in [14.0, 11.0, 13.0].enumerated() {
-                g.fill(Path(roundedRect: CGRect(x: -7, y: -8 + Double(i) * 5, width: w, height: 1.6), cornerRadius: 0.8),
+            let page = CGRect(x: -14, y: -18, width: 28, height: 36)
+            g.fill(Path(roundedRect: page, cornerRadius: 3), with: .color(.white))
+            g.stroke(Path(roundedRect: page, cornerRadius: 3), with: .color(.black.opacity(0.18)), lineWidth: 0.8)
+            for (i, w) in [18.0, 14.0, 16.0, 10.0].enumerated() {
+                g.fill(Path(roundedRect: CGRect(x: -9, y: -11 + Double(i) * 5.5, width: w, height: 1.8), cornerRadius: 0.9),
                        with: .color(.black.opacity(0.22)))
             }
-            g.fill(Path(ellipseIn: CGRect(x: 2, y: 5, width: 7, height: 7)), with: .color(Self.approve))
+            g.fill(Path(ellipseIn: CGRect(x: 3, y: 8, width: 9, height: 9)), with: .color(Self.approve))
         case .check:
-            g.fill(Path(ellipseIn: CGRect(x: -10, y: -10, width: 20, height: 20)), with: .color(Self.approve))
+            g.fill(Path(ellipseIn: CGRect(x: -13, y: -13, width: 26, height: 26)), with: .color(Self.approve))
             var tick = Path()
-            tick.move(to: CGPoint(x: -4.5, y: 0.5))
-            tick.addLine(to: CGPoint(x: -1.2, y: 3.8))
-            tick.addLine(to: CGPoint(x: 5, y: -3.5))
-            g.stroke(tick, with: .color(.white), style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+            tick.move(to: CGPoint(x: -6, y: 0.5))
+            tick.addLine(to: CGPoint(x: -1.6, y: 5))
+            tick.addLine(to: CGPoint(x: 6.5, y: -4.5))
+            g.stroke(tick, with: .color(.white), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
         case .approved:
-            g.fill(Path(roundedRect: CGRect(x: -33, y: -10, width: 66, height: 20), cornerRadius: 10), with: .color(Self.approve))
-            g.draw(Text("✓ Approved").font(.system(size: 10.5, weight: .bold)).foregroundColor(.white), at: .zero)
+            let w = labelSize.width + 18, h = labelSize.height + 8
+            g.fill(Path(roundedRect: CGRect(x: -w / 2, y: -h / 2, width: w, height: h), cornerRadius: h / 2),
+                   with: .color(Self.approve))
+            g.draw(label, at: .zero, anchor: .center)
         }
     }
 }
