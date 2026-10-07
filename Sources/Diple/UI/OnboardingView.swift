@@ -28,6 +28,8 @@ struct OnboardingView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .top) {
                     content
+                        .frame(maxWidth: 500)
+                        .frame(maxWidth: .infinity)
                         .id(step)
                         .transition(.asymmetric(
                             insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
@@ -128,13 +130,15 @@ struct StepHeader: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: 6) {
             Text(title).font(.system(size: 22, weight: .bold, design: .rounded))
             Text(detail).font(.system(size: 13)).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, 14)
+        .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 16)
     }
 }
 
@@ -228,7 +232,7 @@ struct NotchStage: View {
     private func pause(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
 
     private func script() async {
-        withAnimation { showsCursor = step != .done && step != .github }
+        withAnimation { showsCursor = ![.done, .github, .hours].contains(step) }
         while !Task.isCancelled {
             switch step {
             case .welcome:
@@ -263,15 +267,12 @@ struct NotchStage: View {
                     await pause(0.4)
                 }
             case .hours:
-                await move(CGPoint(x: 500, y: 150), 0.8)
-                for i in 0...7 {
+                for i in 0...7 where lit < 7 {
                     guard !Task.isCancelled else { return }
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) { lit = i }
-                    await pause(0.16)
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.6)) { lit = i }
+                    await pause(0.09)
                 }
-                await pause(1.6)
-                withAnimation(.easeOut(duration: 0.3)) { lit = 0 }
-                await pause(0.4)
+                await pause(3600)
             case .ranking:
                 await move(CGPoint(x: 470, y: 130), 0.8)
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.6)) {
@@ -386,16 +387,27 @@ struct NotchStage: View {
             Text("Changes show here as you make them.")
                 .font(.system(size: 12.5)).foregroundStyle(.white.opacity(0.6))
         case .hours:
-            HStack(spacing: 4) {
-                ForEach(Array(DayPicker.order.enumerated()), id: \.offset) { i, d in
-                    let on = settings.workDays.contains(d.0)
-                    Text(String(d.1.prefix(1))).font(.system(size: 11, weight: .semibold))
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(on ? Color.accentColor : .white.opacity(0.08)))
-                        .foregroundStyle(.white)
-                        .scaleEffect(i < lit ? 1.12 : 1)
-                        .opacity(i < lit ? 1 : 0.55)
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    ForEach(Array(DayPicker.order.enumerated()), id: \.offset) { i, d in
+                        let on = settings.workDays.contains(d.0)
+                        Text(String(d.1.prefix(1))).font(.system(size: 13, weight: .bold))
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(on ? Color.accentColor : .white.opacity(0.10)))
+                            .overlay(Circle().strokeBorder(.white.opacity(on ? 0.0 : 0.18), lineWidth: 1))
+                            .foregroundStyle(.white.opacity(on ? 1 : 0.6))
+                            .scaleEffect(i < lit ? 1 : 0.6)
+                            .opacity(i < lit ? 1 : 0)
+                            .contentShape(Circle())
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+                                    if on { model.settings.workDays.remove(d.0) } else { model.settings.workDays.insert(d.0) }
+                                }
+                            }
+                            .help(d.1)
+                    }
                 }
+                Text("Click a day").font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white.opacity(0.55))
             }
         case .ranking:
             HStack(alignment: .bottom, spacing: 6) {
@@ -532,6 +544,7 @@ struct WelcomeStep: View {
         VStack(alignment: .leading, spacing: 16) {
             StepHeader(title: "Welcome to Diple",
                        detail: "Diple lives in your notch and tells you which pull requests are waiting on you. A minute here and it fits how you work.")
+                .frame(maxWidth: .infinity)
             feature("eye", "A glance tells you", "The count in the notch is what needs you. Hover to open the queue.")
             feature("bell.badge", "Only what matters", "A reply to you, a review request, a failing check. Quiet outside your hours.")
             feature("sparkles", "Claude on your Mac", "Review with Claude, map a pull request, and let it resolve conflicts.")
@@ -588,27 +601,28 @@ struct TeamStep: View {
     private var picked: String { model.settings.primaryOrg ?? model.org }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 12) {
             StepHeader(title: "Your team",
                        detail: "Pick the organization Diple ranks and shows as your team. Narrow it to your GitHub teams, or leave it as everyone.")
             if let orgs {
                 if orgs.isEmpty {
                     Text("You are not in any organization, so there is no team to show. You can still use everything else.")
-                        .font(.system(size: 12.5)).foregroundStyle(.secondary)
+                        .font(.system(size: 12.5)).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 } else {
                     HStack(spacing: 10) {
                         ForEach(orgs) { org in orgCard(org) }
                     }
+                    .frame(maxWidth: .infinity)
                 }
             } else {
                 ProgressView().controlSize(.small)
             }
             if let teams, !picked.isEmpty {
-                Text("TEAMS IN \(picked.uppercased())").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary).padding(.top, 6)
                 if teams.isEmpty {
                     Text("Everyone in \(picked).").font(.system(size: 12.5)).foregroundStyle(.secondary)
                 } else {
-                    VStack(alignment: .leading, spacing: 6) {
+                    OnboardingCard {
+                        Text("TEAMS IN \(picked.uppercased())").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                         ForEach(teams) { t in
                             Toggle(isOn: teamBinding(t.slug)) {
                                 Text(t.name).font(.system(size: 12.5))
@@ -635,13 +649,22 @@ struct TeamStep: View {
     private func orgCard(_ org: GitHubClient.Org) -> some View {
         let selected = org.login.lowercased() == picked.lowercased()
         return Button { model.settings.primaryOrg = org.login } label: {
-            VStack(spacing: 6) {
+            HStack(spacing: 10) {
                 CachedAvatar(url: org.avatar) { Circle().fill(Color.secondary.opacity(0.2)) }
-                    .frame(width: 36, height: 36).clipShape(RoundedRectangle(cornerRadius: 8))
-                Text(org.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                Text(org.login).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                    .frame(width: 30, height: 30).clipShape(RoundedRectangle(cornerRadius: 7))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(org.name).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                    Text(org.login).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if selected {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
-            .frame(width: 130, height: 96)
+            .padding(.horizontal, 12)
+            .frame(width: 185, height: 50)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
             .background(RoundedRectangle(cornerRadius: 10).fill(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.03)))
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
                                                                      lineWidth: selected ? 1.5 : 1))
@@ -665,16 +688,19 @@ struct NotchStep: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 12) {
             StepHeader(title: "Make the notch yours", detail: "Everything here changes the preview above as you go.")
-            Toggle("Show the eye", isOn: $model.settings.showsEye)
-            Toggle("Let it blink", isOn: $model.settings.eyeBlinks).disabled(!model.settings.showsEye)
-            Picker("The count sits on the", selection: $model.settings.countSide) {
-                ForEach(CountSide.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            Picker("Code theme", selection: $model.settings.codeTheme) {
-                ForEach(CodeTheme.all) { Text($0.name).tag($0.id) }
+            OnboardingCard {
+                Toggle("Show the eye", isOn: $model.settings.showsEye)
+                Toggle("Let it blink", isOn: $model.settings.eyeBlinks).disabled(!model.settings.showsEye)
+                Divider()
+                Picker("The count sits on the", selection: $model.settings.countSide) {
+                    ForEach(CountSide.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Picker("Code theme", selection: $model.settings.codeTheme) {
+                    ForEach(CodeTheme.all) { Text($0.name).tag($0.id) }
+                }
             }
         }
         .font(.system(size: 13))
@@ -692,12 +718,13 @@ struct DayPicker: View {
                 Button {
                     if on { days.remove(day) } else { days.insert(day) }
                 } label: {
-                    Text(name).font(.system(size: 12, weight: .semibold))
-                        .frame(width: 42, height: 30)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(on ? Color.accentColor : Color.primary.opacity(0.06)))
+                    Text(String(name.prefix(1))).font(.system(size: 12, weight: .semibold))
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(on ? Color.accentColor : Color.primary.opacity(0.08)))
                         .foregroundStyle(on ? Color.white : Color.primary)
                 }
                 .buttonStyle(.plain)
+                .help(name)
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: days)
@@ -708,18 +735,19 @@ struct HoursStep: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(spacing: 14) {
             StepHeader(title: "When you work",
-                       detail: "Outside these days and hours, notifications go straight to Notification Center, without a banner or a sound. A reply to you still comes through.")
-            Text("WORK DAYS").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-            DayPicker(days: $model.settings.workDays)
+                       detail: "Click the days in the preview above. Outside your days and hours, notifications go straight to Notification Center, without a banner or a sound. A reply to you still comes through.")
             Toggle("Quiet outside working hours", isOn: $model.settings.quietHoursOn)
-            HStack {
-                Picker("From", selection: $model.settings.quietUntil) { hours }
-                Picker("to", selection: $model.settings.quietFrom) { hours }
+                .toggleStyle(.switch)
+            HStack(spacing: 10) {
+                Text("From").foregroundStyle(.secondary)
+                Picker("", selection: $model.settings.quietUntil) { hours }.labelsHidden().frame(width: 96)
+                Text("to").foregroundStyle(.secondary)
+                Picker("", selection: $model.settings.quietFrom) { hours }.labelsHidden().frame(width: 96)
             }
             .disabled(!model.settings.quietHoursOn)
-            .frame(maxWidth: 360)
+            .opacity(model.settings.quietHoursOn ? 1 : 0.5)
         }
         .font(.system(size: 13))
     }
@@ -752,11 +780,13 @@ struct ExtrasStep: View {
     @StateObject private var login = LoginItem()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 12) {
             StepHeader(title: "A few more things", detail: "You can change any of these later in Settings.")
-            Toggle("Open Diple when you log in", isOn: Binding(get: { login.isOn }, set: { login.set($0) }))
-            Toggle("Sync right after you push from this Mac", isOn: $model.settings.syncsOnPush)
-            Toggle("Sync early on GitHub notifications", isOn: $model.settings.syncsOnNotifications)
+            OnboardingCard {
+                Toggle("Open Diple when you log in", isOn: Binding(get: { login.isOn }, set: { login.set($0) }))
+                Toggle("Sync right after you push from this Mac", isOn: $model.settings.syncsOnPush)
+                Toggle("Sync early on GitHub notifications", isOn: $model.settings.syncsOnNotifications)
+            }
         }
         .font(.system(size: 13))
         .onAppear { login.refresh() }
@@ -798,5 +828,17 @@ struct DoneStep: View {
 
     private func row(_ icon: String, _ text: String) -> some View {
         Label(text, systemImage: icon).font(.system(size: 13))
+    }
+}
+
+struct OnboardingCard<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) { content() }
+            .padding(16)
+            .frame(width: 380, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
     }
 }
