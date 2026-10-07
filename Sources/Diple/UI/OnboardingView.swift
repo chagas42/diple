@@ -454,55 +454,143 @@ struct LaunchButton: View {
     let onDone: () -> Void
 
     @State private var progress: CGFloat = 0
-    @State private var running = false
+    @State private var holding = false
+    @State private var done = false
     @State private var shakes = 0
+    @State private var pressure: CGFloat = 0
+    @State private var ticks = 0
+    @State private var hold: Task<Void, Never>?
+
+    static let fillSeconds: CGFloat = 1.2
+    static let tickAt: [CGFloat] = [0.25, 0.5, 0.75]
 
     var body: some View {
-        Button(action: press) { label }
-        .buttonStyle(.plain)
-        .task { if presses { try? await Task.sleep(for: .seconds(3)); press() } }
-        .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { view, dx in
-            view.offset(x: dx)
-        } keyframes: { _ in
-            KeyframeTrack {
-                CubicKeyframe(-6, duration: 0.05)
-                CubicKeyframe(6, duration: 0.06)
-                CubicKeyframe(-5, duration: 0.06)
-                CubicKeyframe(4, duration: 0.06)
-                CubicKeyframe(-2, duration: 0.06)
-                CubicKeyframe(0, duration: 0.07)
+        label
+            .overlay {
+                PressSurface(
+                    onDown: begin,
+                    onUp: release,
+                    onPressure: { stage, amount in
+                        pressure = stage == 1 ? amount : 0
+                        if stage >= 2 { finish() }
+                    }
+                )
             }
-        }
-        .keyboardShortcut(.defaultAction)
+            .background {
+                Button("", action: { begin(); Task { try? await Task.sleep(for: .seconds(Self.fillSeconds + 0.2)); release() } })
+                    .keyboardShortcut(.defaultAction)
+                    .opacity(0)
+            }
+            .task {
+                guard presses else { return }
+                try? await Task.sleep(for: .seconds(3))
+                begin()
+            }
+            .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { view, dx in
+                view.offset(x: dx)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    CubicKeyframe(-6, duration: 0.05)
+                    CubicKeyframe(6, duration: 0.06)
+                    CubicKeyframe(-5, duration: 0.06)
+                    CubicKeyframe(4, duration: 0.06)
+                    CubicKeyframe(-2, duration: 0.06)
+                    CubicKeyframe(0, duration: 0.07)
+                }
+            }
+            .scaleEffect(holding && !done ? 0.97 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: holding)
     }
 
-    private func press() {
-            guard !running else { return }
-            running = true
-            withAnimation(.easeIn(duration: 1.1)) { progress = 1 }
-            Task {
-                try? await Task.sleep(for: .milliseconds(1150))
-                shakes += 1
-                NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
-                try? await Task.sleep(for: .milliseconds(420))
-                onDone()
+    private func begin() {
+        guard !done, hold == nil else { return }
+        holding = true
+        hold = Task { @MainActor in
+            let step: CGFloat = 1.0 / 60
+            while !Task.isCancelled, !done {
+                progress = min(1, progress + step / Self.fillSeconds * (1 + 2 * pressure))
+                if ticks < Self.tickAt.count, progress >= Self.tickAt[ticks] {
+                    ticks += 1
+                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+                }
+                if progress >= 1 { finish(); return }
+                try? await Task.sleep(for: .milliseconds(16))
             }
+        }
+    }
+
+    private func release() {
+        holding = false
+        pressure = 0
+        hold?.cancel()
+        hold = nil
+        guard !done else { return }
+        ticks = 0
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { progress = 0 }
+    }
+
+    private func finish() {
+        guard !done else { return }
+        done = true
+        hold?.cancel()
+        hold = nil
+        withAnimation(.easeOut(duration: 0.12)) { progress = 1 }
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        shakes += 1
+        Task {
+            try? await Task.sleep(for: .milliseconds(420))
+            onDone()
+        }
     }
 
     private var label: some View {
-            Text(running ? (progress < 1 ? "Getting ready…" : "Here we go") : title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18).padding(.vertical, 8)
-                .background {
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.accentColor.opacity(running ? 0.35 : 1))
-                            Capsule().fill(Color.accentColor).frame(width: g.size.width * progress)
-                        }
+        Text(done ? "Here we go" : holding ? "Keep holding…" : title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18).padding(.vertical, 8)
+            .background {
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.accentColor.opacity(holding || done ? 0.35 : 1))
+                        Capsule().fill(Color.accentColor).frame(width: g.size.width * progress)
                     }
                 }
-                .contentShape(Capsule())
+            }
+            .contentShape(Capsule())
+            .help("Press and hold. Press harder for a deep click.")
+    }
+}
+
+/// A view that reports press, release and Force Touch pressure. With a deep-click
+/// pressure configuration the trackpad gives a real second click at stage 2.
+struct PressSurface: NSViewRepresentable {
+    let onDown: () -> Void
+    let onUp: () -> Void
+    let onPressure: (Int, CGFloat) -> Void
+
+    func makeNSView(context: Context) -> Surface {
+        let v = Surface()
+        v.pressureConfiguration = NSPressureConfiguration(pressureBehavior: .primaryDeepClick)
+        return v
+    }
+
+    func updateNSView(_ v: Surface, context: Context) {
+        v.onDown = onDown
+        v.onUp = onUp
+        v.onPressure = onPressure
+    }
+
+    final class Surface: NSView {
+        var onDown: () -> Void = {}
+        var onUp: () -> Void = {}
+        var onPressure: (Int, CGFloat) -> Void = { _, _ in }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func mouseDown(with event: NSEvent) { onDown() }
+        override func mouseUp(with event: NSEvent) { onUp() }
+        override func pressureChange(with event: NSEvent) {
+            onPressure(event.stage, CGFloat(event.pressure))
+        }
     }
 }
 
