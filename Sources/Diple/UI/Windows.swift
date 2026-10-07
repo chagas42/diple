@@ -74,23 +74,29 @@ final class Windows: NSObject, NSWindowDelegate {
     func openOnboarding(_ model: AppModel, at step: Onboarding.Step = .welcome, then done: @escaping () -> Void) {
         NSApp.activate(ignoringOtherApps: true)
         onboarding?.close()
-        var j: NSWindow!
-        j = make(
-            title: "Welcome to Diple",
-            size: NSSize(width: 720, height: 620),
-            content: OnboardingView(model: model, start: step, celebrates: Demo.isOn && CommandLine.arguments.contains("--celebrate")) { [weak self] in
-                model.finishOnboarding()
-                j?.close()
-                self?.onboarding = nil
-                done()
-            }
+        let size = NSSize(width: 720, height: 620)
+        let j = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
         )
-        j.styleMask.remove(.resizable)
-        (j.contentViewController as? NSHostingController<OnboardingView>)?.sizingOptions = []
-        j.setContentSize(NSSize(width: 720, height: 620))
+        let view = OnboardingView(model: model, start: step,
+                                  celebrates: Demo.isOn && CommandLine.arguments.contains("--celebrate")) { [weak self, weak j] in
+            model.finishOnboarding()
+            j?.close()
+            self?.onboarding = nil
+            done()
+        }
+        let host = NSHostingView(rootView: view)
+        host.sizingOptions = []
+        j.contentView = host
+        j.setContentSize(size)
+        j.title = "Welcome to Diple"
         j.titlebarAppearsTransparent = true
         j.titleVisibility = .hidden
         j.isMovableByWindowBackground = true
+        j.isReleasedWhenClosed = false
         j.delegate = self
         onboarding = j
         j.center()

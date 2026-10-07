@@ -515,11 +515,13 @@ on easing curves, the eye's gaze is set toward each destination so it follows,
 avatars get picked, days light up in a wave, bars move. The settings it shows
 are the real ones, so the notch preview changes as the toggles do.
 
-**The window is a fixed 720 × 652 and must not track its content.** With
-`maxHeight: .infinity` and a hosting controller that follows content, the team
-step grew the window to 2042pt, and once AppKit crashed in an update-constraints
-loop. The window hosts with `sizingOptions = []` and the content has an exact
-frame.
+**The window is a fixed 720 × 620, and the steps scroll inside it.** With a
+hosting controller that tracks its content, the team step grew the window to
+2042pt, and once AppKit crashed in an update-constraints loop. The window hosts
+an `NSHostingView` with `sizingOptions = []`, the content fills the window
+(`maxHeight: .infinity`, which a fixed frame got wrong by the title bar's 32pt),
+and each step sits in a `ScrollView`, so a step with more rows scrolls instead
+of pushing the window taller.
 
 **The team is picked, then narrowed.** `primaryOrg` overrides the guess from
 the queue; `teams` (stored as `org/slug`) makes Team and the ranking list only

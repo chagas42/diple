@@ -25,22 +25,25 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             NotchStage(model: model, step: step, eye: eye, focused: previewFocused) { Task { await poke() } }
                 .frame(height: 236)
-            ZStack(alignment: .top) {
-                content
-                    .id(step)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
-                        removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)
-                    ))
+            ScrollView(.vertical, showsIndicators: false) {
+                ZStack(alignment: .top) {
+                    content
+                        .id(step)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
+                            removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)
+                        ))
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+                .padding(.horizontal, 48)
+                .padding(.vertical, 24)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal, 48)
-            .padding(.top, 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
             footer
         }
         .overlay { if let celebration { Confetti(start: celebration) } }
-        .frame(width: 720, height: 652)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .ignoresSafeArea()
         .onAppear { step = start }
