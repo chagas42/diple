@@ -53,6 +53,7 @@ struct RawPR: Decodable, Sendable {
     let url: URL
     let updatedAt: Date
     let createdAt: Date?
+    var state: String? = nil
     let isDraft: Bool
     let headRefName: String
     let headRefOid: String?
@@ -152,6 +153,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     var commentReviews: Int? = nil
 
     var mergeable: Mergeable? = nil
+    var state: PRState? = nil
     var headRepo: String? = nil
     var canPush: Bool? = nil
 
@@ -274,6 +276,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         head = c.headRefOid
         baseRef = c.baseRefName
         mergeable = c.mergeable.map(Mergeable.init(github:))
+        state = PRState(github: c.state)
         headRepo = c.headRepository?.nameWithOwner
         canPush = Self.canPush(head: c.headRepository?.viewerPermission, base: c.repository.viewerPermission,
                                maintainerCanModify: c.maintainerCanModify)
