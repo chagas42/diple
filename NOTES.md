@@ -15,6 +15,15 @@ reviews submitted inside the grid count. The full six months is fetched once;
 after that only the last two days are, and older days come from the saved
 query, which lives on disk for the six months it covers.
 
+**The team is an organization, never a person.** Team, ranking and activity
+run against one owner: the one that owns most of the queue's pull requests, but
+counting only owners whose `repository.owner.__typename` is `Organization`. It
+used to count every owner, so a personal account with a few old PRs in Following
+(`alifoo/hacking-club-pucpr`, three against one `SalvyLTD/salvy-api`) won, and
+`organization(login: "alifoo")` failed with "Could not resolve to an
+Organization" in a banner. With no organization in the queue there is no team.
+Pull requests cached before the field count every owner until the next read.
+
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
 separate connection. Reading one and not the other makes the app blind to the

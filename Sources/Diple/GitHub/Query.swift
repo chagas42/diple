@@ -11,7 +11,7 @@ enum Query {
       headRefName
       headRefOid
       baseRefName
-      repository { nameWithOwner viewerPermission }
+      repository { nameWithOwner viewerPermission owner { __typename } }
       headRepository { nameWithOwner viewerPermission }
       maintainerCanModify
       mergeable
