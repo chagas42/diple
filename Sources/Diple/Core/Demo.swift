@@ -246,6 +246,7 @@ enum Demo {
                 lastCommentAt: pr.lastComment?.at, reviewRequested: toReview.contains(pr.key)
             )
         }
+        state.tracked = Dictionary(uniqueKeysWithValues: queue.toReview.prefix(2).map { ($0.key, TrackedPR($0)) })
         try? JSONEncoder().encode(state).write(to: dir.appendingPathComponent("state.json"), options: .atomic)
         return Store(directory: dir)
     }

@@ -30,6 +30,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var reviewDay: String? = nil
     var reviewsThatDay = 0
     var dismissed: [String: Date]? = nil
+    var tracked: [String: TrackedPR]? = nil
 
     init() {}
 
@@ -55,6 +56,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.reviewDay = try c.decodeIfPresent(String.self, forKey: .reviewDay)
         d.reviewsThatDay = try c.decodeIfPresent(Int.self, forKey: .reviewsThatDay) ?? d.reviewsThatDay
         d.dismissed = try? c.decodeIfPresent([String: Date].self, forKey: .dismissed)
+        d.tracked = try? c.decodeIfPresent([String: TrackedPR].self, forKey: .tracked)
         self = d
     }
 
@@ -300,6 +302,44 @@ final class Store {
         state.watching = w
         state.watchedSince = since
         save()
+    }
+
+    func track(_ pr: PR, now: Date = Date()) {
+        var all = state.tracked ?? [:]
+        all[pr.key] = TrackedPR(pr, since: now)
+        state.tracked = all
+        save()
+    }
+
+    func untrack(_ key: String) {
+        guard state.tracked?[key] != nil else { return }
+        state.tracked?[key] = nil
+        save()
+    }
+
+    func absorbTracked(_ fresh: [PR], viewer: String) -> [Event] {
+        guard var all = state.tracked else { return [] }
+        var events: [Event] = []
+        for pr in fresh {
+            guard var t = all[pr.key] else { continue }
+            let found = Tracking.events(t, now: pr, viewer: viewer)
+            events += found
+            if (pr.state ?? .open).isFinal {
+                all[pr.key] = nil
+                continue
+            }
+            t.title = pr.title
+            t.mark = TrackMark(pr)
+            all[pr.key] = t
+        }
+        guard all != state.tracked || !events.isEmpty else { return events }
+        state.tracked = all
+        for e in events {
+            state.unread.insert(e.key)
+            state.unreadReasons[e.key] = EventKind.moreUrgent(state.unreadReasons[e.key], e.kind)
+        }
+        save()
+        return events
     }
 
     func toggleFollow(_ login: String) {

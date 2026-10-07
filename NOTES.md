@@ -500,6 +500,20 @@ GitHub reports that same time. A new comment, push or review request moves
 toward showing too much rather than hiding a request. The entry is dropped
 once the PR has moved on, or a month after it left the queue.
 
+**A tracked PR is read by its node id, never through search.** Every queue
+search says `is:open`, so a merged PR simply stops coming back: it vanishes
+without an event, and nothing in the queue can say "merged". Tracked PRs skip
+search entirely. Each sync sends one `nodes(ids:)` query with only `updatedAt`,
+`state`, `headRefOid` and the check rollup (checks never move `updatedAt`, so
+they have to be in it), and only the PRs whose beat moved are refetched with
+the full fragment. The mark kept per PR is what the events compare against:
+a new head is a push, a newer human comment is a comment (a reply if it names
+you), more approvals or change requests are a review, and the checks entering
+failing, or leaving failing or running for passing, are a check event. Merged
+or closed raises one event and drops the PR from tracking. While a PR is
+tracked, the queue's own comment, check and approval events for it are dropped,
+so the same comment never notifies twice.
+
 ## Onboarding
 
 **Nine steps, shown once per version.** `StoredState.onboarded` holds the
