@@ -72,7 +72,9 @@ struct RawPR: Decodable, Sendable {
     struct RawRepo: Decodable, Sendable {
         let nameWithOwner: String
         var viewerPermission: String? = nil
+        var owner: RawOwner? = nil
     }
+    struct RawOwner: Decodable, Sendable { let __typename: String }
     struct RawRequests: Decodable, Sendable { let nodes: [RawRequest?] }
     struct RawRequest: Decodable, Sendable { let requestedReviewer: RawReviewer? }
     struct RawReviewer: Decodable, Sendable {
@@ -153,6 +155,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
 
     var mergeable: Mergeable? = nil
     var headRepo: String? = nil
+    var ownerIsOrganization: Bool? = nil
     var canPush: Bool? = nil
 
     var conflicts: Bool { mergeable == .conflicting }
@@ -275,6 +278,7 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         baseRef = c.baseRefName
         mergeable = c.mergeable.map(Mergeable.init(github:))
         headRepo = c.headRepository?.nameWithOwner
+        ownerIsOrganization = c.repository.owner.map { $0.__typename == "Organization" }
         canPush = Self.canPush(head: c.headRepository?.viewerPermission, base: c.repository.viewerPermission,
                                maintainerCanModify: c.maintainerCanModify)
         checks = CheckState(c.commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)

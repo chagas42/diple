@@ -776,10 +776,14 @@ final class AppModel: ObservableObject {
         errorMessage = m
     }
 
-    var org: String {
-        let donos = queue.all.compactMap { $0.repo.split(separator: "/").first.map(String.init) }
-        let count = Dictionary(grouping: donos, by: { $0 }).mapValues(\.count)
-        return count.max { $0.value < $1.value }?.key ?? ""
+    var org: String { Self.organization(of: queue.all) }
+
+    nonisolated static func organization(of prs: [PR]) -> String {
+        let known = prs.contains { $0.ownerIsOrganization != nil }
+        let owners = prs.filter { !known || $0.ownerIsOrganization == true }
+            .compactMap { $0.repo.split(separator: "/").first.map(String.init) }
+        let count = Dictionary(grouping: owners, by: { $0 }).mapValues(\.count)
+        return count.max { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }?.key ?? ""
     }
 
     func toggleFollow(_ login: String) {
