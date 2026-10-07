@@ -514,6 +514,44 @@ or closed raises one event and drops the PR from tracking. While a PR is
 tracked, the queue's own comment, check and approval events for it are dropped,
 so the same comment never notifies twice.
 
+## Onboarding
+
+**Nine steps, shown once per version.** `StoredState.onboarded` holds the
+version seen; anyone below `Onboarding.version` gets it on launch, new and
+existing users alike, with their current settings already filled in. Settings →
+General → Show Onboarding opens it again. Demo, film and bench never open it on
+their own; `--onboarding <step>` does, and `--celebrate` presses the last button
+in demo for recordings.
+
+**The stage is scripted, not decorative.** Each step runs a loop in
+`NotchStage` (`.task(id: step)`, so leaving a step cancels it): a cursor moves
+on easing curves, the eye's gaze is set toward each destination so it follows,
+avatars get picked, days light up in a wave, bars move. The settings it shows
+are the real ones, so the notch preview changes as the toggles do.
+
+**The window is a fixed 720 × 620, and the steps scroll inside it.** With a
+hosting controller that tracks its content, the team step grew the window to
+2042pt, and once AppKit crashed in an update-constraints loop. The window hosts
+an `NSHostingView` with `sizingOptions = []`, the content fills the window
+(`maxHeight: .infinity`, which a fixed frame got wrong by the title bar's 32pt),
+and each step sits in a `ScrollView`, so a step with more rows scrolls instead
+of pushing the window taller.
+
+**The last button is held, not clicked.** A Mac plays haptics only while a
+finger is on the trackpad, so a click followed by a fill gave nothing to feel.
+The button fills while it is held, ticks at each quarter, and its view sets an
+`NSPressureConfiguration` with `.primaryDeepClick`, so pressing harder gives the
+trackpad's real second click (`event.stage == 2`) and finishes at once. Let go
+early and it springs back. The celebration that follows throws up reviewed
+sheets, approval checks and "Approved" labels slowly enough to read, with each
+label sized to its text.
+
+**The team is picked, then narrowed.** `primaryOrg` overrides the guess from
+the queue; `teams` (stored as `org/slug`) makes Team and the ranking list only
+those teams' members, through a separate `teams` cache key, so picking none
+keeps the whole organization. Work days replace "weekends too": a saved file
+with that on becomes Monday to Friday, off becomes every day.
+
 ## The main window
 
 **A window does not grow with its content.** `NSHostingController` sizes its

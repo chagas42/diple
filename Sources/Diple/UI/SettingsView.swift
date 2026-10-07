@@ -229,7 +229,7 @@ struct NotificationsPane: View {
                     Spacer()
                 }
                 .disabled(!model.settings.quietHoursOn)
-                Toggle("Weekends too", isOn: $model.settings.quietOnWeekends)
+                LabeledContent("Work days") { DayPicker(days: $model.settings.workDays) }
                     .disabled(!model.settings.quietHoursOn)
                 Text("A direct reply to you always gets through.")
                     .font(.system(size: 10.5))
@@ -423,6 +423,7 @@ struct GeneralPane: View {
             Section {
                 HStack {
                     Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
+                    Button("Show Onboarding") { Windows.shared.openOnboarding(model) {} }
                     Spacer()
                     Button("Quit Diple") { NSApplication.shared.terminate(nil) }
                 }

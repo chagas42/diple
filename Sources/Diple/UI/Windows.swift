@@ -9,6 +9,7 @@ final class Windows: NSObject, NSWindowDelegate {
     private var settings: NSWindow?
     private var map: NSWindow?
     private var feedback: NSWindow?
+    private var onboarding: NSWindow?
 
     var mainIsVisible: Bool {
         guard let main, main.isVisible, !main.isMiniaturized else { return false }
@@ -16,12 +17,15 @@ final class Windows: NSObject, NSWindowDelegate {
     }
 
     private func syncDockPolicy() {
-        let anyOpen = [main, settings, map, feedback].contains { $0?.isVisible == true }
+        let anyOpen = [main, settings, map, feedback, onboarding].contains { $0?.isVisible == true }
         NSApp.setActivationPolicy(anyOpen ? .regular : .accessory)
         if anyOpen { NSApp.activate(ignoringOtherApps: true) }
     }
 
     func windowWillClose(_ notification: Notification) {
+        if let closing = notification.object as? NSWindow, closing === onboarding {
+            onboardingShown(false)
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(60))
             self.syncDockPolicy()
@@ -66,6 +70,42 @@ final class Windows: NSObject, NSWindowDelegate {
         fit(j)
         j.delegate = self
         main = j
+        j.makeKeyAndOrderFront(nil)
+        syncDockPolicy()
+    }
+
+    var onboardingShown: (Bool) -> Void = { _ in }
+
+    func openOnboarding(_ model: AppModel, at step: Onboarding.Step = .welcome, then done: @escaping () -> Void) {
+        NSApp.activate(ignoringOtherApps: true)
+        onboarding?.close()
+        onboardingShown(true)
+        let size = NSSize(width: 720, height: 620)
+        let j = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        let view = OnboardingView(model: model, start: step,
+                                  celebrates: Demo.isOn && CommandLine.arguments.contains("--celebrate")) { [weak self, weak j] in
+            model.finishOnboarding()
+            j?.close()
+            self?.onboarding = nil
+            done()
+        }
+        let host = NSHostingView(rootView: view)
+        host.sizingOptions = []
+        j.contentView = host
+        j.setContentSize(size)
+        j.title = "Welcome to Diple"
+        j.titlebarAppearsTransparent = true
+        j.titleVisibility = .hidden
+        j.isMovableByWindowBackground = true
+        j.isReleasedWhenClosed = false
+        j.delegate = self
+        onboarding = j
+        j.center()
         j.makeKeyAndOrderFront(nil)
         syncDockPolicy()
     }
