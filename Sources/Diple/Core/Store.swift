@@ -389,6 +389,12 @@ final class Store {
         return state.reviewsThatDay
     }
 
+    nonisolated static func commented(by author: String, on pr: PR) -> String {
+        if pr.isMine { return "\(author) commented on your PR" }
+        if author.caseInsensitiveCompare(pr.author) == .orderedSame { return "\(author) commented on their PR" }
+        return "\(author) commented on \(pr.author)'s PR"
+    }
+
     func diff(_ queue: Queue, meuLogin: String) -> [Event] {
         var events: [Event] = []
         var next: [String: Snapshot] = [:]
@@ -437,7 +443,7 @@ final class Store {
                     id: "\(pr.key)/message/\(c.at.timeIntervalSince1970)",
                     kind: mentionsYou ? .repliedToYou : .commented,
                     key: pr.key, url: pr.url,
-                    title: mentionsYou ? "\(c.author) replied to you" : "\(c.author) commented on your PR",
+                    title: mentionsYou ? "\(c.author) replied to you" : Self.commented(by: c.author, on: pr),
                     body: c.location.map { "\($0) — \(c.excerpt)" } ?? c.excerpt,
                     threadId: c.threadId
                 ))

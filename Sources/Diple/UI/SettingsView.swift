@@ -12,7 +12,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: $pane) { p in
+            List(SettingsPane.allCases.filter { $0 != .reviews || model.managesRotation }, selection: $pane) { p in
                 Label { Text(p.title) } icon: { SettingsIcon(pane: p) }
                     .tag(p)
             }
@@ -23,6 +23,7 @@ struct SettingsView: View {
             detail
                 .navigationTitle((pane ?? .general).title)
         }
+        .task(id: model.org) { await model.refreshRotationAccess() }
         .frame(minWidth: Self.minimum.width, maxWidth: .infinity,
                minHeight: Self.minimum.height, maxHeight: .infinity)
     }
@@ -31,6 +32,7 @@ struct SettingsView: View {
         switch pane ?? .general {
         case .general:       GeneralPane(model: model)
         case .notifications: NotificationsPane(model: model)
+        case .reviews:       ReviewRotationPane(model: model)
         case .repositories:  ReposPane(model: model)
         case .appearance:    AppearanceSettings(model: model)
         case .claude:        ClaudePane(model: model)
@@ -43,7 +45,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notifications, repositories, appearance, claude, account, privacy
+    case general, notifications, reviews, repositories, appearance, claude, account, privacy
 
     var id: String { rawValue }
 
@@ -51,6 +53,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       "General"
         case .notifications: "Notifications"
+        case .reviews:       "Review Rotation"
         case .repositories:  "Repositories"
         case .appearance:    "Appearance"
         case .claude:        "Claude"
@@ -63,6 +66,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       "gearshape.fill"
         case .notifications: "bell.badge.fill"
+        case .reviews:       "arrow.triangle.2.circlepath"
         case .repositories:  "book.closed.fill"
         case .appearance:    "paintpalette.fill"
         case .claude:        "sparkles"
@@ -75,6 +79,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       .gray
         case .notifications: .red
+        case .reviews:       .green
         case .repositories:  .indigo
         case .appearance:    .blue
         case .claude:        .orange
@@ -242,7 +247,7 @@ struct NotificationsPane: View {
     private func title(_ t: EventKind) -> String {
         switch t {
         case .repliedToYou: "Someone replied to you in a thread"
-        case .commented:      "Someone commented on your PR"
+        case .commented:      "Someone commented on a PR you're in"
         case .reviewRequested:   "Someone requested your review"
         case .checkFailed:     "A check failed on one of your PRs"
         case .approved:       "Someone approved your PR"
