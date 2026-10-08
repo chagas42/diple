@@ -546,6 +546,7 @@ struct NotchView: View {
                             }
                             .contextMenu {
                                 Button("Dismiss") { model.dismiss(pr) }
+                                Button("Mute") { withAnimation(.easeOut(duration: 0.18)) { model.mute(pr) } }
                             }
                         }
                     }

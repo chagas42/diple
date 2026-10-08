@@ -70,7 +70,7 @@ struct MainWindowView: View {
                     HStack {
                         Label(tab.title, systemImage: tab.icon)
                         Spacer()
-                        Text("\(model.count(tab))")
+                        Text("\(model.count(tab, includingMuted: true))")
                             .font(.system(size: 11.5, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
@@ -211,7 +211,7 @@ struct MainWindowView: View {
     }
 
     private var queueShown: [PR] {
-        let all = model.prs(model.tab)
+        let all = model.prs(model.tab, includingMuted: true)
         return onlyUnreviewed ? all.filter(\.hasNoReviews) : all
     }
 
@@ -221,7 +221,7 @@ struct MainWindowView: View {
             get: { model.selected.flatMap { stacked.contains($0.key) ? nil : $0.key } },
             set: { key in
                 if let key {
-                    model.selected = model.prs(model.tab).first { $0.key == key }
+                    model.selected = model.prs(model.tab, includingMuted: true).first { $0.key == key }
                 } else if let current = model.selected?.key, !stacked.contains(current) {
                     model.selected = nil
                 }
@@ -244,8 +244,9 @@ struct MainWindowView: View {
                     .selectionDisabled()
                 } else if let pr = stack.prs.first {
                     PRRow(pr: pr, unread: model.unread.contains(pr.key), required: model.requiredApprovals(for: pr),
-                          selected: model.selected?.key == pr.key)
-                        .opacity(model.dims(pr) ? 0.45 : 1)
+                          selected: model.selected?.key == pr.key, muted: model.isMuted(pr))
+                        .opacity(model.dims(pr) || model.isMuted(pr) ? 0.45 : 1)
+                        .contextMenu { MuteButton(pr: pr, model: model) }
                         .tag(pr.key)
                 }
             }
@@ -259,8 +260,8 @@ struct MainWindowView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Picker("", selection: $onlyUnreviewed) {
-                    Text("All \(model.prs(model.tab).count)").tag(false)
-                    Text("No reviews yet \(model.prs(model.tab).filter(\.hasNoReviews).count)").tag(true)
+                    Text("All \(model.prs(model.tab, includingMuted: true).count)").tag(false)
+                    Text("No reviews yet \(model.prs(model.tab, includingMuted: true).filter(\.hasNoReviews).count)").tag(true)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -290,9 +291,22 @@ struct MainWindowView: View {
             }
         }
         .overlay {
-            if model.prs(model.tab).isEmpty && !model.loading && model.syncProblem == nil {
+            if model.prs(model.tab, includingMuted: true).isEmpty && !model.loading && model.syncProblem == nil {
                 ContentUnavailableView("Nothing here", systemImage: "checkmark.circle")
             }
+        }
+    }
+}
+
+struct MuteButton: View {
+    let pr: PR
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        if model.isMuted(pr) {
+            Button("Unmute") { model.unmute(pr) }
+        } else {
+            Button("Mute") { model.mute(pr) }
         }
     }
 }
@@ -304,6 +318,7 @@ struct PRRow: View {
     var required: Int? = nil
     var selected = false
     var showsRepo = true
+    var muted = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -327,6 +342,12 @@ struct PRRow: View {
                         .font(.system(size: 13, weight: unread ? .semibold : .regular))
                         .lineLimit(2)
                     Spacer(minLength: 8)
+                    if muted {
+                        Image(systemName: "speaker.slash.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .help("Muted: no notifications, and hidden from the notch")
+                    }
                     Text(Self.ago(pr.updatedAt))
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(.tertiary)
@@ -581,7 +602,8 @@ struct StackGroup: View {
             unread: model.unread.contains(pr.key),
             stack: index.map { ($0, n) },
             required: model.requiredApprovals(for: pr),
-            showsRepo: false
+            showsRepo: false,
+            muted: model.isMuted(pr)
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 1)
@@ -591,7 +613,8 @@ struct StackGroup: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { model.selected = pr }
-        .opacity(model.dims(pr) ? 0.45 : 1)
+        .contextMenu { MuteButton(pr: pr, model: model) }
+        .opacity(model.dims(pr) || model.isMuted(pr) ? 0.45 : 1)
     }
 
     private var sheet: some View {
