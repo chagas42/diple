@@ -351,6 +351,7 @@ struct NotchStage: View {
         ZStack {
             if showEye {
                 EyeView(eye: eye, width: 18)
+                    .frame(width: 26, height: 26)
                     .overlay {
                         if step == .tryIt, !focused {
                             Circle().strokeBorder(Color.accentColor, lineWidth: 2)
@@ -359,7 +360,7 @@ struct NotchStage: View {
                                 .opacity(ring ? 0 : 0.9)
                         }
                     }
-                    .overlay(alignment: .bottomLeading) { Complaint(eye: eye).offset(x: 6, y: 22) }
+                    .overlay(alignment: .topLeading) { Complaint(eye: eye).fixedSize().offset(x: 16, y: 20) }
                     .contentShape(Rectangle().inset(by: -10))
                     .onTapGesture { if step == .tryIt { onPoke() } }
                     .transition(.scale.combined(with: .opacity))
