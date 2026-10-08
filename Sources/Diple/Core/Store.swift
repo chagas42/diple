@@ -245,6 +245,11 @@ final class Store {
         return true
     }
 
+    func answeredReview(_ key: String) {
+        guard state.unread.contains(key), state.unreadReasons[key] == .reviewRequested else { return }
+        markRead(key)
+    }
+
     func markOnboarded(_ version: Int) {
         state.onboarded = version
         save()

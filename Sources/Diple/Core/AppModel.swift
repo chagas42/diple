@@ -1467,6 +1467,11 @@ final class AppModel: ObservableObject {
     }
 
     func counted(pr: String, at: Date, verdict: ReviewVerdict) {
+        if unread.contains(pr) {
+            store.answeredReview(pr)
+            unread = store.state.unread
+            onCountChange?()
+        }
         guard let today = store.countReview(pr, at: at) else { return onNoReview?(pr) ?? () }
         onTick?(ReviewTick(id: "\(pr)/\(at.timeIntervalSince1970)", pr: pr, verdict: verdict, today: today))
     }

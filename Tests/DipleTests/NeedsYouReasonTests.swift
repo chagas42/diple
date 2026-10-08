@@ -108,4 +108,24 @@ import Testing
         #expect(decoded.unread == ["acme/repo0#100"])
         #expect(decoded.unreadReasons.isEmpty)
     }
+
+    @Test func aReviewAnswersTheRequestThatMadeItUnread() async throws {
+        let rig = Rig()
+        _ = try await rig.step()
+        rig.world.toReview.append(FakeWorld.pr(41, author: "newcomer", viewer: rig.world.viewer))
+        let q = try await rig.step()
+        let key = try #require(q.toReview.first { $0.number == 141 }?.key)
+        #expect(rig.store.state.unreadReasons[key] == .reviewRequested)
+        rig.store.answeredReview(key)
+        #expect(!rig.store.state.unread.contains(key))
+    }
+
+    @Test func aReviewLeavesAnUnreadAboutSomethingElse() async throws {
+        let rig = Rig()
+        _ = try await rig.step()
+        rig.world.update("PR_0") { $0.checks = "FAILURE" }
+        _ = try await rig.step()
+        rig.store.answeredReview("acme/repo0#100")
+        #expect(rig.store.state.unread.contains("acme/repo0#100"))
+    }
 }
