@@ -123,6 +123,8 @@ extension GitHubClient {
         let slug: String
         let name: String
         let members: Int
+        var nodeId: String?
+        var canAdminister = false
         var id: String { slug }
     }
 
@@ -139,7 +141,7 @@ extension GitHubClient {
     func fetchMyTeams(org: String, viewer: String) async throws -> [TeamRef] {
         let json = try await raw("""
         { organization(login: "\(org)") {
-            teams(first: 100, userLogins: ["\(viewer)"]) { nodes { slug name members { totalCount } } }
+            teams(first: 100, userLogins: ["\(viewer)"]) { nodes { id slug name viewerCanAdminister members { totalCount } } }
         } }
         """)
         let nodes = ((((json["data"] as? [String: Any])?["organization"] as? [String: Any])?["teams"] as? [String: Any])?["nodes"]
@@ -147,7 +149,8 @@ extension GitHubClient {
         return nodes.compactMap { n in
             guard let slug = n["slug"] as? String else { return nil }
             let count = ((n["members"] as? [String: Any])?["totalCount"] as? Int) ?? 0
-            return TeamRef(slug: slug, name: (n["name"] as? String) ?? slug, members: count)
+            return TeamRef(slug: slug, name: (n["name"] as? String) ?? slug, members: count,
+                           nodeId: n["id"] as? String, canAdminister: n["viewerCanAdminister"] as? Bool ?? false)
         }
     }
 

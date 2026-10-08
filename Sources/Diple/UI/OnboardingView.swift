@@ -4,8 +4,12 @@ import AppKit
 enum Onboarding {
     static let version = 1
 
+    static func steps(managesRotation: Bool, start: Step = .welcome) -> [Step] {
+        Step.allCases.filter { $0 != .reviews || managesRotation || start == .reviews }
+    }
+
     enum Step: Int, CaseIterable {
-        case welcome, github, team, notch, hours, ranking, extras, tryIt, done
+        case welcome, github, team, reviews, notch, hours, ranking, extras, tryIt, done
     }
 }
 
@@ -20,10 +24,11 @@ struct OnboardingView: View {
     @State private var previewFocused = false
     @State private var celebration: Date?
     @StateObject private var eye = EyeState()
+    @StateObject private var rotation = RotationPreview()
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchStage(model: model, step: step, eye: eye, focused: previewFocused) { Task { await poke() } }
+            NotchStage(model: model, step: step, eye: eye, focused: previewFocused, rotation: rotation) { Task { await poke() } }
                 .frame(height: 236)
             ScrollView(.vertical, showsIndicators: false) {
                 ZStack(alignment: .top) {
@@ -49,6 +54,14 @@ struct OnboardingView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .ignoresSafeArea()
         .onAppear { step = start }
+        .task(id: model.org) { await model.refreshRotationAccess() }
+    }
+
+    private var steps: [Onboarding.Step] { Onboarding.steps(managesRotation: model.managesRotation, start: start) }
+
+    private func neighbor(_ offset: Int) -> Onboarding.Step? {
+        guard let i = steps.firstIndex(of: step), steps.indices.contains(i + offset) else { return nil }
+        return steps[i + offset]
     }
 
     private func go(_ next: Onboarding.Step) {
@@ -63,7 +76,7 @@ struct OnboardingView: View {
             }
             Spacer()
             HStack(spacing: 6) {
-                ForEach(Onboarding.Step.allCases, id: \.rawValue) { s in
+                ForEach(steps, id: \.rawValue) { s in
                     Capsule()
                         .fill(s == step ? Color.accentColor : Color.primary.opacity(0.18))
                         .frame(width: s == step ? 18 : 6, height: 6)
@@ -71,7 +84,7 @@ struct OnboardingView: View {
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: step)
             Spacer()
-            if let back = Onboarding.Step(rawValue: step.rawValue - 1), step != .done {
+            if let back = neighbor(-1), step != .done {
                 Button("Back") { go(back) }
             }
             if step == .done {
@@ -82,7 +95,7 @@ struct OnboardingView: View {
                         finish()
                     }
                 }
-            } else if let next = Onboarding.Step(rawValue: step.rawValue + 1) {
+            } else if let next = neighbor(1) {
                 Button(step == .welcome ? "Get Started" : "Continue") { go(next) }
                     .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             }
@@ -97,6 +110,7 @@ struct OnboardingView: View {
         case .welcome: WelcomeStep()
         case .github: GitHubStep(model: model)
         case .team: TeamStep(model: model)
+        case .reviews: ReviewsStep(model: model, preview: rotation)
         case .notch: NotchStep(model: model)
         case .hours: HoursStep(model: model)
         case .ranking: RankingStep(model: model)
@@ -147,6 +161,7 @@ struct NotchStage: View {
     let step: Onboarding.Step
     @ObservedObject var eye: EyeState
     let focused: Bool
+    @ObservedObject var rotation: RotationPreview
     let onPoke: () -> Void
 
     @State private var awake = false
@@ -235,7 +250,7 @@ struct NotchStage: View {
     private func pause(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
 
     private func script() async {
-        withAnimation { showsCursor = ![.done, .github, .hours].contains(step) }
+        withAnimation { showsCursor = ![.done, .github, .hours, .reviews].contains(step) }
         while !Task.isCancelled {
             switch step {
             case .welcome:
@@ -263,6 +278,9 @@ struct NotchStage: View {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { picked = k }
                     await pause(0.9)
                 }
+            case .reviews:
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { picked = (picked + 1) % Self.avatars.count }
+                await pause(1.1)
             case .notch:
                 for p in [CGPoint(x: 200, y: 90), CGPoint(x: 520, y: 60), CGPoint(x: 360, y: 180)] {
                     guard !Task.isCancelled else { return }
@@ -384,6 +402,26 @@ struct NotchStage: View {
                         .overlay(Circle().strokeBorder(i == picked ? Color.accentColor : .black.opacity(0.5), lineWidth: i == picked ? 2.5 : 2))
                         .scaleEffect(i == picked ? 1.15 : 1)
                         .shadow(color: i == picked ? Color.accentColor.opacity(0.7) : .clear, radius: 6)
+                }
+            }
+        case .reviews where !rotation.people.isEmpty:
+            RotationDiagram(people: rotation.people, rotation: rotation.rotation)
+                .frame(width: 560)
+                .environment(\.colorScheme, .dark)
+        case .reviews:
+            HStack(spacing: 8) {
+                ForEach(0..<5, id: \.self) { i in
+                    let on = i == picked || i == (picked + 1) % 5
+                    Circle().fill(Color(hue: Double(i) / 5, saturation: 0.35, brightness: 0.85))
+                        .frame(width: 30, height: 30)
+                        .overlay(Circle().strokeBorder(on ? Color.green : .black.opacity(0.5), lineWidth: on ? 2.5 : 2))
+                        .overlay(alignment: .bottomTrailing) {
+                            if on {
+                                Image(systemName: "eye.circle.fill").font(.system(size: 12)).foregroundStyle(.white, .green)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .scaleEffect(on ? 1.15 : 1)
                 }
             }
         case .notch:
@@ -731,8 +769,8 @@ struct TeamStep: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            StepHeader(title: "Your team",
-                       detail: "Pick the organization Diple ranks and shows as your team. Narrow it to your GitHub teams, or leave it as everyone.")
+            StepHeader(title: "Who shows in Diple",
+                       detail: "Pick the organization, and narrow the Team tab and the ranking to some of your GitHub teams. This only changes what you see. Who reviews what comes next.")
             if let orgs {
                 if orgs.isEmpty {
                     Text("You are not in any organization, so there is no team to show. You can still use everything else.")
@@ -751,7 +789,7 @@ struct TeamStep: View {
                     Text("Everyone in \(picked).").font(.system(size: 12.5)).foregroundStyle(.secondary)
                 } else {
                     OnboardingCard {
-                        Text("TEAMS IN \(picked.uppercased())").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                        Text("SHOW PEOPLE FROM").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                         ForEach(teams) { t in
                             Toggle(isOn: teamBinding(t.slug)) {
                                 Text(t.name).font(.system(size: 12.5))
@@ -810,6 +848,19 @@ struct TeamStep: View {
                 if on { model.settings.teams.append(id) } else { model.settings.teams.removeAll { $0 == id } }
             }
         )
+    }
+}
+
+struct ReviewsStep: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var preview: RotationPreview
+
+    var body: some View {
+        VStack(spacing: 12) {
+            StepHeader(title: "Review rotation",
+                       detail: "Hand each pull request to a few teammates instead of pinging everyone.")
+            OnboardingCard(width: 480) { ReviewRotationPanel(model: model, preview: preview) }
+        }
     }
 }
 
@@ -965,12 +1016,13 @@ struct DoneStep: View {
 }
 
 struct OnboardingCard<Content: View>: View {
+    var width: CGFloat = 380
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) { content() }
             .padding(16)
-            .frame(width: 380, alignment: .leading)
+            .frame(width: width, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.04)))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
     }
