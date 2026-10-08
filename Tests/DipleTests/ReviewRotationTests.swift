@@ -70,29 +70,29 @@ import Testing
     }
 
     @Test func loadBalanceAsksWhoeverHasTheFewestReviewsAndNeverTheAuthor() {
-        var sim = RotationSimulation(people: 4)
-        sim.loads = [0, 3, 0, 1]
+        var simulation = RotationSimulation(people: 4)
+        simulation.loads = [0, 3, 0, 1]
         let rotation = ReviewRotation(enabled: true, algorithm: .loadBalance, reviewers: 2)
-        #expect(sim.pick(rotation, author: 0) == [2, 3])
-        #expect(sim.loads == [0, 3, 1, 2])
+        #expect(simulation.pick(rotation, author: 0) == [2, 3])
+        #expect(simulation.loads == [0, 3, 1, 2])
     }
 
     @Test func roundRobinTakesTurnsSkippingTheAuthor() {
-        var sim = RotationSimulation(people: 4)
+        var simulation = RotationSimulation(people: 4)
         let rotation = ReviewRotation(enabled: true, algorithm: .roundRobin, reviewers: 2)
-        #expect(sim.pick(rotation, author: 1) == [0, 2])
-        #expect(sim.pick(rotation, author: 0) == [3, 1])
-        #expect(sim.pick(rotation, author: 3) == [2, 0])
+        #expect(simulation.pick(rotation, author: 1) == [0, 2])
+        #expect(simulation.pick(rotation, author: 0) == [3, 1])
+        #expect(simulation.pick(rotation, author: 3) == [2, 0])
     }
 
     @Test func withTheRotationOffEveryoneButTheAuthorIsAsked() {
-        var sim = RotationSimulation(people: 3)
-        #expect(sim.pick(ReviewRotation(enabled: false), author: 2) == [0, 1])
+        var simulation = RotationSimulation(people: 3)
+        #expect(simulation.pick(ReviewRotation(enabled: false), author: 2) == [0, 1])
     }
 
     @Test func aTeamSmallerThanTheAskStillPicksWhoItCan() {
-        var sim = RotationSimulation(people: 2)
-        #expect(sim.pick(ReviewRotation(enabled: true, reviewers: 5), author: 0) == [1])
+        var simulation = RotationSimulation(people: 2)
+        #expect(simulation.pick(ReviewRotation(enabled: true, reviewers: 5), author: 0) == [1])
     }
 
     @Test func theOrgOwnerOutranksTheTeamMaintainer() {
@@ -153,13 +153,13 @@ import Testing
     }
 
     @Test func pilesStayBoundedEvenWhenEveryoneIsPinged() {
-        var sim = RotationSimulation(people: 4)
-        let start = sim.loads.reduce(0, +)
+        var simulation = RotationSimulation(people: 4)
+        let start = simulation.loads.reduce(0, +)
         for n in 0..<50 {
-            let chosen = sim.pick(ReviewRotation(enabled: false), author: n % 4)
-            sim.settle(chosen.count)
+            let chosen = simulation.pick(ReviewRotation(enabled: false), author: n % 4)
+            simulation.settle(chosen.count)
         }
-        #expect(sim.loads.reduce(0, +) <= start + 3)
-        #expect(sim.loads.allSatisfy { $0 <= 6 })
+        #expect(simulation.loads.reduce(0, +) <= start + 3)
+        #expect(simulation.loads.allSatisfy { $0 <= 6 })
     }
 }

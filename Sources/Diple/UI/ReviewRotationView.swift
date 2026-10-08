@@ -281,7 +281,7 @@ struct RotationDiagram: View {
     static let height: CGFloat = 176
     static let busy = 4
 
-    @State private var sim = RotationSimulation(people: 0)
+    @State private var simulation = RotationSimulation(people: 0)
     @State private var shown: [Int] = []
     @State private var turn = 0
     @State private var number = 120
@@ -392,9 +392,9 @@ struct RotationDiagram: View {
     }
 
     private func play() async {
-        sim = RotationSimulation(people: people.count)
-        shown = sim.loads
-        turn = sim.cursor
+        simulation = RotationSimulation(people: people.count)
+        shown = simulation.loads
+        turn = simulation.cursor
         picked = []
         incoming = false
         landed = false
@@ -410,22 +410,22 @@ struct RotationDiagram: View {
             faded = false
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { incoming = true; caption = rule }
             try? await Task.sleep(for: .milliseconds(900))
-            let chosen = sim.pick(rotation, author: author)
+            let chosen = simulation.pick(rotation, author: author)
             picked = chosen
             try? await Task.sleep(for: .milliseconds(60))
             landed = true
             try? await Task.sleep(for: .milliseconds(800 + chosen.count * 70))
             faded = true
             withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                shown = sim.loads
-                turn = sim.cursor
+                shown = simulation.loads
+                turn = simulation.cursor
                 let names = chosen.prefix(2).map(first).joined(separator: ", ") + (chosen.count > 2 ? " +\(chosen.count - 2)" : "")
                 caption = rotation.enabled ? "\(rule) → \(names)"
                     : "Off: everyone else is pinged (\(chosen.count) \(chosen.count == 1 ? "person" : "people"))"
             }
             try? await Task.sleep(for: .milliseconds(1900))
-            sim.settle(chosen.count)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { incoming = false; shown = sim.loads }
+            simulation.settle(chosen.count)
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { incoming = false; shown = simulation.loads }
             try? await Task.sleep(for: .milliseconds(500))
             number += 1
         }
