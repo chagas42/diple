@@ -220,6 +220,19 @@ final class NotchController: ObservableObject {
         startWaking(nap)
     }
 
+    private var hiddenForOnboarding = false
+
+    func setOnboarding(_ on: Bool) {
+        guard on != hiddenForOnboarding else { return }
+        hiddenForOnboarding = on
+        if on {
+            panel.orderOut(nil)
+        } else {
+            panel.orderFrontRegardless()
+            rehearse(.long, after: .milliseconds(400))
+        }
+    }
+
     func rehearse(_ nap: Nap, after delay: Duration = .seconds(1)) {
         Task { [weak self] in
             try? await Task.sleep(for: delay)

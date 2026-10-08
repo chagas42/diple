@@ -80,6 +80,16 @@ enum Demo {
         return made
     }
 
+    static let organizations: [GitHubClient.Org] = [
+        .init(login: "acme", name: "Acme", avatar: nil),
+        .init(login: "acme-labs", name: "Acme Labs", avatar: nil),
+    ]
+
+    static let teams: [GitHubClient.TeamRef] = [
+        .init(slug: "platform", name: "Platform", members: 8),
+        .init(slug: "payments", name: "Payments", members: 5),
+    ]
+
     static let queue: Queue = {
         Queue(
             viewer: viewer,
@@ -200,7 +210,7 @@ enum Demo {
         switch key {
         case .queue:
             return SyncOutcome(queue: queue)
-        case .team:
+        case .team, .teams:
             return team
         case .ranking(_, let period, _, let people):
             let rows = ranking(period)
@@ -236,6 +246,7 @@ enum Demo {
                 lastCommentAt: pr.lastComment?.at, reviewRequested: toReview.contains(pr.key)
             )
         }
+        state.tracked = Dictionary(uniqueKeysWithValues: queue.toReview.prefix(2).map { ($0.key, TrackedPR($0)) })
         try? JSONEncoder().encode(state).write(to: dir.appendingPathComponent("state.json"), options: .atomic)
         return Store(directory: dir)
     }

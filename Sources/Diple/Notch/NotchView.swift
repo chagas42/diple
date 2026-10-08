@@ -748,6 +748,7 @@ struct NotchView: View {
         case .checkFailed:     .red
         case .approved:       .green
         case .newPullRequest: .teal
+        case .tracked:        .yellow
         }
     }
 }

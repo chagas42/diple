@@ -187,6 +187,8 @@ struct NotificationsPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            TrackedSection(model: model)
+
             Section("Your reviews") {
                 Toggle("Show each review you send in the notch", isOn: $model.settings.showsReviews)
                 Text("A thin strip slides out of the notch with the PR, and a sheet drops from "
@@ -227,7 +229,7 @@ struct NotificationsPane: View {
                     Spacer()
                 }
                 .disabled(!model.settings.quietHoursOn)
-                Toggle("Weekends too", isOn: $model.settings.quietOnWeekends)
+                LabeledContent("Work days") { DayPicker(days: $model.settings.workDays) }
                     .disabled(!model.settings.quietHoursOn)
                 Text("A direct reply to you always gets through.")
                     .font(.system(size: 10.5))
@@ -245,6 +247,7 @@ struct NotificationsPane: View {
         case .checkFailed:     "A check failed on one of your PRs"
         case .approved:       "Someone approved your PR"
         case .newPullRequest: "A pull request opened in a repository you watch"
+        case .tracked:        "A PR you track changed"
         }
     }
 
@@ -256,6 +259,7 @@ struct NotificationsPane: View {
         case .checkFailed:     "Only on the first failure; retries do not repeat."
         case .approved:       "Usually enough to see when you open the queue."
         case .newPullRequest: "Only repositories you starred, only what opens from now on, and never a draft."
+        case .tracked:        "Commits, comments, reviews, checks, and the merge that ends tracking."
         }
     }
 }
@@ -419,6 +423,7 @@ struct GeneralPane: View {
             Section {
                 HStack {
                     Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
+                    Button("Show Onboarding") { Windows.shared.openOnboarding(model) {} }
                     Spacer()
                     Button("Quit Diple") { NSApplication.shared.terminate(nil) }
                 }

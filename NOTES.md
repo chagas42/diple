@@ -15,6 +15,15 @@ reviews submitted inside the grid count. The full six months is fetched once;
 after that only the last two days are, and older days come from the saved
 query, which lives on disk for the six months it covers.
 
+**The team is an organization, never a person.** Team, ranking and activity
+run against one owner: the one that owns most of the queue's pull requests, but
+counting only owners whose `repository.owner.__typename` is `Organization`. It
+used to count every owner, so a personal account with a few old PRs in Following
+(`alifoo/hacking-club-pucpr`, three against one `SalvyLTD/salvy-api`) won, and
+`organization(login: "alifoo")` failed with "Could not resolve to an
+Organization" in a banner. With no organization in the queue there is no team.
+Pull requests cached before the field count every owner until the next read.
+
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
 separate connection. Reading one and not the other makes the app blind to the
@@ -494,6 +503,58 @@ GitHub reports that same time. A new comment, push or review request moves
 `updatedAt`, so the PR comes back by itself; so does a bot comment, which errs
 toward showing too much rather than hiding a request. The entry is dropped
 once the PR has moved on, or a month after it left the queue.
+
+**A tracked PR is read by its node id, never through search.** Every queue
+search says `is:open`, so a merged PR simply stops coming back: it vanishes
+without an event, and nothing in the queue can say "merged". Tracked PRs skip
+search entirely. Each sync sends one `nodes(ids:)` query with only `updatedAt`,
+`state`, `headRefOid` and the check rollup (checks never move `updatedAt`, so
+they have to be in it), and only the PRs whose beat moved are refetched with
+the full fragment. The mark kept per PR is what the events compare against:
+a new head is a push, a newer human comment is a comment (a reply if it names
+you), more approvals or change requests are a review, and the checks entering
+failing, or leaving failing or running for passing, are a check event. Merged
+or closed raises one event and drops the PR from tracking. While a PR is
+tracked, the queue's own comment, check and approval events for it are dropped,
+so the same comment never notifies twice.
+
+## Onboarding
+
+**Nine steps, shown once per version.** `StoredState.onboarded` holds the
+version seen; anyone below `Onboarding.version` gets it on launch, new and
+existing users alike, with their current settings already filled in. Settings →
+General → Show Onboarding opens it again. Demo, film and bench never open it on
+their own; `--onboarding <step>` does, and `--celebrate` presses the last button
+in demo for recordings.
+
+**The stage is scripted, not decorative.** Each step runs a loop in
+`NotchStage` (`.task(id: step)`, so leaving a step cancels it): a cursor moves
+on easing curves, the eye's gaze is set toward each destination so it follows,
+avatars get picked, days light up in a wave, bars move. The settings it shows
+are the real ones, so the notch preview changes as the toggles do.
+
+**The window is a fixed 720 × 620, and the steps scroll inside it.** With a
+hosting controller that tracks its content, the team step grew the window to
+2042pt, and once AppKit crashed in an update-constraints loop. The window hosts
+an `NSHostingView` with `sizingOptions = []`, the content fills the window
+(`maxHeight: .infinity`, which a fixed frame got wrong by the title bar's 32pt),
+and each step sits in a `ScrollView`, so a step with more rows scrolls instead
+of pushing the window taller.
+
+**The last button is held, not clicked.** A Mac plays haptics only while a
+finger is on the trackpad, so a click followed by a fill gave nothing to feel.
+The button fills while it is held, ticks at each quarter, and its view sets an
+`NSPressureConfiguration` with `.primaryDeepClick`, so pressing harder gives the
+trackpad's real second click (`event.stage == 2`) and finishes at once. Let go
+early and it springs back. The celebration that follows throws up reviewed
+sheets, approval checks and "Approved" labels slowly enough to read, with each
+label sized to its text.
+
+**The team is picked, then narrowed.** `primaryOrg` overrides the guess from
+the queue; `teams` (stored as `org/slug`) makes Team and the ranking list only
+those teams' members, through a separate `teams` cache key, so picking none
+keeps the whole organization. Work days replace "weekends too": a saved file
+with that on becomes Monday to Friday, off becomes every day.
 
 ## The main window
 

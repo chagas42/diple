@@ -112,6 +112,65 @@ enum ActivityHistory {
 }
 
 extension GitHubClient {
+    struct Org: Sendable, Equatable, Identifiable {
+        let login: String
+        let name: String
+        let avatar: URL?
+        var id: String { login }
+    }
+
+    struct TeamRef: Sendable, Equatable, Identifiable {
+        let slug: String
+        let name: String
+        let members: Int
+        var id: String { slug }
+    }
+
+    func fetchMyOrganizations() async throws -> [Org] {
+        let json = try await raw("{ viewer { organizations(first: 100) { nodes { login name avatarUrl(size: 96) } } } }")
+        let nodes = (((json["data"] as? [String: Any])?["viewer"] as? [String: Any])?["organizations"] as? [String: Any])?["nodes"]
+            as? [[String: Any]] ?? []
+        return nodes.compactMap { n in
+            guard let login = n["login"] as? String else { return nil }
+            return Org(login: login, name: (n["name"] as? String) ?? login, avatar: (n["avatarUrl"] as? String).flatMap(URL.init))
+        }
+    }
+
+    func fetchMyTeams(org: String, viewer: String) async throws -> [TeamRef] {
+        let json = try await raw("""
+        { organization(login: "\(org)") {
+            teams(first: 100, userLogins: ["\(viewer)"]) { nodes { slug name members { totalCount } } }
+        } }
+        """)
+        let nodes = ((((json["data"] as? [String: Any])?["organization"] as? [String: Any])?["teams"] as? [String: Any])?["nodes"]
+            as? [[String: Any]]) ?? []
+        return nodes.compactMap { n in
+            guard let slug = n["slug"] as? String else { return nil }
+            let count = ((n["members"] as? [String: Any])?["totalCount"] as? Int) ?? 0
+            return TeamRef(slug: slug, name: (n["name"] as? String) ?? slug, members: count)
+        }
+    }
+
+    func fetchTeams(org: String, slugs: [String]) async throws -> [Person] {
+        var seen = Set<String>()
+        var people: [Person] = []
+        for slug in slugs {
+            let json = try await raw("""
+            { organization(login: "\(org)") { team(slug: "\(slug)") {
+                members(first: 100) { nodes { login name avatarUrl(size: 96) } }
+            } } }
+            """)
+            let team = ((json["data"] as? [String: Any])?["organization"] as? [String: Any])?["team"] as? [String: Any]
+            let nodes = (team?["members"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
+            for n in nodes {
+                guard let login = n["login"] as? String, seen.insert(login.lowercased()).inserted,
+                      let url = (n["avatarUrl"] as? String).flatMap(URL.init) else { continue }
+                people.append(Person(login: login, name: (n["name"] as? String) ?? login, avatar: url))
+            }
+        }
+        return people
+    }
+
     func fetchTeam(org: String) async throws -> [Person] {
         var people: [Person] = []
         var cursor: String?

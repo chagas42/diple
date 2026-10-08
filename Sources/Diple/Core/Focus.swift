@@ -31,7 +31,7 @@ final class Focus: ObservableObject {
         }
     }
 
-    static var asksMacOS: Bool { !Film.isOn && !Bench.isOn }
+    static var asksMacOS: Bool { !Film.isOn && !Bench.isOn && !Demo.isOn }
 
     func start() {
         guard follows, Self.asksMacOS, watch == nil else { return }

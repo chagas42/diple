@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
 
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var following: Set<String> = []
+    @Published private(set) var tracked: [String: TrackedPR] = [:]
 
     var team: [Person] {
         return teamObserver?.data ?? teamQuery.flatMap { queries.peek($0) } ?? []
@@ -355,6 +356,47 @@ final class AppModel: ObservableObject {
         bindQueue()
     }
 
+    func isTracked(_ pr: PR) -> Bool { tracked[pr.key] != nil }
+
+    func toggleTrack(_ pr: PR) {
+        if isTracked(pr) { store.untrack(pr.key) } else { store.track(pr) }
+        tracked = store.state.tracked ?? [:]
+    }
+
+    func untrack(_ key: String) {
+        store.untrack(key)
+        tracked = store.state.tracked ?? [:]
+    }
+
+    func track(link: String) async -> String? {
+        guard let target = Tracking.parse(link) else {
+            return "Paste a pull request link, like github.com/owner/repo/pull/123"
+        }
+        do {
+            guard let pr = try await client.fetchPR(repo: target.repo, number: target.number) else {
+                return "Could not find \(target.repo)#\(target.number)"
+            }
+            guard !(pr.state ?? .open).isFinal else { return "\(pr.key) is already \(pr.state?.rawValue ?? "closed")" }
+            store.track(pr)
+            tracked = store.state.tracked ?? [:]
+            return nil
+        } catch {
+            return report(error, in: .refresh) ?? error.localizedDescription
+        }
+    }
+
+    private func checkTracked(viewer: String) async -> [Event] {
+        guard !tracked.isEmpty, !queries.answersLocally, !Bench.isOn else { return [] }
+        let all = Array(tracked.values)
+        guard let beats = try? await client.fetchTracked(ids: all.map(\.nodeId)) else { return [] }
+        let moved = all.filter { t in beats[t.nodeId].map(t.mark.moved) ?? false }.map(\.nodeId)
+        guard !moved.isEmpty else { return [] }
+        let fetch = await client.fetchPRs(ids: moved)
+        let events = store.absorbTracked(fetch.prs, viewer: viewer)
+        tracked = store.state.tracked ?? [:]
+        return events
+    }
+
     private let client: GitHubClient
     private let store: Store
     private let notificador = Notifier()
@@ -590,6 +632,7 @@ final class AppModel: ObservableObject {
         dismissed = store.state.dismissed ?? [:]
         following = store.state.following
         watching = store.state.watching ?? []
+        tracked = store.state.tracked ?? [:]
         if let cached = store.state.cache.queue, queue.all.isEmpty {
             queue = cached
             pendingSeed = cached
@@ -724,7 +767,10 @@ final class AppModel: ObservableObject {
     private func apply(_ outcome: SyncOutcome, watching synced: Set<String>) async {
         guard synced == watching else { return }
         let nova = outcome.queue
-        let events = store.diff(nova, meuLogin: nova.viewer)
+        let trackedKeys = Set(tracked.keys)
+        let queueEvents = store.diff(nova, meuLogin: nova.viewer)
+            .filter { !(trackedKeys.contains($0.key) && Tracking.handled($0.kind)) }
+        let events = (queueEvents + (await checkTracked(viewer: nova.viewer)))
             .filter { e in
                 let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
                 return !settings.mutedRepos.contains(repo)
@@ -776,10 +822,28 @@ final class AppModel: ObservableObject {
         errorMessage = m
     }
 
-    var org: String {
-        let donos = queue.all.compactMap { $0.repo.split(separator: "/").first.map(String.init) }
-        let count = Dictionary(grouping: donos, by: { $0 }).mapValues(\.count)
-        return count.max { $0.value < $1.value }?.key ?? ""
+    var org: String { settings.primaryOrg ?? Self.organization(of: queue.all) }
+
+    var needsOnboarding: Bool { (store.state.onboarded ?? 0) < Onboarding.version }
+
+    func finishOnboarding() { store.markOnboarded(Onboarding.version) }
+
+    func myOrganizations() async -> [GitHubClient.Org] {
+        if queries.answersLocally { return Demo.organizations }
+        return (try? await client.fetchMyOrganizations()) ?? []
+    }
+
+    func myTeams(in org: String) async -> [GitHubClient.TeamRef] {
+        if queries.answersLocally { return Demo.teams }
+        return (try? await client.fetchMyTeams(org: org, viewer: queue.viewer)) ?? []
+    }
+
+    nonisolated static func organization(of prs: [PR]) -> String {
+        let known = prs.contains { $0.ownerIsOrganization != nil }
+        let owners = prs.filter { !known || $0.ownerIsOrganization == true }
+            .compactMap { $0.repo.split(separator: "/").first.map(String.init) }
+        let count = Dictionary(grouping: owners, by: { $0 }).mapValues(\.count)
+        return count.max { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }?.key ?? ""
     }
 
     func toggleFollow(_ login: String) {
@@ -805,7 +869,9 @@ final class AppModel: ObservableObject {
     }
 
     private var teamQuery: CacheQuery<[Person]>? {
-        org.isEmpty ? nil : reporting(Queries.team(org: org), in: .loadTab)
+        guard !org.isEmpty else { return nil }
+        let slugs = settings.teams(in: org)
+        return reporting(slugs.isEmpty ? Queries.team(org: org) : Queries.teams(org: org, slugs: slugs), in: .loadTab)
     }
 
     private var rankingQuery: CacheQuery<[RankRow]>? { rankingQuery(for: team) }
@@ -1137,6 +1203,7 @@ final class AppModel: ObservableObject {
         case .checkFailed:     ("A check failed on your PR", "checks / test · 1 of 5 failing")
         case .approved:       ("Your PR was approved", "ready to merge")
         case .newPullRequest: ("Lu opened a pull request", "console #4781 · in a repository you watch")
+        case .tracked:        ("New commits on a PR you track", "api #2210 · fix retry on 429")
         }
     }
 
@@ -1181,6 +1248,7 @@ final class AppModel: ObservableObject {
         case checkFailed
         case approved
         case opened
+        case tracked
 
         init(_ kind: EventKind) {
             switch kind {
@@ -1190,6 +1258,7 @@ final class AppModel: ObservableObject {
             case .checkFailed:     self = .checkFailed
             case .approved:        self = .approved
             case .newPullRequest:  self = .opened
+            case .tracked:         self = .tracked
             }
         }
 
@@ -1201,6 +1270,7 @@ final class AppModel: ObservableObject {
             case .checkFailed:     .checkFailed
             case .approved:        .approved
             case .opened:          .newPullRequest
+            case .tracked:         .tracked
             }
         }
 
@@ -1219,6 +1289,7 @@ final class AppModel: ObservableObject {
             case .checkFailed:     "check failing"
             case .approved:        "approved"
             case .opened:          "opened"
+            case .tracked:         "tracked update"
             }
         }
     }
