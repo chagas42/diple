@@ -86,9 +86,27 @@ enum Demo {
     ]
 
     static let teams: [GitHubClient.TeamRef] = [
-        .init(slug: "platform", name: "Platform", members: 8),
-        .init(slug: "payments", name: "Payments", members: 5),
+        .init(slug: "platform", name: "Platform", members: 8, nodeId: "T_platform", canAdminister: true),
+        .init(slug: "payments", name: "Payments", members: 5, nodeId: "T_payments", canAdminister: false),
     ]
+
+    static let orgTeams: [GitHubClient.TeamRef] = teams + [
+        .init(slug: "design", name: "Design", members: 3, nodeId: "T_design", canAdminister: true),
+        .init(slug: "data", name: "Data", members: 4, nodeId: "T_data", canAdminister: true),
+    ]
+
+    static func fit(_ slug: String) -> TeamFit {
+        switch slug {
+        case "platform": TeamFit(requests: 184, repos: ["orders-api", "web", "infra"])
+        case "payments": TeamFit(requests: 0, repos: ["billing"])
+        default:         TeamFit(requests: 0, repos: [])
+        }
+    }
+
+    static func rotation(_ slug: String) -> ReviewRotation {
+        slug == "platform" ? ReviewRotation(enabled: true, algorithm: .loadBalance, reviewers: 2, notifyTeam: false)
+                           : ReviewRotation(enabled: false)
+    }
 
     static let queue: Queue = {
         Queue(
