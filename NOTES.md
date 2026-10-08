@@ -597,6 +597,15 @@ is the expected answer.
 as many reviews as each pull request handed out, so they stay bounded; GitHub
 does not say how many requests each person got from the rotation.
 
+**It loads in parts, behind a skeleton of the same shape.** The setting comes
+back in about a second; the members and the CODEOWNERS read take longer, the
+CODEOWNERS one most (three blobs in each of 100 repositories). So the controls
+show as soon as the setting arrives, and the stage and the fit line fill space
+that was already there. Each team's read, members and fit are kept for the
+session in `rotationCache`, so going back to a team is instant and refreshes
+behind it, and CODEOWNERS is read as soon as Diple knows the viewer can change
+a rotation, before the pane opens.
+
 **Testing it.** `DIPLE_DRY_RUN=1` makes Save show the mutation instead of
 sending it, and `DIPLE_FORCE_ROLE=member` or `admin` overrides what GitHub says
 about the viewer. Launch with `open -n --env …`; running the binary directly

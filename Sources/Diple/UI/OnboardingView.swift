@@ -404,26 +404,10 @@ struct NotchStage: View {
                         .shadow(color: i == picked ? Color.accentColor.opacity(0.7) : .clear, radius: 6)
                 }
             }
-        case .reviews where !rotation.people.isEmpty:
+        case .reviews:
             RotationDiagram(people: rotation.people, rotation: rotation.rotation)
                 .frame(width: 560)
                 .environment(\.colorScheme, .dark)
-        case .reviews:
-            HStack(spacing: 8) {
-                ForEach(0..<5, id: \.self) { i in
-                    let on = i == picked || i == (picked + 1) % 5
-                    Circle().fill(Color(hue: Double(i) / 5, saturation: 0.35, brightness: 0.85))
-                        .frame(width: 30, height: 30)
-                        .overlay(Circle().strokeBorder(on ? Color.green : .black.opacity(0.5), lineWidth: on ? 2.5 : 2))
-                        .overlay(alignment: .bottomTrailing) {
-                            if on {
-                                Image(systemName: "eye.circle.fill").font(.system(size: 12)).foregroundStyle(.white, .green)
-                                    .transition(.scale.combined(with: .opacity))
-                            }
-                        }
-                        .scaleEffect(on ? 1.15 : 1)
-                }
-            }
         case .notch:
             DiffHunkView(hunk: AppearanceSettings.sample, path: "refund-policy.ts", folds: false)
                 .environment(\.codeTheme, CodeTheme.named(settings.codeTheme))
