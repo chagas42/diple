@@ -6,62 +6,143 @@ import os
     @Published var rotation = ReviewRotation()
 }
 
-struct ReviewRotationPanel: View {
-    @ObservedObject var model: AppModel
-    var preview: RotationPreview?
-    @State private var teams: [GitHubClient.TeamRef]?
-    @State private var slug: String?
+struct RotationSnapshot {
+    var read: RotationRead?
+    var people: [Person]?
+    var fit: TeamFit?
+    var fitKnown = false
+}
 
-    private var org: String { model.org }
-    private var team: GitHubClient.TeamRef? { teams?.first { $0.slug == slug } }
+@MainActor final class RotationEditing: ObservableObject {
+    enum Status: Equatable {
+        case loading, idle, unreadable, saving, saved, needsScope, failed(String), dryRun(String)
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if preview == nil {
-                Text(Self.why).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            if org.isEmpty {
-                note("Pick an organization first. The rotation belongs to a GitHub team in it.")
-            } else if let teams {
-                if teams.isEmpty {
-                    note("You don't own \(org) or maintain any of its teams, so there is no rotation for you to change.")
-                } else {
-                    if teams.count > 1 {
-                        Wrap(spacing: 6) {
-                            ForEach(teams) { t in chip(t) }
-                        }
-                    }
-                    if let team {
-                        ReviewRotationEditor(model: model, org: org, team: team, preview: preview).id(team.slug)
-                    }
-                }
-            } else {
-                ProgressView().controlSize(.small)
-            }
+    let model: AppModel
+    let org: String
+    let team: GitHubClient.TeamRef
+    let preview: RotationPreview?
+
+    @Published var saved: ReviewRotation?
+    @Published var draft = ReviewRotation() { didSet { preview?.rotation = draft } }
+    @Published var status = Status.loading
+    @Published var access = TeamAccess.member
+    @Published var people: [Person]?
+    @Published var fit: TeamFit?
+    @Published var fitKnown = false
+
+    static let log = Logger(subsystem: "com.chagas42.diple", category: "rotation")
+
+    private var key: String { "\(org)/\(team.slug)" }
+    var loading: Bool { saved == nil && status == .loading }
+
+    init(model: AppModel, org: String, team: GitHubClient.TeamRef, preview: RotationPreview?) {
+        self.model = model
+        self.org = org
+        self.team = team
+        self.preview = preview
+        guard let cached = model.rotationCache["\(org)/\(team.slug)"] else { return }
+        if let read = cached.read {
+            access = TeamAccess(team: team, orgAdmin: read.orgAdmin)
+            saved = read.rotation
+            draft = read.rotation
+            status = .idle
         }
-        .task(id: org) { await load() }
+        people = cached.people
+        fit = cached.fit
+        fitKnown = cached.fitKnown
+        if let people = cached.people { preview?.people = people }
+    }
+
+    func load() async {
+        if saved == nil { status = .loading }
+        async let members = model.members(org: org, team: team)
+        async let found = model.fit(org: org, team: team)
+        do {
+            guard let read = try await model.rotation(org: org, team: team) else {
+                Self.log.error("read \(self.key, privacy: .public): no rotation fields")
+                if saved == nil { status = .unreadable }
+                return
+            }
+            access = TeamAccess(team: team, orgAdmin: read.orgAdmin)
+            if saved == nil || draft == saved { draft = read.rotation }
+            saved = read.rotation
+            if status == .loading { status = .idle }
+            model.rotationCache[key, default: RotationSnapshot()].read = read
+        } catch is CancellationError {
+            return
+        } catch {
+            Self.log.error("read \(self.key, privacy: .public): \(String(describing: error), privacy: .public)")
+            if saved == nil { status = .failed(error.localizedDescription) }
+            return
+        }
+        let list = Array(await members.prefix(RotationDiagram.most))
+        people = list
+        preview?.people = list
+        model.rotationCache[key, default: RotationSnapshot()].people = list
+        fit = await found
+        fitKnown = true
+        model.rotationCache[key, default: RotationSnapshot()].fit = fit
+        model.rotationCache[key, default: RotationSnapshot()].fitKnown = true
+    }
+
+    func save() async {
+        status = .saving
+        do {
+            switch try await model.saveRotation(draft, team: team) {
+            case .saved(let r):
+                saved = r
+                draft = r
+                status = .saved
+                if let read = model.rotationCache[key]?.read {
+                    model.rotationCache[key]?.read = RotationRead(rotation: r, orgAdmin: read.orgAdmin)
+                }
+            case .dryRun(let mutation):
+                status = .dryRun(mutation)
+            }
+        } catch where ReviewRotation.needsScope(error) {
+            status = .needsScope
+        } catch {
+            Self.log.error("save \(self.key, privacy: .public): \(String(describing: error), privacy: .public)")
+            status = .failed(error.localizedDescription)
+        }
+    }
+}
+
+@MainActor enum RotationTeams {
+    static func load(_ model: AppModel, org: String) async -> (teams: [GitHubClient.TeamRef], slug: String?) {
+        let mine = Set(await model.myTeams(in: org).map(\.slug))
+        let picked = Set(model.settings.teams(in: org))
+        let teams = await model.orgTeams(in: org).filter(\.canAdminister)
+        let slug = (teams.first { picked.contains($0.slug) } ?? teams.first { mine.contains($0.slug) } ?? teams.first)?.slug
+        return (teams, slug)
     }
 
     static let why = "When a pull request asks a whole team for review, everyone gets pinged and the reviews pile on whoever answers first. With a rotation, GitHub hands each one to a few people, so they spread across the team."
+    static let skeleton = ["Engineering", "Design", "Data"]
+}
 
-    private func load() async {
-        teams = nil
-        guard !org.isEmpty else { return }
-        let mine = Set(await model.myTeams(in: org).map(\.slug))
-        let picked = Set(model.settings.teams(in: org))
-        teams = await model.orgTeams(in: org).filter(\.canAdminister)
-        slug = (teams?.first { picked.contains($0.slug) } ?? teams?.first { mine.contains($0.slug) } ?? teams?.first)?.slug
+struct TeamChips: View {
+    let teams: [GitHubClient.TeamRef]?
+    @Binding var slug: String?
+
+    var body: some View {
+        Wrap(spacing: 6) {
+            if let teams {
+                ForEach(teams) { t in chip(t.name, count: t.members, on: t.slug == slug) { slug = t.slug } }
+            } else {
+                ForEach(RotationTeams.skeleton, id: \.self) { name in chip(name, count: 10, on: false) {} }
+                    .redacted(reason: .placeholder)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: slug)
     }
 
-    private func chip(_ t: GitHubClient.TeamRef) -> some View {
-        let on = t.slug == slug
-        return Button { slug = t.slug } label: {
+    private func chip(_ name: String, count: Int, on: Bool, pick: @escaping () -> Void) -> some View {
+        Button(action: pick) {
             HStack(spacing: 4) {
-                if !t.canAdminister {
-                    Image(systemName: "lock.fill").font(.system(size: 8.5))
-                }
-                Text(t.name).font(.system(size: 11.5, weight: on ? .semibold : .regular))
-                Text("\(t.members)").font(.system(size: 10.5, weight: .medium)).foregroundStyle(on ? Color.white.opacity(0.75) : .secondary)
+                Text(name).font(.system(size: 11.5, weight: on ? .semibold : .regular))
+                Text("\(count)").font(.system(size: 10.5, weight: .medium)).foregroundStyle(on ? Color.white.opacity(0.75) : .secondary)
             }
             .foregroundStyle(on ? Color.white : .primary)
             .padding(.horizontal, 8).padding(.vertical, 4)
@@ -69,115 +150,44 @@ struct ReviewRotationPanel: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(t.canAdminister ? "\(t.name), \(t.members) people" : "\(t.name), \(t.members) people. You can only view it.")
-        .animation(.easeOut(duration: 0.15), value: on)
-    }
-
-    private func note(_ text: String) -> some View {
-        Text(text).font(.system(size: 12.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        .help("\(name), \(count) people")
     }
 }
 
-struct ReviewRotationEditor: View {
-    @ObservedObject var model: AppModel
-    let org: String
-    let team: GitHubClient.TeamRef
-    var preview: RotationPreview?
-
-    enum Status: Equatable {
-        case loading, idle, unreadable, saving, saved, needsScope, failed(String), dryRun(String)
-    }
-
-    @State private var saved: ReviewRotation?
-    @State private var draft = ReviewRotation()
-    @State private var status = Status.loading
-    @State private var access = TeamAccess.member
-    @State private var people: [Person] = []
-    @State private var fit: TeamFit?
+struct RotationStatusLine: View {
+    @ObservedObject var editing: RotationEditing
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            switch status {
-            case .loading:
-                ProgressView().controlSize(.small)
-            case .unreadable:
-                Text("Diple could not read this team's review settings.")
-                    .font(.system(size: 12.5)).foregroundStyle(.secondary)
-            case .failed(let message) where saved == nil:
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Couldn't read \(team.name): \(message)").font(.system(size: 11.5)).foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                    Button("Try again") { Task { await load() } }.controlSize(.small)
+        let team = editing.team.name
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Image(systemName: "checkmark.shield.fill").foregroundStyle(.green)
+            Text(editing.access.short(org: editing.org)).foregroundStyle(.green)
+            Text("·").foregroundStyle(.tertiary)
+            Image(systemName: editing.fit.map { $0.verdict == .works } ?? true ? "checkmark.circle" : "info.circle")
+                .foregroundStyle(.secondary)
+            Group {
+                if let fit = editing.fit {
+                    Text(fit.headline(team: team))
+                } else {
+                    Text("000 PRs asked \(team) in 30 days").redacted(reason: editing.fitKnown ? [] : .placeholder)
                 }
-            default:
-                statusLine(fit)
-                if preview == nil, !people.isEmpty {
-                    RotationDiagram(people: people, rotation: draft)
-                }
-                if access != .member { editor } else { readOnly }
             }
-        }
-        .font(.system(size: 13))
-        .task { await load() }
-        .onChange(of: draft) { _, d in preview?.rotation = d }
-    }
-
-    private var readOnly: some View {
-        Text(saved?.summary ?? "").fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func statusLine(_ fit: TeamFit?) -> some View {
-        let warns = fit.map { $0.verdict != .works } ?? false
-        return HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Image(systemName: access == .member ? "lock.fill" : "checkmark.shield.fill")
-                .foregroundStyle(access == .member ? Color.secondary : Color.green)
-            Text(access.short(org: org))
-                .foregroundStyle(access == .member ? Color.secondary : Color.green)
-            if let fit {
-                Text("·").foregroundStyle(.tertiary)
-                Image(systemName: warns ? "info.circle" : "checkmark.circle")
-                    .foregroundStyle(.secondary)
-                Text(fit.headline(team: team.name))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
         .font(.system(size: 11.5))
-        .help([access.explanation(org: org, team: team.name), fit?.explanation(org: org, team: team.name, slug: team.slug)]
+        .redacted(reason: editing.loading ? .placeholder : [])
+        .help([editing.access.explanation(org: editing.org, team: team),
+               editing.fit?.explanation(org: editing.org, team: team, slug: editing.team.slug)]
               .compactMap { $0 }.joined(separator: "\n\n"))
     }
+}
 
-    @ViewBuilder private var editor: some View {
-        HStack {
-            Toggle("Pick reviewers automatically", isOn: $draft.enabled)
-            Spacer(minLength: 8)
-            Button {
-                Task { await save() }
-            } label: {
-                if status == .saving { ProgressView().controlSize(.small) } else { Text("Save") }
-            }
-            .disabled(draft == saved || status == .saving)
-        }
-        HStack(spacing: 10) {
-            Picker("", selection: $draft.algorithm) {
-                ForEach(ReviewRotation.Algorithm.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .help(draft.algorithm.detail)
-            Stepper("\(draft.reviewers) per PR", value: $draft.reviewers, in: ReviewRotation.reviewerRange)
-                .fixedSize()
-            Toggle("Notify only them", isOn: Binding(get: { !draft.notifyTeam }, set: { draft.notifyTeam = !$0 }))
-                .fixedSize()
-                .help("Off: GitHub also notifies the whole team. On: only the people it picks.")
-        }
-        .disabled(!draft.enabled)
-        feedback
-    }
+struct RotationFeedback: View {
+    @ObservedObject var editing: RotationEditing
 
-    @ViewBuilder private var feedback: some View {
-        switch status {
+    var body: some View {
+        switch editing.status {
         case .saved:
             Label("Saved on GitHub", systemImage: "checkmark.circle.fill").font(.system(size: 11.5)).foregroundStyle(.green)
         case .needsScope:
@@ -192,10 +202,17 @@ struct ReviewRotationEditor: View {
             }
         case .failed(let message):
             HStack(alignment: .firstTextBaseline) {
-                Text(message).font(.system(size: 11.5)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                Text(editing.saved == nil ? "Couldn't read \(editing.team.name): \(message)" : message)
+                    .font(.system(size: 11.5)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
-                CopyButton(text: message, label: "Copy").controlSize(.small)
+                if editing.saved == nil {
+                    Button("Try again") { Task { await editing.load() } }.controlSize(.small)
+                } else {
+                    CopyButton(text: message, label: "Copy").controlSize(.small)
+                }
             }
+        case .unreadable:
+            Text("Diple could not read this team's review settings.").font(.system(size: 11.5)).foregroundStyle(.secondary)
         case .dryRun(let mutation):
             HStack {
                 Label("Dry run: nothing was sent to GitHub.", systemImage: "eye").font(.system(size: 11.5)).foregroundStyle(.orange)
@@ -205,71 +222,219 @@ struct ReviewRotationEditor: View {
             EmptyView()
         }
     }
+}
 
-    static let log = Logger(subsystem: "com.chagas42.diple", category: "rotation")
+struct SaveRotationButton: View {
+    @ObservedObject var editing: RotationEditing
 
-    private func load() async {
-        status = .loading
-        let read: RotationRead?
-        do {
-            read = try await model.rotation(org: org, team: team)
-        } catch is CancellationError {
-            return
-        } catch {
-            Self.log.error("read \(org, privacy: .public)/\(team.slug, privacy: .public): \(String(describing: error), privacy: .public)")
-            status = .failed(error.localizedDescription)
-            return
+    var body: some View {
+        Button {
+            Task { await editing.save() }
+        } label: {
+            Text("Save").opacity(editing.status == .saving ? 0 : 1)
+                .overlay { if editing.status == .saving { ProgressView().controlSize(.small) } }
         }
-        guard let read else {
-            Self.log.error("read \(org, privacy: .public)/\(team.slug, privacy: .public): no rotation fields")
-            status = .unreadable
-            return
+        .disabled(editing.loading || editing.draft == editing.saved || editing.status == .saving)
+    }
+}
+
+struct ReviewRotationPanel: View {
+    @ObservedObject var model: AppModel
+    var preview: RotationPreview?
+    @State private var teams: [GitHubClient.TeamRef]?
+    @State private var slug: String?
+
+    private var org: String { model.org }
+    private var team: GitHubClient.TeamRef? { teams?.first { $0.slug == slug } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if org.isEmpty {
+                note("Pick an organization first. The rotation belongs to a GitHub team in it.")
+            } else if teams?.isEmpty == true {
+                note("You don't own \(org) or maintain any of its teams, so there is no rotation for you to change.")
+            } else {
+                TeamChips(teams: teams, slug: $slug)
+                if let team {
+                    CompactRotationEditor(model: model, org: org, team: team, preview: preview).id(team.slug)
+                } else {
+                    CompactRotationEditor.skeleton
+                }
+            }
         }
-        async let found = model.fit(org: org, team: team)
-        let members = Array(await model.members(org: org, team: team).prefix(RotationDiagram.most))
-        fit = await found
-        access = TeamAccess(team: team, orgAdmin: read.orgAdmin)
-        saved = read.rotation
-        draft = read.rotation
-        people = members
-        status = .idle
-        preview?.people = members
-        preview?.rotation = read.rotation
+        .task(id: org) {
+            guard !org.isEmpty else { return }
+            (teams, slug) = await RotationTeams.load(model, org: org)
+        }
     }
 
-    private func save() async {
-        status = .saving
-        do {
-            switch try await model.saveRotation(draft, team: team) {
-            case .saved(let r):
-                saved = r
-                draft = r
-                status = .saved
-            case .dryRun(let mutation):
-                status = .dryRun(mutation)
+    private func note(_ text: String) -> some View {
+        Text(text).font(.system(size: 12.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+struct CompactRotationEditor: View {
+    @StateObject private var editing: RotationEditing
+
+    init(model: AppModel, org: String, team: GitHubClient.TeamRef, preview: RotationPreview?) {
+        _editing = StateObject(wrappedValue: RotationEditing(model: model, org: org, team: team, preview: preview))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            RotationStatusLine(editing: editing)
+            HStack {
+                Toggle("Pick reviewers automatically", isOn: $editing.draft.enabled)
+                Spacer(minLength: 8)
+                SaveRotationButton(editing: editing)
             }
-        } catch where ReviewRotation.needsScope(error) {
-            status = .needsScope
-        } catch {
-            Self.log.error("save \(org, privacy: .public)/\(team.slug, privacy: .public): \(String(describing: error), privacy: .public)")
-            status = .failed(error.localizedDescription)
+            HStack(spacing: 10) {
+                Picker("", selection: $editing.draft.algorithm) {
+                    ForEach(ReviewRotation.Algorithm.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help(editing.draft.algorithm.detail)
+                Stepper("\(editing.draft.reviewers) per PR", value: $editing.draft.reviewers, in: ReviewRotation.reviewerRange)
+                    .fixedSize()
+                Toggle("Notify only them", isOn: Binding(get: { !editing.draft.notifyTeam }, set: { editing.draft.notifyTeam = !$0 }))
+                    .fixedSize()
+                    .help("Off: GitHub also notifies the whole team. On: only the people it picks.")
+            }
+            .disabled(!editing.draft.enabled)
+            RotationFeedback(editing: editing)
         }
+        .font(.system(size: 13))
+        .redacted(reason: editing.loading ? .placeholder : [])
+        .disabled(editing.loading)
+        .task { await editing.load() }
+    }
+
+    static var skeleton: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Owner of the organization · 000 PRs asked the team in 30 days").font(.system(size: 11.5))
+            Toggle("Pick reviewers automatically", isOn: .constant(true))
+            HStack(spacing: 10) {
+                Picker("", selection: .constant(ReviewRotation.Algorithm.loadBalance)) {
+                    ForEach(ReviewRotation.Algorithm.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                Stepper("2 per PR", value: .constant(2)).fixedSize()
+                Toggle("Notify only them", isOn: .constant(false)).fixedSize()
+            }
+        }
+        .font(.system(size: 13))
+        .redacted(reason: .placeholder)
+        .disabled(true)
     }
 }
 
 struct ReviewRotationPane: View {
     @ObservedObject var model: AppModel
+    @State private var teams: [GitHubClient.TeamRef]?
+    @State private var slug: String?
+
+    private var org: String { model.org }
+    private var team: GitHubClient.TeamRef? { teams?.first { $0.slug == slug } }
 
     var body: some View {
         Form {
             Section {
-                ReviewRotationPanel(model: model)
+                TeamChips(teams: teams, slug: $slug)
+            } header: {
+                Text("Team")
             } footer: {
-                Text("Uses GitHub's own team review assignment. When a pull request asks the team for a review, GitHub swaps the team for the people it picks.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(RotationTeams.why).font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            if let team {
+                RotationFormSections(model: model, org: org, team: team).id(team.slug)
+            } else if teams?.isEmpty == true {
+                Section {
+                    Text("You don't own \(org) or maintain any of its teams, so there is no rotation for you to change.")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                RotationFormSections.skeleton
             }
         }
         .formStyle(.grouped)
+        .frame(maxWidth: 680)
+        .frame(maxWidth: .infinity)
+        .task(id: org) {
+            guard !org.isEmpty else { return }
+            (teams, slug) = await RotationTeams.load(model, org: org)
+        }
+    }
+}
+
+struct RotationFormSections: View {
+    @StateObject private var editing: RotationEditing
+
+    init(model: AppModel, org: String, team: GitHubClient.TeamRef) {
+        _editing = StateObject(wrappedValue: RotationEditing(model: model, org: org, team: team, preview: nil))
+    }
+
+    var body: some View {
+        Group {
+            Section {
+                RotationStatusLine(editing: editing)
+                RotationDiagram(people: editing.people ?? [], rotation: editing.draft)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6))
+            }
+            Section {
+                Toggle("Pick reviewers automatically", isOn: $editing.draft.enabled)
+                Group {
+                    Picker("Algorithm", selection: $editing.draft.algorithm) {
+                        ForEach(ReviewRotation.Algorithm.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    LabeledContent("Reviewers per pull request") {
+                        HStack(spacing: 6) {
+                            Text("\(editing.draft.reviewers)").monospacedDigit()
+                            Stepper("", value: $editing.draft.reviewers, in: ReviewRotation.reviewerRange).labelsHidden()
+                        }
+                    }
+                    Toggle("Notify only the people picked", isOn: Binding(get: { !editing.draft.notifyTeam }, set: { editing.draft.notifyTeam = !$0 }))
+                }
+                .disabled(!editing.draft.enabled)
+            } header: {
+                Text("Rotation")
+            } footer: {
+                Text(editing.draft.enabled ? editing.draft.algorithm.detail : "Off: everyone in the team is asked for every review.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Section {
+                HStack {
+                    RotationFeedback(editing: editing)
+                    Spacer(minLength: 8)
+                    SaveRotationButton(editing: editing)
+                }
+            }
+        }
+        .redacted(reason: editing.loading ? .placeholder : [])
+        .disabled(editing.loading)
+        .task { await editing.load() }
+    }
+
+    static var skeleton: some View {
+        Group {
+            Section {
+                Text("Owner of the organization · 000 PRs asked the team in 30 days").font(.system(size: 11.5))
+                RotationDiagram(people: [], rotation: ReviewRotation(enabled: true))
+            }
+            Section("Rotation") {
+                Toggle("Pick reviewers automatically", isOn: .constant(true))
+                Picker("Algorithm", selection: .constant(ReviewRotation.Algorithm.loadBalance)) {
+                    ForEach(ReviewRotation.Algorithm.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                LabeledContent("Reviewers per pull request") { Text("2") }
+                Toggle("Notify only the people picked", isOn: .constant(false))
+            }
+        }
+        .redacted(reason: .placeholder)
+        .disabled(true)
     }
 }
 
@@ -296,6 +461,24 @@ struct RotationDiagram: View {
     private var turns: Bool { rotation.enabled && rotation.algorithm == .roundRobin }
 
     var body: some View {
+        if people.isEmpty { placeholder } else { stage }
+    }
+
+    private var placeholder: some View {
+        HStack(spacing: 22) {
+            ForEach(0..<6, id: \.self) { _ in
+                VStack(spacing: 6) {
+                    Circle().fill(Color.primary.opacity(0.10)).frame(width: 30, height: 30)
+                    Capsule().fill(Color.primary.opacity(0.08)).frame(width: 34, height: 6)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: Self.height)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.04)))
+    }
+
+    private var stage: some View {
         GeometryReader { g in
             let w = g.size.width
             let slot = w / CGFloat(max(people.count, 1))

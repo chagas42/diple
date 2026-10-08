@@ -27,6 +27,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var rotatingTeams: [String] = []
     @Published private(set) var managesRotation = false
     private var codeOwners: [String: [String: String]] = [:]
+    var rotationCache: [String: RotationSnapshot] = [:]
 
     var team: [Person] {
         return teamObserver?.data ?? teamQuery.flatMap { queries.peek($0) } ?? []
@@ -883,6 +884,9 @@ final class AppModel: ObservableObject {
     func refreshRotationAccess() async {
         guard !org.isEmpty else { managesRotation = false; return }
         managesRotation = await orgTeams(in: org).contains(where: \.canAdminister)
+        if managesRotation, !queries.answersLocally, codeOwners[org] == nil {
+            codeOwners[org] = try? await client.fetchCodeOwners(org: org)
+        }
     }
 
     func refreshRotatingTeams() async {

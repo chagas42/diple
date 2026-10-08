@@ -53,7 +53,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       "General"
         case .notifications: "Notifications"
-        case .reviews:       "Review Rotation"
+        case .reviews:       "Reviewers"
         case .repositories:  "Repositories"
         case .appearance:    "Appearance"
         case .claude:        "Claude"
