@@ -24,6 +24,9 @@ final class AppModel: ObservableObject {
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var following: Set<String> = []
     @Published private(set) var tracked: [String: TrackedPR] = [:]
+    @Published private(set) var rotatingTeams: [String] = []
+    @Published private(set) var managesRotation = false
+    private var codeOwners: [String: [String: String]] = [:]
 
     var team: [Person] {
         return teamObserver?.data ?? teamQuery.flatMap { queries.peek($0) } ?? []
@@ -834,8 +837,76 @@ final class AppModel: ObservableObject {
     }
 
     func myTeams(in org: String) async -> [GitHubClient.TeamRef] {
-        if queries.answersLocally { return Demo.teams }
-        return (try? await client.fetchMyTeams(org: org, viewer: queue.viewer)) ?? []
+        let teams = queries.answersLocally ? Demo.teams : ((try? await client.fetchMyTeams(org: org, viewer: queue.viewer)) ?? [])
+        return Self.teams(teams, as: ProcessInfo.processInfo.environment["DIPLE_FORCE_ROLE"])
+    }
+
+    func orgTeams(in org: String) async -> [GitHubClient.TeamRef] {
+        let teams = queries.answersLocally ? Demo.orgTeams : ((try? await client.fetchOrgTeams(org: org)) ?? [])
+        return Self.teams(teams, as: ProcessInfo.processInfo.environment["DIPLE_FORCE_ROLE"])
+    }
+
+    nonisolated static func teams(_ teams: [GitHubClient.TeamRef], as role: String?) -> [GitHubClient.TeamRef] {
+        guard let role, role == "admin" || role == "member" else { return teams }
+        return teams.map { t in
+            var t = t
+            t.canAdminister = role == "admin"
+            return t
+        }
+    }
+
+    enum RotationSave: Equatable {
+        case saved(ReviewRotation)
+        case dryRun(String)
+    }
+
+    func rotation(org: String, team: GitHubClient.TeamRef) async throws -> RotationRead? {
+        let read = queries.answersLocally
+            ? RotationRead(rotation: Demo.rotation(team.slug), orgAdmin: team.canAdminister)
+            : try await client.fetchRotation(org: org, slug: team.slug)
+        return ProcessInfo.processInfo.environment["DIPLE_FORCE_ROLE"] == "member" ? read.map { RotationRead(rotation: $0.rotation, orgAdmin: false) } : read
+    }
+
+    func fit(org: String, team: GitHubClient.TeamRef) async -> TeamFit? {
+        if queries.answersLocally { return Demo.fit(team.slug) }
+        if codeOwners[org] == nil { codeOwners[org] = try? await client.fetchCodeOwners(org: org) }
+        guard let requests = try? await client.teamRequests(org: org, slug: team.slug, since: Date().addingTimeInterval(-30 * 86_400))
+        else { return nil }
+        return TeamFit(requests: requests, repos: TeamFit.repos(owning: team.slug, org: org, in: codeOwners[org] ?? [:]))
+    }
+
+    func members(org: String, team: GitHubClient.TeamRef) async -> [Person] {
+        if queries.answersLocally { return Demo.team }
+        return (try? await client.fetchTeams(org: org, slugs: [team.slug])) ?? []
+    }
+
+    func refreshRotationAccess() async {
+        guard !org.isEmpty else { managesRotation = false; return }
+        managesRotation = await orgTeams(in: org).contains(where: \.canAdminister)
+    }
+
+    func refreshRotatingTeams() async {
+        guard !org.isEmpty else { return }
+        if queries.answersLocally {
+            rotatingTeams = Demo.teams.filter { Demo.rotation($0.slug).enabled }.map(\.name)
+            return
+        }
+        guard let teams = try? await client.fetchMyRotatingTeams(org: org, viewer: queue.viewer) else { return }
+        rotatingTeams = teams
+    }
+
+    func saveRotation(_ rotation: ReviewRotation, team: GitHubClient.TeamRef) async throws -> RotationSave {
+        if queries.answersLocally {
+            try await Task.sleep(for: Demo.latency)
+            return .saved(rotation)
+        }
+        guard let id = team.nodeId else { throw ClientError.empty }
+        if ProcessInfo.processInfo.environment["DIPLE_DRY_RUN"] != nil {
+            return .dryRun(ReviewRotation.mutation(teamId: id, rotation))
+        }
+        let saved = try await client.updateRotation(teamId: id, rotation) ?? rotation
+        await refreshRotatingTeams()
+        return .saved(saved)
     }
 
     nonisolated static func organization(of prs: [PR]) -> String {

@@ -516,7 +516,7 @@ so the same comment never notifies twice.
 
 ## Onboarding
 
-**Nine steps, shown once per version.** `StoredState.onboarded` holds the
+**Nine steps, ten for whoever can change a review rotation, shown once per version.** `StoredState.onboarded` holds the
 version seen; anyone below `Onboarding.version` gets it on launch, new and
 existing users alike, with their current settings already filled in. Settings →
 General → Show Onboarding opens it again. Demo, film and bench never open it on
@@ -551,6 +551,53 @@ the queue; `teams` (stored as `org/slug`) makes Team and the ranking list only
 those teams' members, through a separate `teams` cache key, so picking none
 keeps the whole organization. Work days replace "weekends too": a saved file
 with that on becomes Monday to Friday, off becomes every day.
+
+## Review rotation
+
+**Diple edits GitHub's own team review assignment; GitHub does the picking.**
+When a pull request asks a team for review (usually through CODEOWNERS),
+GitHub swaps the team for the people its algorithm picks, on its servers. Diple
+reads and writes that setting with `updateTeamReviewAssignment`; nothing runs on
+the Mac, and the rotation keeps working with Diple closed. Rules GitHub does
+not have (stacks, OOO, weights) would need an Action or a server, not Diple.
+
+**Writing needs `admin:org`, which a default `gh auth login` lacks.** The
+mutation fails with a message about scopes; Diple shows
+`gh auth refresh -h github.com -s admin:org`. Without `-h` the command refuses
+to run outside an interactive terminal.
+
+**Excluded members can be written but not read.** The input takes
+`excludedTeamMemberIds`, but no field returns them, so Diple sends the
+mutation without it. Whether GitHub keeps the existing exclusions when the
+field is left out can only be seen in the team's settings page, not through the
+API.
+
+**`notifyTeam: true` notifies the whole team as well as the people picked.**
+The checkbox is "Notify only them", the inverse of the field.
+
+**Who sees it.** The step and the Settings pane show only for an organization
+owner or a team maintainer (`viewerCanAdminister`), listing only the teams they
+can change; a member would get errors. Everyone else sees one line in the
+review filter when a team of theirs rotates, because a request GitHub assigns
+by name always passes the filter (`asksYouByName`).
+
+**Whether a rotation would do anything is read from use, not asked.**
+`team-review-requested:org/slug` in search still counts pull requests after
+GitHub has swapped the team for people, so the last 30 days say whether the
+team is asked as a team. CODEOWNERS is read from `.github/`, the root and
+`docs/` of the 100 most recently pushed repositories. A team nobody asks gets a
+one-line notice instead of a warning: for a team where one senior reviews, it
+is the expected answer.
+
+**The stage is an illustration.** The piles start from fixed loads and drain
+as many reviews as each pull request handed out, so they stay bounded; GitHub
+does not say how many requests each person got from the rotation.
+
+**Testing it.** `DIPLE_DRY_RUN=1` makes Save show the mutation instead of
+sending it, and `DIPLE_FORCE_ROLE=member` or `admin` overrides what GitHub says
+about the viewer. Launch with `open -n --env …`; running the binary directly
+crashes on the first privacy prompt, because TCC kills a process LaunchServices
+did not start.
 
 ## The main window
 

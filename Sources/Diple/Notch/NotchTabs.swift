@@ -65,6 +65,10 @@ struct TeamTab: View {
                     .pickerStyle(.inline)
                     Divider()
                     Text(model.settings.reviewFilter.detail)
+                    if let note = ReviewRotation.filterNote(model.rotatingTeams) {
+                        Divider()
+                        Text(note)
+                    }
                 } label: {
                     HStack(spacing: 3) {
                         Image(systemName: model.settings.reviewFilter == .onlyPicked
@@ -83,6 +87,7 @@ struct TeamTab: View {
                 .fixedSize()
                 .help("Which review requests count and alert")
             }
+            .task(id: model.org) { await model.refreshRotatingTeams() }
 
             if model.team.isEmpty {
                 Placeholder(text: "Loading your organisation…")
