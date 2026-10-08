@@ -247,7 +247,7 @@ struct NotificationsPane: View {
     private func title(_ t: EventKind) -> String {
         switch t {
         case .repliedToYou: "Someone replied to you in a thread"
-        case .commented:      "Someone commented on your PR"
+        case .commented:      "Someone commented on a PR you're in"
         case .reviewRequested:   "Someone requested your review"
         case .checkFailed:     "A check failed on one of your PRs"
         case .approved:       "Someone approved your PR"

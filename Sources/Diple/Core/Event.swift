@@ -55,7 +55,7 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
     var label: String {
         switch self {
         case .repliedToYou: "replied to you"
-        case .commented:      "commented on your PR"
+        case .commented:      "commented"
         case .reviewRequested:   "requested your review"
         case .checkFailed:     "check failing"
         case .approved:       "approved your PR"
