@@ -1381,7 +1381,7 @@ final class AppModel: ObservableObject {
     var needsYou: [PR] {
         var seen = Set<String>()
         var out: [PR] = []
-        for pr in reviewing + queue.all.filter({ unread.contains($0.key) }) {
+        for pr in reviewing.filter({ !$0.answeredByViewer }) + queue.all.filter({ unread.contains($0.key) }) {
             guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
             guard !isQuiet(pr), !isDismissed(pr) else { continue }
             if seen.insert(pr.key).inserted { out.append(pr) }

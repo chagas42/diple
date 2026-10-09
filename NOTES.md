@@ -496,6 +496,21 @@ speaks up again once someone writes on it, since its unread reason is then
 more urgent than `reviewRequested`. With nobody picked, every filter behaves
 as Everyone, so an empty team cannot silence everything.
 
+**A request you already answered leaves Needs you.** GitHub drops a review
+request when you submit a review, but a conversation comment or a reply on a
+line leaves it standing, so the PR kept counting as waiting on you after you
+had spoken. The PR query carries the last five `REVIEW_REQUESTED_EVENT`s, each
+review's `submittedAt`, each thread comment's `state` and the head commit's
+`committedDate`. A request counts as answered when your latest submitted
+review or comment is newer than both the latest request to you (by name, or
+to any team, since team membership is not fetched) and the head commit. A new
+request or a new commit brings the PR back, and so does a reply to you, through
+unread. It stays in Reviewing, where GitHub still lists it. Without a request
+time (a PR cached before these fields) nothing is hidden. `committedDate` is
+the author's clock, not the push: a commit made before your comment and pushed
+after it does not bring the PR back. Merged and closed PRs need no rule: every
+search is `is:open`.
+
 **A dismissal lasts until the pull request moves.** Hovering a row in the
 notch shows an ×, and its right-click menu has Dismiss. Diple saves the PR's
 `updatedAt` beside its key and hides it from every tab and the count while
