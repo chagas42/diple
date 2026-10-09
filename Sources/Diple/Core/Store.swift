@@ -174,6 +174,7 @@ final class Store {
     private let path: URL
     private let writer: StoreWriter
     private var generation = 0
+    private var saveQueued = false
 
     init(
         directory: URL = Store.defaultDirectory,
@@ -203,9 +204,14 @@ final class Store {
 
     private func save() {
         generation += 1
-        let snapshot = state
-        let g = generation
-        Task { [writer] in await writer.schedule(snapshot, generation: g) }
+        guard !saveQueued else { return }
+        saveQueued = true
+        Task { [self] in
+            saveQueued = false
+            let snapshot = state
+            let g = generation
+            await writer.schedule(snapshot, generation: g)
+        }
     }
 
     func settle() async {

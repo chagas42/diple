@@ -19,6 +19,8 @@ struct DetailView: View {
         }
     }
     @State private var section: Section
+    @State private var confirmingReady = false
+    @State private var readyFailure: String?
 
     init(model: AppModel, pr: PR) {
         self.model = model
@@ -69,7 +71,10 @@ struct DetailView: View {
             .frame(maxWidth: Self.readable, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .onChange(of: pr.key) { _, key in section = Section.shown(model.section(for: key), for: pr) }
+        .onChange(of: pr.key) { _, key in
+            section = Section.shown(model.section(for: key), for: pr)
+            readyFailure = nil
+        }
         .onChange(of: section) { _, s in model.remember(s, for: pr.key) }
     }
 
@@ -113,6 +118,36 @@ struct DetailView: View {
                 .clickable()
                 .help("Open this pull request on GitHub")
             }
+            if let readyFailure {
+                Label(readyFailure, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var readyButton: some View {
+        Button {
+            confirmingReady = true
+        } label: {
+            Label("Ready for Review", systemImage: "eye")
+                .font(.system(size: 12))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .clickable()
+        .disabled(model.markingReady.contains(pr.key))
+        .help("Take this pull request out of draft")
+        .confirmationDialog(ReadyForReview.question, isPresented: $confirmingReady) {
+            Button(ReadyForReview.confirm) {
+                let pr = pr
+                Task { readyFailure = await model.markReady(pr) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(ReadyForReview.consequence)
         }
     }
 
@@ -144,6 +179,10 @@ struct DetailView: View {
             pill(pr.threads.isEmpty ? "bubble.left" : "bubble.left.fill",
                  pr.threads.isEmpty ? "No open threads" : "\(pr.threads.count) open thread\(pr.threads.count == 1 ? "" : "s")",
                  pr.threads.isEmpty ? .secondary : .orange)
+            Spacer(minLength: 8)
+            if model.canMarkReady(pr) || model.markingReady.contains(pr.key) {
+                readyButton
+            }
         }
     }
 

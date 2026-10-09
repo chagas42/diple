@@ -374,6 +374,19 @@ extension GitHubClient {
         )
     }
 
+    func markReadyForReview(prId: String) async throws {
+        try await landing(check: { try await self.isReady(prId: prId) }) {
+            _ = try await self.mutate(
+                """
+                mutation($p: ID!) {
+                  markPullRequestReadyForReview(input: { pullRequestId: $p }) { pullRequest { id isDraft } }
+                }
+                """,
+                ["p": prId]
+            )
+        }
+    }
+
     static let clockSlack: TimeInterval = 60
 
     static func isUncertain(_ error: Error) -> Bool {
@@ -424,6 +437,13 @@ extension GitHubClient {
         node(id: "\(escaped(threadId))") { ... on PullRequestReviewThread { isResolved } }
         """)
         return (d["node"] as? [String: Any])?["isResolved"] as? Bool ?? false
+    }
+
+    func isReady(prId: String) async throws -> Bool {
+        let d = try await check("""
+        node(id: "\(escaped(prId))") { ... on PullRequest { isDraft } }
+        """)
+        return (d["node"] as? [String: Any])?["isDraft"] as? Bool == false
     }
 
     func pendingComment(prId: String, path: String, since: Date) async throws -> Bool {

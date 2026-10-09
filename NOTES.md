@@ -48,6 +48,17 @@ fetched explicitly, because it may not exist locally.
 reviews in private repos. The activity grid is built from each review's real
 `submittedAt` instead.
 
+**Ready for review is not quiet.** `markPullRequestReadyForReview` is what
+makes GitHub request reviews from `CODEOWNERS` and notify everyone it asks.
+That is why both entry points confirm first. The mutation needs the `repo`
+scope on a classic token (gh asks for it by default), or *Pull requests: write*
+on a fine-grained one. Each one fails with its own message ("required scopes",
+"Resource not accessible by integration"), and `ReadyForReview.explain` tells
+them apart. The PR flips to ready before the request goes out. If the request
+fails, only `draft` goes back on the PR's current copy, so a sync that landed
+in between is kept. An uncertain answer (502, a timeout) is checked against
+`isDraft`, the same way replies and resolves are.
+
 **Cost.** One aggregated query with three aliased searches costs 1 point of
 5000/hour. The reviewer ranking is one search per person, all aliased into a
 single request — thirty people still cost 1 point.

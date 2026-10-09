@@ -10,6 +10,7 @@ struct ErrorReport: Sendable, Equatable {
         case postFinding = "post_finding"
         case reply
         case resolve
+        case markReady = "mark_ready"
         case aiReview = "ai_review"
         case mapDiff = "map_diff"
         case mapEnrich = "map_enrich"
