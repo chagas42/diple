@@ -30,6 +30,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var reviewDay: String? = nil
     var reviewsThatDay = 0
     var dismissed: [String: Date]? = nil
+    var muted: [String: Date]? = nil
     var tracked: [String: TrackedPR]? = nil
 
     init() {}
@@ -56,6 +57,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.reviewDay = try c.decodeIfPresent(String.self, forKey: .reviewDay)
         d.reviewsThatDay = try c.decodeIfPresent(Int.self, forKey: .reviewsThatDay) ?? d.reviewsThatDay
         d.dismissed = try? c.decodeIfPresent([String: Date].self, forKey: .dismissed)
+        d.muted = try? c.decodeIfPresent([String: Date].self, forKey: .muted)
         d.tracked = try? c.decodeIfPresent([String: TrackedPR].self, forKey: .tracked)
         self = d
     }
@@ -273,6 +275,27 @@ final class Store {
         let kept = Dismissals.kept(dismissed, queue: queue, now: now)
         guard kept != dismissed else { return }
         state.dismissed = kept
+        save()
+    }
+
+    func mute(_ pr: PR, now: Date = Date()) {
+        state.muted = (state.muted ?? [:]).merging([pr.key: now]) { _, new in new }
+        state.unread.remove(pr.key)
+        state.unreadReasons[pr.key] = nil
+        save()
+    }
+
+    func unmute(_ pr: PR) {
+        guard state.muted?[pr.key] != nil else { return }
+        state.muted?[pr.key] = nil
+        save()
+    }
+
+    func forgetMutes(_ queue: Queue, now: Date = Date()) {
+        guard let muted = state.muted else { return }
+        let kept = Mutes.kept(muted, queue: queue, now: now)
+        guard kept != muted else { return }
+        state.muted = kept
         save()
     }
 

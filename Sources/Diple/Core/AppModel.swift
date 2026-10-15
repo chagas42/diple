@@ -19,6 +19,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
     @Published private(set) var dismissed: [String: Date] = [:]
+    @Published private(set) var muted: [String: Date] = [:]
     @Published private(set) var reviewedAhead: Set<String> = []
 
     @Published var notchTab: NotchTab = .queue
@@ -634,6 +635,7 @@ final class AppModel: ObservableObject {
     func restoreCached() {
         unread = store.state.unread
         dismissed = store.state.dismissed ?? [:]
+        muted = store.state.muted ?? [:]
         following = store.state.following
         watching = store.state.watching ?? []
         tracked = store.state.tracked ?? [:]
@@ -777,7 +779,7 @@ final class AppModel: ObservableObject {
         let events = (queueEvents + (await checkTracked(viewer: nova.viewer)))
             .filter { e in
                 let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
-                return !settings.mutedRepos.contains(repo)
+                return !settings.mutedRepos.contains(repo) && muted[e.key] == nil
             }
             .filter { e in
                 guard e.kind == .reviewRequested,
@@ -792,6 +794,8 @@ final class AppModel: ObservableObject {
         rewatchPushes()
         store.forgetDismissals(nova)
         dismissed = store.state.dismissed ?? [:]
+        store.forgetMutes(nova)
+        muted = store.state.muted ?? [:]
         reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
         confirmReviews(candidates)
         if let s = selected {
@@ -1307,6 +1311,21 @@ final class AppModel: ObservableObject {
 
     func isDismissed(_ pr: PR) -> Bool { Dismissals.hides(pr, dismissed) }
 
+    func mute(_ pr: PR) {
+        store.mute(pr)
+        muted = store.state.muted ?? [:]
+        unread = store.state.unread
+        onCountChange?()
+    }
+
+    func unmute(_ pr: PR) {
+        store.unmute(pr)
+        muted = store.state.muted ?? [:]
+        onCountChange?()
+    }
+
+    func isMuted(_ pr: PR) -> Bool { muted[pr.key] != nil }
+
     func clearAll() {
         store.markAllRead()
         unread = store.state.unread
@@ -1383,7 +1402,7 @@ final class AppModel: ObservableObject {
         var out: [PR] = []
         for pr in reviewing + queue.all.filter({ unread.contains($0.key) }) {
             guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
-            guard !isQuiet(pr), !isDismissed(pr) else { continue }
+            guard !isQuiet(pr), !isDismissed(pr), !isMuted(pr) else { continue }
             if seen.insert(pr.key).inserted { out.append(pr) }
         }
         return out
@@ -1494,16 +1513,17 @@ final class AppModel: ObservableObject {
 
     var count: Int { needsYou.count }
 
-    func prs(_ tab: Tab) -> [PR] {
+    func prs(_ tab: Tab, includingMuted: Bool = false) -> [PR] {
+        let shown = { (pr: PR) in !self.isDismissed(pr) && (includingMuted || !self.isMuted(pr)) }
         switch tab {
-        case .needsYou:  needsYou
-        case .mine:       Self.draftsLast(queue.mine.filter { !isDismissed($0) })
-        case .reviewing:  reviewing.filter { !isDismissed($0) }
-        case .following: queue.following.filter { !isDismissed($0) }
+        case .needsYou:  return needsYou
+        case .mine:       return Self.draftsLast(queue.mine.filter(shown))
+        case .reviewing:  return reviewing.filter(shown)
+        case .following: return queue.following.filter(shown)
         }
     }
 
-    func count(_ tab: Tab) -> Int { prs(tab).count }
+    func count(_ tab: Tab, includingMuted: Bool = false) -> Int { prs(tab, includingMuted: includingMuted).count }
 
     static func draftsLast(_ prs: [PR]) -> [PR] {
         prs.filter { !$0.draft } + prs.filter(\.draft)
