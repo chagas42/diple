@@ -8,6 +8,9 @@ struct Settings: Codable, Sendable, Equatable {
     var quietFrom = 19
     var quietUntil = 9
     var quietOnWeekends = true
+    var workDays: Set<Int> = Settings.weekdays
+    var primaryOrg: String? = nil
+    var teams: [String] = []
     var stackPerPR = false
 
     var mutedRepos: Set<String> = []
@@ -86,7 +89,7 @@ struct Settings: Codable, Sendable, Equatable {
         if t == .repliedToYou { return true }
 
         let cal = Calendar.current
-        if quietOnWeekends, cal.isDateInWeekend(now) { return false }
+        if !workDays.contains(cal.component(.weekday, from: now)) { return false }
 
         let h = cal.component(.hour, from: now)
 
@@ -94,6 +97,16 @@ struct Settings: Codable, Sendable, Equatable {
             ? (h >= quietFrom || h < quietUntil)
             : (h >= quietFrom && h < quietUntil)
         return !calado
+    }
+
+    static let weekdays: Set<Int> = [2, 3, 4, 5, 6]
+    static let everyDay: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
+
+    func teams(in org: String) -> [String] {
+        teams.compactMap { t in
+            let parts = t.split(separator: "/", maxSplits: 1).map(String.init)
+            return parts.count == 2 && parts[0].lowercased() == org.lowercased() ? parts[1] : nil
+        }
     }
 
     init() {}
@@ -107,6 +120,10 @@ struct Settings: Codable, Sendable, Equatable {
         d.quietFrom = try c.decodeIfPresent(Int.self, forKey: .quietFrom) ?? d.quietFrom
         d.quietUntil = try c.decodeIfPresent(Int.self, forKey: .quietUntil) ?? d.quietUntil
         d.quietOnWeekends = try c.decodeIfPresent(Bool.self, forKey: .quietOnWeekends) ?? d.quietOnWeekends
+        d.workDays = try c.decodeIfPresent(Set<Int>.self, forKey: .workDays)
+            ?? (d.quietOnWeekends ? Settings.weekdays : Settings.everyDay)
+        d.primaryOrg = try c.decodeIfPresent(String.self, forKey: .primaryOrg)
+        d.teams = try c.decodeIfPresent([String].self, forKey: .teams) ?? d.teams
         d.stackPerPR = try c.decodeIfPresent(Bool.self, forKey: .stackPerPR) ?? d.stackPerPR
         d.mutedRepos = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRepos) ?? d.mutedRepos
         d.interval = try c.decodeIfPresent(TimeInterval.self, forKey: .interval) ?? d.interval

@@ -81,8 +81,16 @@ struct NotchView: View {
             .contextMenu {
                 if case .available(let version, let page) = updates.state {
                     Button("Update to \(version)…") {
-                        if updates.canInstall { updates.install() } else { NSWorkspace.shared.open(page) }
+                        if updates.canInstall {
+                            updates.install()
+                            Windows.shared.openSettings(model, pane: .general)
+                        } else {
+                            NSWorkspace.shared.open(page)
+                        }
                     }
+                    Divider()
+                } else if case .ready(let version) = updates.state {
+                    Button("Restart to Install \(version)") { updates.restartAndInstall() }
                     Divider()
                 }
                 Button("Settings…") { Windows.shared.openSettings(model) }
@@ -495,7 +503,7 @@ struct NotchView: View {
                             Button { model.open(pr, from: .notch) } label: {
                                 HStack(spacing: 10) {
                                     Circle()
-                                        .fill(.orange)
+                                        .fill(pr.draft ? .white.opacity(0.3) : .orange)
                                         .frame(width: 7, height: 7)
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(pr.title)
@@ -505,6 +513,9 @@ struct NotchView: View {
                                         HStack(spacing: 6) {
                                             if let r = model.needsReason(pr) {
                                                 reasonChip(r)
+                                            }
+                                            if pr.draft {
+                                                draftChip
                                             }
                                             Text(meta(pr))
                                                 .font(.system(size: 11))
@@ -535,6 +546,7 @@ struct NotchView: View {
                             }
                             .contextMenu {
                                 Button("Dismiss") { model.dismiss(pr) }
+                                Button("Mute") { withAnimation(.easeOut(duration: 0.18)) { model.mute(pr) } }
                             }
                         }
                     }
@@ -720,6 +732,15 @@ struct NotchView: View {
         .background(Capsule().fill(colorFor(r.kind).opacity(0.14)))
     }
 
+    private var draftChip: some View {
+        Text("Draft")
+            .font(.system(size: 9.5, weight: .medium))
+            .foregroundStyle(.white.opacity(0.6))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(.white.opacity(0.1)))
+    }
+
     private func colorFor(_ t: EventKind) -> Color {
         switch t {
         case .repliedToYou: .orange
@@ -728,6 +749,7 @@ struct NotchView: View {
         case .checkFailed:     .red
         case .approved:       .green
         case .newPullRequest: .teal
+        case .tracked:        .yellow
         }
     }
 }

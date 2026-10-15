@@ -15,6 +15,7 @@ struct StoredState: Codable, Sendable, Equatable {
     var unreadReasons: [String: EventKind] = [:]
 
     var hasRunBefore: Bool = false
+    var onboarded: Int? = nil
     var watchedSince: [String: Date]? = nil
 
     var following: Set<String> = []
@@ -29,6 +30,8 @@ struct StoredState: Codable, Sendable, Equatable {
     var reviewDay: String? = nil
     var reviewsThatDay = 0
     var dismissed: [String: Date]? = nil
+    var muted: [String: Date]? = nil
+    var tracked: [String: TrackedPR]? = nil
 
     init() {}
 
@@ -40,6 +43,7 @@ struct StoredState: Codable, Sendable, Equatable {
         d.unread = try c.decodeIfPresent(Set<String>.self, forKey: .unread) ?? d.unread
         d.unreadReasons = (try? c.decodeIfPresent([String: EventKind].self, forKey: .unreadReasons)) ?? d.unreadReasons
         d.hasRunBefore = try c.decodeIfPresent(Bool.self, forKey: .hasRunBefore) ?? d.hasRunBefore
+        d.onboarded = try c.decodeIfPresent(Int.self, forKey: .onboarded)
         d.watchedSince = try c.decodeIfPresent([String: Date].self, forKey: .watchedSince)
         d.following = try c.decodeIfPresent(Set<String>.self, forKey: .following) ?? d.following
         d.watching = try c.decodeIfPresent(Set<String>.self, forKey: .watching) ?? d.watching
@@ -53,6 +57,8 @@ struct StoredState: Codable, Sendable, Equatable {
         d.reviewDay = try c.decodeIfPresent(String.self, forKey: .reviewDay)
         d.reviewsThatDay = try c.decodeIfPresent(Int.self, forKey: .reviewsThatDay) ?? d.reviewsThatDay
         d.dismissed = try? c.decodeIfPresent([String: Date].self, forKey: .dismissed)
+        d.muted = try? c.decodeIfPresent([String: Date].self, forKey: .muted)
+        d.tracked = try? c.decodeIfPresent([String: TrackedPR].self, forKey: .tracked)
         self = d
     }
 
@@ -241,6 +247,16 @@ final class Store {
         return true
     }
 
+    func answeredReview(_ key: String) {
+        guard state.unread.contains(key), state.unreadReasons[key] == .reviewRequested else { return }
+        markRead(key)
+    }
+
+    func markOnboarded(_ version: Int) {
+        state.onboarded = version
+        save()
+    }
+
     func markRead(_ key: String) {
         state.unread.remove(key)
         state.unreadReasons[key] = nil
@@ -259,6 +275,27 @@ final class Store {
         let kept = Dismissals.kept(dismissed, queue: queue, now: now)
         guard kept != dismissed else { return }
         state.dismissed = kept
+        save()
+    }
+
+    func mute(_ pr: PR, now: Date = Date()) {
+        state.muted = (state.muted ?? [:]).merging([pr.key: now]) { _, new in new }
+        state.unread.remove(pr.key)
+        state.unreadReasons[pr.key] = nil
+        save()
+    }
+
+    func unmute(_ pr: PR) {
+        guard state.muted?[pr.key] != nil else { return }
+        state.muted?[pr.key] = nil
+        save()
+    }
+
+    func forgetMutes(_ queue: Queue, now: Date = Date()) {
+        guard let muted = state.muted else { return }
+        let kept = Mutes.kept(muted, queue: queue, now: now)
+        guard kept != muted else { return }
+        state.muted = kept
         save()
     }
 
@@ -293,6 +330,44 @@ final class Store {
         state.watching = w
         state.watchedSince = since
         save()
+    }
+
+    func track(_ pr: PR, now: Date = Date()) {
+        var all = state.tracked ?? [:]
+        all[pr.key] = TrackedPR(pr, since: now)
+        state.tracked = all
+        save()
+    }
+
+    func untrack(_ key: String) {
+        guard state.tracked?[key] != nil else { return }
+        state.tracked?[key] = nil
+        save()
+    }
+
+    func absorbTracked(_ fresh: [PR], viewer: String) -> [Event] {
+        guard var all = state.tracked else { return [] }
+        var events: [Event] = []
+        for pr in fresh {
+            guard var t = all[pr.key] else { continue }
+            let found = Tracking.events(t, now: pr, viewer: viewer)
+            events += found
+            if (pr.state ?? .open).isFinal {
+                all[pr.key] = nil
+                continue
+            }
+            t.title = pr.title
+            t.mark = TrackMark(pr)
+            all[pr.key] = t
+        }
+        guard all != state.tracked || !events.isEmpty else { return events }
+        state.tracked = all
+        for e in events {
+            state.unread.insert(e.key)
+            state.unreadReasons[e.key] = EventKind.moreUrgent(state.unreadReasons[e.key], e.kind)
+        }
+        save()
+        return events
     }
 
     func toggleFollow(_ login: String) {
@@ -335,6 +410,12 @@ final class Store {
         state.reviewsThatDay += 1
         save()
         return state.reviewsThatDay
+    }
+
+    nonisolated static func commented(by author: String, on pr: PR) -> String {
+        if pr.isMine { return "\(author) commented on your PR" }
+        if author.caseInsensitiveCompare(pr.author) == .orderedSame { return "\(author) commented on their PR" }
+        return "\(author) commented on \(pr.author)'s PR"
     }
 
     func diff(_ queue: Queue, meuLogin: String) -> [Event] {
@@ -385,7 +466,7 @@ final class Store {
                     id: "\(pr.key)/message/\(c.at.timeIntervalSince1970)",
                     kind: mentionsYou ? .repliedToYou : .commented,
                     key: pr.key, url: pr.url,
-                    title: mentionsYou ? "\(c.author) replied to you" : "\(c.author) commented on your PR",
+                    title: mentionsYou ? "\(c.author) replied to you" : Self.commented(by: c.author, on: pr),
                     body: c.location.map { "\($0) — \(c.excerpt)" } ?? c.excerpt,
                     threadId: c.threadId
                 ))

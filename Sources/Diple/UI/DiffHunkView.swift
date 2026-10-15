@@ -21,11 +21,14 @@ struct DiffHunkView: View {
 
     static let contextAbove = 3
 
-    init(hunk: String, path: String = "", line: Int? = nil, startLine: Int? = nil) {
+    let folds: Bool
+
+    init(hunk: String, path: String = "", line: Int? = nil, startLine: Int? = nil, folds: Bool = true) {
         self.hunk = hunk
         self.path = path
         self.line = line
         self.startLine = startLine
+        self.folds = folds
     }
 
     static func visible(_ rows: [Row], expanded: Bool, line: Int? = nil, startLine: Int? = nil) -> (hidden: Int, rows: ArraySlice<Row>) {
@@ -43,8 +46,8 @@ struct DiffHunkView: View {
 
     var body: some View {
         let all = HunkCache.rows(for: hunk, path: path)
-        let folds = Self.visible(all, expanded: false, line: line, startLine: startLine).hidden
-        let shown = Self.visible(all, expanded: expanded, line: line, startLine: startLine)
+        let folds = self.folds ? Self.visible(all, expanded: false, line: line, startLine: startLine).hidden : 0
+        let shown = Self.visible(all, expanded: expanded || !self.folds, line: line, startLine: startLine)
         VStack(alignment: .leading, spacing: 0) {
             if folds > 0 {
                 Button { expanded.toggle() } label: {

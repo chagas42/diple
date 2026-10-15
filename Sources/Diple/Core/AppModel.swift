@@ -19,10 +19,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var hasPermission = false
     @Published private(set) var unread: Set<String> = []
     @Published private(set) var dismissed: [String: Date] = [:]
+    @Published private(set) var muted: [String: Date] = [:]
     @Published private(set) var reviewedAhead: Set<String> = []
 
     @Published var notchTab: NotchTab = .queue
     @Published private(set) var following: Set<String> = []
+    @Published private(set) var tracked: [String: TrackedPR] = [:]
+    @Published private(set) var rotatingTeams: [String] = []
+    @Published private(set) var managesRotation = false
+    private var codeOwners: [String: [String: String]] = [:]
+    var rotationCache: [String: RotationSnapshot] = [:]
 
     var team: [Person] {
         return teamObserver?.data ?? teamQuery.flatMap { queries.peek($0) } ?? []
@@ -276,10 +282,20 @@ final class AppModel: ObservableObject {
         posting.insert(finding.id)
         defer { posting.remove(finding.id) }
         do {
-            try await client.startThread(
-                prId: pr.id, path: finding.path, line: finding.line,
-                body: signed(finding.comment ?? finding.summary, on: pr)
-            )
+            let changed = (try? await queries.fetch(Queries.changedFiles(pr)))?.files.map(\.path) ?? []
+            let body = signed(finding.comment ?? finding.summary, on: pr)
+            switch FindingPlace.choose(path: finding.path, line: finding.line, inline: finding.inline, changed: changed) {
+            case .line(let path, let line):
+                do {
+                    try await client.startThread(prId: pr.id, path: path, line: line, body: body)
+                } catch where GitHubClient.isOffDiff(error) {
+                    try await client.startThread(prId: pr.id, path: path, line: nil, body: "Line \(line): " + body)
+                }
+            case .file(let path):
+                try await client.startThread(prId: pr.id, path: path, line: nil, body: body)
+            case .conversation:
+                try await client.comment(prId: pr.id, body: "`\(finding.location)`: " + body)
+            }
             posted.insert(finding.id)
             telemetry.capture(.findingPosted)
             await reread(pr)
@@ -343,6 +359,47 @@ final class AppModel: ObservableObject {
         rewatchPushes()
         guard lastSync != nil, canFetch else { return }
         bindQueue()
+    }
+
+    func isTracked(_ pr: PR) -> Bool { tracked[pr.key] != nil }
+
+    func toggleTrack(_ pr: PR) {
+        if isTracked(pr) { store.untrack(pr.key) } else { store.track(pr) }
+        tracked = store.state.tracked ?? [:]
+    }
+
+    func untrack(_ key: String) {
+        store.untrack(key)
+        tracked = store.state.tracked ?? [:]
+    }
+
+    func track(link: String) async -> String? {
+        guard let target = Tracking.parse(link) else {
+            return "Paste a pull request link, like github.com/owner/repo/pull/123"
+        }
+        do {
+            guard let pr = try await client.fetchPR(repo: target.repo, number: target.number) else {
+                return "Could not find \(target.repo)#\(target.number)"
+            }
+            guard !(pr.state ?? .open).isFinal else { return "\(pr.key) is already \(pr.state?.rawValue ?? "closed")" }
+            store.track(pr)
+            tracked = store.state.tracked ?? [:]
+            return nil
+        } catch {
+            return report(error, in: .refresh) ?? error.localizedDescription
+        }
+    }
+
+    private func checkTracked(viewer: String) async -> [Event] {
+        guard !tracked.isEmpty, !queries.answersLocally, !Bench.isOn else { return [] }
+        let all = Array(tracked.values)
+        guard let beats = try? await client.fetchTracked(ids: all.map(\.nodeId)) else { return [] }
+        let moved = all.filter { t in beats[t.nodeId].map(t.mark.moved) ?? false }.map(\.nodeId)
+        guard !moved.isEmpty else { return [] }
+        let fetch = await client.fetchPRs(ids: moved)
+        let events = store.absorbTracked(fetch.prs, viewer: viewer)
+        tracked = store.state.tracked ?? [:]
+        return events
     }
 
     private let client: GitHubClient
@@ -578,8 +635,10 @@ final class AppModel: ObservableObject {
     func restoreCached() {
         unread = store.state.unread
         dismissed = store.state.dismissed ?? [:]
+        muted = store.state.muted ?? [:]
         following = store.state.following
         watching = store.state.watching ?? []
+        tracked = store.state.tracked ?? [:]
         if let cached = store.state.cache.queue, queue.all.isEmpty {
             queue = cached
             pendingSeed = cached
@@ -714,10 +773,13 @@ final class AppModel: ObservableObject {
     private func apply(_ outcome: SyncOutcome, watching synced: Set<String>) async {
         guard synced == watching else { return }
         let nova = outcome.queue
-        let events = store.diff(nova, meuLogin: nova.viewer)
+        let trackedKeys = Set(tracked.keys)
+        let queueEvents = store.diff(nova, meuLogin: nova.viewer)
+            .filter { !(trackedKeys.contains($0.key) && Tracking.handled($0.kind)) }
+        let events = (queueEvents + (await checkTracked(viewer: nova.viewer)))
             .filter { e in
                 let repo = e.key.split(separator: "#").first.map(String.init) ?? ""
-                return !settings.mutedRepos.contains(repo)
+                return !settings.mutedRepos.contains(repo) && muted[e.key] == nil
             }
             .filter { e in
                 guard e.kind == .reviewRequested,
@@ -732,6 +794,8 @@ final class AppModel: ObservableObject {
         rewatchPushes()
         store.forgetDismissals(nova)
         dismissed = store.state.dismissed ?? [:]
+        store.forgetMutes(nova)
+        muted = store.state.muted ?? [:]
         reviewedAhead = reviewedAhead.filter { key in nova.toReview.contains { $0.key == key } }
         confirmReviews(candidates)
         if let s = selected {
@@ -766,10 +830,99 @@ final class AppModel: ObservableObject {
         errorMessage = m
     }
 
-    var org: String {
-        let donos = queue.all.compactMap { $0.repo.split(separator: "/").first.map(String.init) }
-        let count = Dictionary(grouping: donos, by: { $0 }).mapValues(\.count)
-        return count.max { $0.value < $1.value }?.key ?? ""
+    var org: String { settings.primaryOrg ?? Self.organization(of: queue.all) }
+
+    var needsOnboarding: Bool { (store.state.onboarded ?? 0) < Onboarding.version }
+
+    func finishOnboarding() { store.markOnboarded(Onboarding.version) }
+
+    func myOrganizations() async -> [GitHubClient.Org] {
+        if queries.answersLocally { return Demo.organizations }
+        return (try? await client.fetchMyOrganizations()) ?? []
+    }
+
+    func myTeams(in org: String) async -> [GitHubClient.TeamRef] {
+        let teams = queries.answersLocally ? Demo.teams : ((try? await client.fetchMyTeams(org: org, viewer: queue.viewer)) ?? [])
+        return Self.teams(teams, as: ProcessInfo.processInfo.environment["DIPLE_FORCE_ROLE"])
+    }
+
+    func orgTeams(in org: String) async -> [GitHubClient.TeamRef] {
+        let teams = queries.answersLocally ? Demo.orgTeams : ((try? await client.fetchOrgTeams(org: org)) ?? [])
+        return Self.teams(teams, as: ProcessInfo.processInfo.environment["DIPLE_FORCE_ROLE"])
+    }
+
+    nonisolated static func teams(_ teams: [GitHubClient.TeamRef], as role: String?) -> [GitHubClient.TeamRef] {
+        guard let role, role == "admin" || role == "member" else { return teams }
+        return teams.map { t in
+            var t = t
+            t.canAdminister = role == "admin"
+            return t
+        }
+    }
+
+    enum RotationSave: Equatable {
+        case saved(ReviewRotation)
+        case dryRun(String)
+    }
+
+    func rotation(org: String, team: GitHubClient.TeamRef) async throws -> RotationRead? {
+        let read = queries.answersLocally
+            ? RotationRead(rotation: Demo.rotation(team.slug), orgAdmin: team.canAdminister)
+            : try await client.fetchRotation(org: org, slug: team.slug)
+        return ProcessInfo.processInfo.environment["DIPLE_FORCE_ROLE"] == "member" ? read.map { RotationRead(rotation: $0.rotation, orgAdmin: false) } : read
+    }
+
+    func fit(org: String, team: GitHubClient.TeamRef) async -> TeamFit? {
+        if queries.answersLocally { return Demo.fit(team.slug) }
+        if codeOwners[org] == nil { codeOwners[org] = try? await client.fetchCodeOwners(org: org) }
+        guard let requests = try? await client.teamRequests(org: org, slug: team.slug, since: Date().addingTimeInterval(-30 * 86_400))
+        else { return nil }
+        return TeamFit(requests: requests, repos: TeamFit.repos(owning: team.slug, org: org, in: codeOwners[org] ?? [:]))
+    }
+
+    func members(org: String, team: GitHubClient.TeamRef) async -> [Person] {
+        if queries.answersLocally { return Demo.team }
+        return (try? await client.fetchTeams(org: org, slugs: [team.slug])) ?? []
+    }
+
+    func refreshRotationAccess() async {
+        guard !org.isEmpty else { managesRotation = false; return }
+        managesRotation = await orgTeams(in: org).contains(where: \.canAdminister)
+        if managesRotation, !queries.answersLocally, codeOwners[org] == nil {
+            codeOwners[org] = try? await client.fetchCodeOwners(org: org)
+        }
+    }
+
+    func refreshRotatingTeams() async {
+        guard !org.isEmpty else { return }
+        if queries.answersLocally {
+            rotatingTeams = Demo.teams.filter { Demo.rotation($0.slug).enabled }.map(\.name)
+            return
+        }
+        guard let teams = try? await client.fetchMyRotatingTeams(org: org, viewer: queue.viewer) else { return }
+        rotatingTeams = teams
+    }
+
+    func saveRotation(_ rotation: ReviewRotation, team: GitHubClient.TeamRef) async throws -> RotationSave {
+        if queries.answersLocally {
+            try await Task.sleep(for: Demo.latency)
+            return .saved(rotation)
+        }
+        guard let id = team.nodeId else { throw ClientError.empty }
+        if ProcessInfo.processInfo.environment["DIPLE_DRY_RUN"] != nil {
+            return .dryRun(ReviewRotation.mutation(teamId: id, rotation))
+        }
+        let saved = try await client.updateRotation(teamId: id, rotation) ?? rotation
+        await refreshRotatingTeams()
+        return .saved(saved)
+    }
+
+    nonisolated static func organization(of prs: [PR]) -> String {
+        let known = prs.contains { $0.ownerIsOrganization != nil }
+        let owners = prs.filter { !known || $0.ownerIsOrganization == true }
+            .compactMap { $0.repo.split(separator: "/").first.map(String.init) }
+        let count = Dictionary(grouping: owners, by: { $0 }).mapValues(\.count)
+        return count.max { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }?.key ?? ""
     }
 
     func toggleFollow(_ login: String) {
@@ -795,7 +948,9 @@ final class AppModel: ObservableObject {
     }
 
     private var teamQuery: CacheQuery<[Person]>? {
-        org.isEmpty ? nil : reporting(Queries.team(org: org), in: .loadTab)
+        guard !org.isEmpty else { return nil }
+        let slugs = settings.teams(in: org)
+        return reporting(slugs.isEmpty ? Queries.team(org: org) : Queries.teams(org: org, slugs: slugs), in: .loadTab)
     }
 
     private var rankingQuery: CacheQuery<[RankRow]>? { rankingQuery(for: team) }
@@ -1127,6 +1282,7 @@ final class AppModel: ObservableObject {
         case .checkFailed:     ("A check failed on your PR", "checks / test · 1 of 5 failing")
         case .approved:       ("Your PR was approved", "ready to merge")
         case .newPullRequest: ("Lu opened a pull request", "console #4781 · in a repository you watch")
+        case .tracked:        ("New commits on a PR you track", "api #2210 · fix retry on 429")
         }
     }
 
@@ -1155,6 +1311,21 @@ final class AppModel: ObservableObject {
 
     func isDismissed(_ pr: PR) -> Bool { Dismissals.hides(pr, dismissed) }
 
+    func mute(_ pr: PR) {
+        store.mute(pr)
+        muted = store.state.muted ?? [:]
+        unread = store.state.unread
+        onCountChange?()
+    }
+
+    func unmute(_ pr: PR) {
+        store.unmute(pr)
+        muted = store.state.muted ?? [:]
+        onCountChange?()
+    }
+
+    func isMuted(_ pr: PR) -> Bool { muted[pr.key] != nil }
+
     func clearAll() {
         store.markAllRead()
         unread = store.state.unread
@@ -1171,6 +1342,7 @@ final class AppModel: ObservableObject {
         case checkFailed
         case approved
         case opened
+        case tracked
 
         init(_ kind: EventKind) {
             switch kind {
@@ -1180,6 +1352,7 @@ final class AppModel: ObservableObject {
             case .checkFailed:     self = .checkFailed
             case .approved:        self = .approved
             case .newPullRequest:  self = .opened
+            case .tracked:         self = .tracked
             }
         }
 
@@ -1191,6 +1364,7 @@ final class AppModel: ObservableObject {
             case .checkFailed:     .checkFailed
             case .approved:        .approved
             case .opened:          .newPullRequest
+            case .tracked:         .tracked
             }
         }
 
@@ -1209,6 +1383,7 @@ final class AppModel: ObservableObject {
             case .checkFailed:     "check failing"
             case .approved:        "approved"
             case .opened:          "opened"
+            case .tracked:         "tracked update"
             }
         }
     }
@@ -1227,7 +1402,7 @@ final class AppModel: ObservableObject {
         var out: [PR] = []
         for pr in reviewing.filter({ !$0.answeredByViewer }) + queue.all.filter({ unread.contains($0.key) }) {
             guard pr.author != queue.viewer || unread.contains(pr.key) else { continue }
-            guard !isQuiet(pr), !isDismissed(pr) else { continue }
+            guard !isQuiet(pr), !isDismissed(pr), !isMuted(pr) else { continue }
             if seen.insert(pr.key).inserted { out.append(pr) }
         }
         return out
@@ -1315,6 +1490,11 @@ final class AppModel: ObservableObject {
     }
 
     func counted(pr: String, at: Date, verdict: ReviewVerdict) {
+        if unread.contains(pr) {
+            store.answeredReview(pr)
+            unread = store.state.unread
+            onCountChange?()
+        }
         guard let today = store.countReview(pr, at: at) else { return onNoReview?(pr) ?? () }
         onTick?(ReviewTick(id: "\(pr)/\(at.timeIntervalSince1970)", pr: pr, verdict: verdict, today: today))
     }
@@ -1333,16 +1513,21 @@ final class AppModel: ObservableObject {
 
     var count: Int { needsYou.count }
 
-    func prs(_ tab: Tab) -> [PR] {
+    func prs(_ tab: Tab, includingMuted: Bool = false) -> [PR] {
+        let shown = { (pr: PR) in !self.isDismissed(pr) && (includingMuted || !self.isMuted(pr)) }
         switch tab {
-        case .needsYou:  needsYou
-        case .mine:       queue.mine.filter { !isDismissed($0) }
-        case .reviewing:  reviewing.filter { !isDismissed($0) }
-        case .following: queue.following.filter { !isDismissed($0) }
+        case .needsYou:  return needsYou
+        case .mine:       return Self.draftsLast(queue.mine.filter(shown))
+        case .reviewing:  return reviewing.filter(shown)
+        case .following: return queue.following.filter(shown)
         }
     }
 
-    func count(_ tab: Tab) -> Int { prs(tab).count }
+    func count(_ tab: Tab, includingMuted: Bool = false) -> Int { prs(tab, includingMuted: includingMuted).count }
+
+    static func draftsLast(_ prs: [PR]) -> [PR] {
+        prs.filter { !$0.draft } + prs.filter(\.draft)
+    }
 
     @Published private(set) var requirements: [String: Int] = [:]
 
@@ -1398,6 +1583,6 @@ final class AppModel: ObservableObject {
 
     var rest: [PR] {
         let urgentes = Set(needsYou.map(\.key))
-        return queue.mine.filter { !urgentes.contains($0.key) }
+        return Self.draftsLast(queue.mine).filter { !urgentes.contains($0.key) }
     }
 }

@@ -13,11 +13,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         model.onNoReview = { [weak self] key in self?.notch.noReview(key) }
         model.onTick = { [weak self] t in self?.notch.tick(t) }
         notch.mount(model: model)
+        Windows.shared.onboardingShown = { [weak self] on in self?.notch.setOnboarding(on) }
         model.start()
+        let asked = CommandLine.arguments.firstIndex(of: "--onboarding")
+        if asked != nil || (model.needsOnboarding && !Demo.isOn && !Film.isOn && !Bench.isOn) {
+            notch.setOnboarding(true)
+            let step = asked.flatMap { i in i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) : nil }
+                .flatMap(Onboarding.Step.init(rawValue:)) ?? .welcome
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                Windows.shared.openOnboarding(model, at: step) {}
+            }
+        }
         Task { await Worktree.pruneStale() }
 
         if Bench.scenario == "notch-idle" {
             Task { @MainActor in await BenchScenarios.notchIdle(notch: notch) }
+        }
+
+        if let i = CommandLine.arguments.firstIndex(of: "--rehearse-update"), Demo.isOn {
+            let hold = i + 1 < CommandLine.arguments.count ? Double(CommandLine.arguments[i + 1]) : nil
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                await Updates.shared.rehearse(holdingAt: hold)
+            }
         }
 
         if CommandLine.arguments.contains("--rehearse-review"), Demo.isOn {

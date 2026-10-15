@@ -53,8 +53,18 @@ import Testing
         #expect(byKind[.repliedToYou] == ["acme/repo1#101"])
         #expect(byKind[.approved] == ["acme/repo2#102"])
         #expect(byKind[.commented] == ["acme/repo0#120"])
+        #expect(events.first { $0.kind == .commented }?.title == "reviewer8 commented on teammate20's PR")
         #expect(events.count == 5)
         #expect(store.state.unread == Set(events.map(\.key)))
+    }
+
+    @Test func aCommentSaysWhosePullRequestItIsOn() async throws {
+        let q = try await Self.queue(.realistic())
+        let yours = try #require(q.mine.first)
+        let theirs = try #require(q.toReview.first)
+        #expect(Store.commented(by: "ana", on: yours) == "ana commented on your PR")
+        #expect(Store.commented(by: theirs.author, on: theirs) == "\(theirs.author) commented on their PR")
+        #expect(Store.commented(by: "ana", on: theirs) == "ana commented on \(theirs.author)'s PR")
     }
 
     @Test func stateSurvivesAReload() async throws {

@@ -53,6 +53,7 @@ struct RawPR: Decodable, Sendable {
     let url: URL
     let updatedAt: Date
     let createdAt: Date?
+    var state: String? = nil
     let isDraft: Bool
     let headRefName: String
     let headRefOid: String?
@@ -73,7 +74,9 @@ struct RawPR: Decodable, Sendable {
     struct RawRepo: Decodable, Sendable {
         let nameWithOwner: String
         var viewerPermission: String? = nil
+        var owner: RawOwner? = nil
     }
+    struct RawOwner: Decodable, Sendable { let __typename: String }
     struct RawRequests: Decodable, Sendable { let nodes: [RawRequest?] }
     struct RawRequest: Decodable, Sendable { let requestedReviewer: RawReviewer? }
     struct RawReviewer: Decodable, Sendable {
@@ -171,7 +174,9 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
     }
 
     var mergeable: Mergeable? = nil
+    var state: PRState? = nil
     var headRepo: String? = nil
+    var ownerIsOrganization: Bool? = nil
     var canPush: Bool? = nil
 
     var conflicts: Bool { mergeable == .conflicting }
@@ -293,7 +298,9 @@ struct PR: Identifiable, Sendable, Equatable, Codable {
         head = c.headRefOid
         baseRef = c.baseRefName
         mergeable = c.mergeable.map(Mergeable.init(github:))
+        state = PRState(github: c.state)
         headRepo = c.headRepository?.nameWithOwner
+        ownerIsOrganization = c.repository.owner.map { $0.__typename == "Organization" }
         canPush = Self.canPush(head: c.headRepository?.viewerPermission, base: c.repository.viewerPermission,
                                maintainerCanModify: c.maintainerCanModify)
         let headCommit = c.commits.nodes.compactMap { $0 }.first?.commit

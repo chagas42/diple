@@ -80,6 +80,34 @@ enum Demo {
         return made
     }
 
+    static let organizations: [GitHubClient.Org] = [
+        .init(login: "acme", name: "Acme", avatar: nil),
+        .init(login: "acme-labs", name: "Acme Labs", avatar: nil),
+    ]
+
+    static let teams: [GitHubClient.TeamRef] = [
+        .init(slug: "platform", name: "Platform", members: 8, nodeId: "T_platform", canAdminister: true),
+        .init(slug: "payments", name: "Payments", members: 5, nodeId: "T_payments", canAdminister: false),
+    ]
+
+    static let orgTeams: [GitHubClient.TeamRef] = teams + [
+        .init(slug: "design", name: "Design", members: 3, nodeId: "T_design", canAdminister: true),
+        .init(slug: "data", name: "Data", members: 4, nodeId: "T_data", canAdminister: true),
+    ]
+
+    static func fit(_ slug: String) -> TeamFit {
+        switch slug {
+        case "platform": TeamFit(requests: 184, repos: ["orders-api", "web", "infra"])
+        case "payments": TeamFit(requests: 0, repos: ["billing"])
+        default:         TeamFit(requests: 0, repos: [])
+        }
+    }
+
+    static func rotation(_ slug: String) -> ReviewRotation {
+        slug == "platform" ? ReviewRotation(enabled: true, algorithm: .loadBalance, reviewers: 2, notifyTeam: false)
+                           : ReviewRotation(enabled: false)
+    }
+
     static let queue: Queue = {
         Queue(
             viewer: viewer,
@@ -89,6 +117,9 @@ enum Demo {
                    head: "you/bill-demo-companies",
                    reply: ("rafa-mendes", "src/orders/refund-policy.ts", 27,
                            "This marks trial accounts as overdue too. Wouldn't it be better to handle it in the skip reason?")),
+                pr("acme/console", 4760, "feat: let support resend the invoice email",
+                   author: viewer, mine: true, draft: true, minutes: 30,
+                   head: "you/resend-invoice-email"),
                 pr("acme/orders-api", 7843, "feat: keep internal accounts out of dunning",
                    author: viewer, mine: true, approved: true, minutes: 48,
                    head: "you/skip-own-companies", base: "you/bill-demo-companies"),
@@ -127,6 +158,9 @@ enum Demo {
                    head: "bea-nunes/reroute-retry",
                    reply: ("bea-nunes", "src/shipping/reroute-parcel.ts", 58,
                            "Good catch. Pushed the retry with backoff the way you suggested.")),
+                pr("acme/mobile", 851, "feat: queue card top-ups while offline",
+                   author: "bea-nunes", mine: false, draft: true, minutes: 75,
+                   head: "bea-nunes/offline-top-ups"),
                 pr("acme/console", 4749, "feat: block top-up and group changes for pooled accounts",
                    author: "lu-ferraz", mine: false, minutes: 260,
                    head: "lu-ferraz/pooled-batch-top-up"),
@@ -194,7 +228,7 @@ enum Demo {
         switch key {
         case .queue:
             return SyncOutcome(queue: queue)
-        case .team:
+        case .team, .teams:
             return team
         case .ranking(_, let period, _, let people):
             let rows = ranking(period)
@@ -230,6 +264,7 @@ enum Demo {
                 lastCommentAt: pr.lastComment?.at, reviewRequested: toReview.contains(pr.key)
             )
         }
+        state.tracked = Dictionary(uniqueKeysWithValues: queue.toReview.prefix(2).map { ($0.key, TrackedPR($0)) })
         try? JSONEncoder().encode(state).write(to: dir.appendingPathComponent("state.json"), options: .atomic)
         return Store(directory: dir)
     }

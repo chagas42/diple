@@ -15,6 +15,15 @@ reviews submitted inside the grid count. The full six months is fetched once;
 after that only the last two days are, and older days come from the saved
 query, which lives on disk for the six months it covers.
 
+**The team is an organization, never a person.** Team, ranking and activity
+run against one owner: the one that owns most of the queue's pull requests, but
+counting only owners whose `repository.owner.__typename` is `Organization`. It
+used to count every owner, so a personal account with a few old PRs in Following
+(`alifoo/hacking-club-pucpr`, three against one `SalvyLTD/salvy-api`) won, and
+`organization(login: "alifoo")` failed with "Could not resolve to an
+Organization" in a banner. With no organization in the queue there is no team.
+Pull requests cached before the field count every owner until the next read.
+
 **Review comments live in two places.** `PullRequest.comments` returns only the
 conversation timeline. Inline comments on code live under `reviewThreads`, a
 separate connection. Reading one and not the other makes the app blind to the
@@ -444,7 +453,11 @@ first showed up (one small query per PR, at most five per sync). A PR opened
 from Diple is also checked every 10 s for 30 minutes, at most three at a time,
 so the strip shows seconds after you review; that PR leaves Needs you at once,
 before the next sync. The count keeps its old number until the strip plays,
-drops the moment a sheet leaves it, and the sheet falls into a small drawer
+drops the moment a sheet leaves it (as low as the real count, so the
+reviewed PR has to be gone from it by then: a request that arrived while Diple
+was open also marked the PR unread, and Needs you counts unread PRs too, so a
+review you are counted for clears an unread that is only the request; one
+about a reply or a failing check stays), and the sheet falls into a small drawer
 whose number (today's reviews) goes up as it lands, so the two numbers move
 together. The drawer always sits at the strip's right end; when the count is on
 the left (a tight menu bar), the sheet first drops to the strip and glides
@@ -506,7 +519,122 @@ GitHub reports that same time. A new comment, push or review request moves
 toward showing too much rather than hiding a request. The entry is dropped
 once the PR has moved on, or a month after it left the queue.
 
+**A tracked PR is read by its node id, never through search.** Every queue
+search says `is:open`, so a merged PR simply stops coming back: it vanishes
+without an event, and nothing in the queue can say "merged". Tracked PRs skip
+search entirely. Each sync sends one `nodes(ids:)` query with only `updatedAt`,
+`state`, `headRefOid` and the check rollup (checks never move `updatedAt`, so
+they have to be in it), and only the PRs whose beat moved are refetched with
+the full fragment. The mark kept per PR is what the events compare against:
+a new head is a push, a newer human comment is a comment (a reply if it names
+you), more approvals or change requests are a review, and the checks entering
+failing, or leaving failing or running for passing, are a check event. Merged
+or closed raises one event and drops the PR from tracking. While a PR is
+tracked, the queue's own comment, check and approval events for it are dropped,
+so the same comment never notifies twice.
+
+## Onboarding
+
+**Nine steps, ten for whoever can change a review rotation, shown once per version.** `StoredState.onboarded` holds the
+version seen; anyone below `Onboarding.version` gets it on launch, new and
+existing users alike, with their current settings already filled in. Settings →
+General → Show Onboarding opens it again. Demo, film and bench never open it on
+their own; `--onboarding <step>` does, and `--celebrate` presses the last button
+in demo for recordings.
+
+**The stage is scripted, not decorative.** Each step runs a loop in
+`NotchStage` (`.task(id: step)`, so leaving a step cancels it): a cursor moves
+on easing curves, the eye's gaze is set toward each destination so it follows,
+avatars get picked, days light up in a wave, bars move. The settings it shows
+are the real ones, so the notch preview changes as the toggles do.
+
+**The window is a fixed 720 × 620, and the steps scroll inside it.** With a
+hosting controller that tracks its content, the team step grew the window to
+2042pt, and once AppKit crashed in an update-constraints loop. The window hosts
+an `NSHostingView` with `sizingOptions = []`, the content fills the window
+(`maxHeight: .infinity`, which a fixed frame got wrong by the title bar's 32pt),
+and each step sits in a `ScrollView`, so a step with more rows scrolls instead
+of pushing the window taller.
+
+**The last button is held, not clicked.** A Mac plays haptics only while a
+finger is on the trackpad, so a click followed by a fill gave nothing to feel.
+The button fills while it is held, ticks at each quarter, and its view sets an
+`NSPressureConfiguration` with `.primaryDeepClick`, so pressing harder gives the
+trackpad's real second click (`event.stage == 2`) and finishes at once. Let go
+early and it springs back. The celebration that follows throws up reviewed
+sheets, approval checks and "Approved" labels slowly enough to read, with each
+label sized to its text.
+
+**The team is picked, then narrowed.** `primaryOrg` overrides the guess from
+the queue; `teams` (stored as `org/slug`) makes Team and the ranking list only
+those teams' members, through a separate `teams` cache key, so picking none
+keeps the whole organization. Work days replace "weekends too": a saved file
+with that on becomes Monday to Friday, off becomes every day.
+
+## Review rotation
+
+**Diple edits GitHub's own team review assignment; GitHub does the picking.**
+When a pull request asks a team for review (usually through CODEOWNERS),
+GitHub swaps the team for the people its algorithm picks, on its servers. Diple
+reads and writes that setting with `updateTeamReviewAssignment`; nothing runs on
+the Mac, and the rotation keeps working with Diple closed. Rules GitHub does
+not have (stacks, OOO, weights) would need an Action or a server, not Diple.
+
+**Writing needs `admin:org`, which a default `gh auth login` lacks.** The
+mutation fails with a message about scopes; Diple shows
+`gh auth refresh -h github.com -s admin:org`. Without `-h` the command refuses
+to run outside an interactive terminal.
+
+**Excluded members can be written but not read.** The input takes
+`excludedTeamMemberIds`, but no field returns them, so Diple sends the
+mutation without it. Whether GitHub keeps the existing exclusions when the
+field is left out can only be seen in the team's settings page, not through the
+API.
+
+**`notifyTeam: true` notifies the whole team as well as the people picked.**
+The checkbox is "Notify only them", the inverse of the field.
+
+**Who sees it.** The step and the Settings pane show only for an organization
+owner or a team maintainer (`viewerCanAdminister`), listing only the teams they
+can change; a member would get errors. Everyone else sees one line in the
+review filter when a team of theirs rotates, because a request GitHub assigns
+by name always passes the filter (`asksYouByName`).
+
+**Whether a rotation would do anything is read from use, not asked.**
+`team-review-requested:org/slug` in search still counts pull requests after
+GitHub has swapped the team for people, so the last 30 days say whether the
+team is asked as a team. CODEOWNERS is read from `.github/`, the root and
+`docs/` of the 100 most recently pushed repositories. A team nobody asks gets a
+one-line notice instead of a warning: for a team where one senior reviews, it
+is the expected answer.
+
+**The stage is an illustration.** The piles start from fixed loads and drain
+as many reviews as each pull request handed out, so they stay bounded; GitHub
+does not say how many requests each person got from the rotation.
+
+**It loads in parts, behind a skeleton of the same shape.** The setting comes
+back in about a second; the members and the CODEOWNERS read take longer, the
+CODEOWNERS one most (three blobs in each of 100 repositories). So the controls
+show as soon as the setting arrives, and the stage and the fit line fill space
+that was already there. Each team's read, members and fit are kept for the
+session in `rotationCache`, so going back to a team is instant and refreshes
+behind it, and CODEOWNERS is read as soon as Diple knows the viewer can change
+a rotation, before the pane opens.
+
+**Testing it.** `DIPLE_DRY_RUN=1` makes Save show the mutation instead of
+sending it, and `DIPLE_FORCE_ROLE=member` or `admin` overrides what GitHub says
+about the viewer. Launch with `open -n --env …`; running the binary directly
+crashes on the first privacy prompt, because TCC kills a process LaunchServices
+did not start.
+
 ## The main window
+
+**A window does not grow with its content.** `NSHostingController` sizes its
+window to the SwiftUI content's ideal size by default, so a long AI review made
+the main window 1467pt tall on a 1112pt screen, and autosave kept it: the
+bottom sat behind the Dock and below the screen, and the scroll seemed to stop
+early. Resizable windows host with `sizingOptions = [.minSize]`, and every
+window is fitted into the screen's visible frame when it opens.
 
 **The list opens wide, and a row says one thing per line.** The list column
 opens at 520pt (380 to 680). A row is the title with a short time (`7h`,
@@ -664,6 +792,14 @@ the first release is optional with a computed accessor.
 
 ## The deep review
 
+**A finding is posted where GitHub will take it.** The model's path and line
+are a guess: it wrote `files.c:744` for a 372-line `src/files.c`, and GitHub
+refuses a line comment outside the diff, so posting failed on every try. A
+bare file name is matched against the PR's changed files (one match only); a
+line GitHub calls off the diff is posted on the file instead, starting with
+`Line N:`; a finding marked for the conversation (`inline: false`), or whose
+file is not in the PR, becomes a PR comment that names the location.
+
 **It exists only where the skill does.** When `~/.claude/skills/diple-review/SKILL.md`
 is on the machine, the AI review runs it; otherwise it falls back to the plain
 prompt. The skill is not in this repository on purpose: the feature is for the
@@ -748,7 +884,18 @@ runs `brew update` first. Homebrew quits a running cask app before replacing
 it and reopens it after, so Diple does not kill itself; a final `open` covers
 a run where it did not. If the command ends and this Diple is still running,
 the version on disk decides: newer means relaunch into it, unchanged means
-the install failed and Settings says so, instead of spinning forever.
+the install failed and Settings says so, instead of spinning forever. Newer
+now ends as "ready" with a Restart button rather than relaunching on its own.
+
+**A direct install downloads, verifies, then waits for Restart.** Diple used to
+run `install.sh`, which `pkill`s Diple halfway, so nothing could show progress
+or ask. Now Diple downloads the release zip itself (`URLSession.bytes`, a
+progress update every 64 KB, about 65 for a 4 MB release), checks it against
+the `.sha256` asset and unpacks it with `ditto` into a temporary folder; nothing
+in /Applications changes. Settings shows the bar, then "Version X is ready" and
+**Restart and Install**. That quits Diple and leaves a small script that waits
+for the pid to exit, replaces /Applications/Diple.app with the staged copy,
+clears the quarantine flag, registers it with Launch Services and opens it.
 
 ## Measuring
 

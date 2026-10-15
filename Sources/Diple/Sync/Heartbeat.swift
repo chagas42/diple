@@ -101,6 +101,30 @@ struct RawHeartbeat: Decodable, Sendable {
     }
 }
 
+struct RawTracked: Decodable, Sendable {
+    let data: Payload?
+    let errors: [GraphQLError]?
+
+    struct Payload: Decodable, Sendable {
+        let nodes: [Node?]
+    }
+
+    struct Node: Decodable, Sendable {
+        let id: String
+        let updatedAt: Date
+        let state: String
+        let headRefOid: String?
+        let commits: RawPR.RawCommits
+
+        var beat: TrackBeat {
+            TrackBeat(
+                id: id, updatedAt: updatedAt, state: PRState(github: state), head: headRefOid,
+                checks: CheckState(commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
+            )
+        }
+    }
+}
+
 struct RawDetails: Decodable, Sendable {
     let data: Payload?
     let errors: [GraphQLError]?
@@ -133,6 +157,14 @@ extension GitHubClient {
         if let errors = body.errors, !errors.isEmpty { throw ClientError.graphql(errors.map(\.message)) }
         guard let d = body.data else { throw ClientError.empty }
         return d
+    }
+
+    func fetchTracked(ids: [String]) async throws -> [String: TrackBeat] {
+        guard !ids.isEmpty else { return [:] }
+        let body: RawTracked = try await send(Query.tracked(ids))
+        if let errors = body.errors, !errors.isEmpty, body.data == nil { throw ClientError.graphql(errors.map(\.message)) }
+        guard let d = body.data else { throw ClientError.empty }
+        return Dictionary(d.nodes.compactMap { $0?.beat }.map { ($0.id, $0) }) { a, _ in a }
     }
 
     static let detailBatch = 10

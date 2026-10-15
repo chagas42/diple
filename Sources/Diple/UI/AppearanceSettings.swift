@@ -3,7 +3,7 @@ import SwiftUI
 struct AppearanceSettings: View {
     @ObservedObject var model: AppModel
 
-    private static let sample = """
+    static let sample = """
     @@ -24,7 +24,9 @@ export class RefundPolicy {
        async decide(order: Order): Promise<Refund | null> {
     -    if (!order.paidAt) return null
@@ -113,7 +113,7 @@ struct AppearanceSettings: View {
                     Text("Preview")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                    DiffHunkView(hunk: Self.sample, path: "refund-policy.ts")
+                    DiffHunkView(hunk: Self.sample, path: "refund-policy.ts", folds: false)
                         .environment(\.codeTheme, CodeTheme.named(model.settings.codeTheme))
                 }
                 .padding(.vertical, 4)

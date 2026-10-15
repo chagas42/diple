@@ -12,7 +12,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: $pane) { p in
+            List(SettingsPane.allCases.filter { $0 != .reviews || model.managesRotation }, selection: $pane) { p in
                 Label { Text(p.title) } icon: { SettingsIcon(pane: p) }
                     .tag(p)
             }
@@ -23,6 +23,7 @@ struct SettingsView: View {
             detail
                 .navigationTitle((pane ?? .general).title)
         }
+        .task(id: model.org) { await model.refreshRotationAccess() }
         .frame(minWidth: Self.minimum.width, maxWidth: .infinity,
                minHeight: Self.minimum.height, maxHeight: .infinity)
     }
@@ -31,6 +32,7 @@ struct SettingsView: View {
         switch pane ?? .general {
         case .general:       GeneralPane(model: model)
         case .notifications: NotificationsPane(model: model)
+        case .reviews:       ReviewRotationPane(model: model)
         case .repositories:  ReposPane(model: model)
         case .appearance:    AppearanceSettings(model: model)
         case .claude:        ClaudePane(model: model)
@@ -43,7 +45,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notifications, repositories, appearance, claude, account, privacy
+    case general, notifications, reviews, repositories, appearance, claude, account, privacy
 
     var id: String { rawValue }
 
@@ -51,6 +53,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       "General"
         case .notifications: "Notifications"
+        case .reviews:       "Reviewers"
         case .repositories:  "Repositories"
         case .appearance:    "Appearance"
         case .claude:        "Claude"
@@ -63,6 +66,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       "gearshape.fill"
         case .notifications: "bell.badge.fill"
+        case .reviews:       "arrow.triangle.2.circlepath"
         case .repositories:  "book.closed.fill"
         case .appearance:    "paintpalette.fill"
         case .claude:        "sparkles"
@@ -75,6 +79,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       .gray
         case .notifications: .red
+        case .reviews:       .green
         case .repositories:  .indigo
         case .appearance:    .blue
         case .claude:        .orange
@@ -187,6 +192,8 @@ struct NotificationsPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            TrackedSection(model: model)
+
             Section("Your reviews") {
                 Toggle("Show each review you send in the notch", isOn: $model.settings.showsReviews)
                 Text("A thin strip slides out of the notch with the PR, and a sheet drops from "
@@ -227,7 +234,7 @@ struct NotificationsPane: View {
                     Spacer()
                 }
                 .disabled(!model.settings.quietHoursOn)
-                Toggle("Weekends too", isOn: $model.settings.quietOnWeekends)
+                LabeledContent("Work days") { DayPicker(days: $model.settings.workDays) }
                     .disabled(!model.settings.quietHoursOn)
                 Text("A direct reply to you always gets through.")
                     .font(.system(size: 10.5))
@@ -240,11 +247,12 @@ struct NotificationsPane: View {
     private func title(_ t: EventKind) -> String {
         switch t {
         case .repliedToYou: "Someone replied to you in a thread"
-        case .commented:      "Someone commented on your PR"
+        case .commented:      "Someone commented on a PR you're in"
         case .reviewRequested:   "Someone requested your review"
         case .checkFailed:     "A check failed on one of your PRs"
         case .approved:       "Someone approved your PR"
         case .newPullRequest: "A pull request opened in a repository you watch"
+        case .tracked:        "A PR you track changed"
         }
     }
 
@@ -256,6 +264,7 @@ struct NotificationsPane: View {
         case .checkFailed:     "Only on the first failure; retries do not repeat."
         case .approved:       "Usually enough to see when you open the queue."
         case .newPullRequest: "Only repositories you starred, only what opens from now on, and never a draft."
+        case .tracked:        "Commits, comments, reviews, checks, and the merge that ends tracking."
         }
     }
 }
@@ -356,9 +365,13 @@ struct GeneralPane: View {
                 LabeledContent("Version", value: updates.summary)
                 HStack {
                     updateStatus
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: updates.state)
                     Spacer()
                     Button("Release Notes") { NSWorkspace.shared.open(updates.releaseNotes) }
-                    if case .available(_, let page) = updates.state {
+                    if case .ready = updates.state {
+                        Button("Restart and Install") { updates.restartAndInstall() }
+                            .buttonStyle(.borderedProminent)
+                    } else if case .available(_, let page) = updates.state {
                         if updates.canInstall {
                             Button("Update Now") { updates.install() }
                                 .buttonStyle(.borderedProminent)
@@ -415,6 +428,7 @@ struct GeneralPane: View {
             Section {
                 HStack {
                     Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
+                    Button("Show Onboarding") { Windows.shared.openOnboarding(model) {} }
                     Spacer()
                     Button("Quit Diple") { NSApplication.shared.terminate(nil) }
                 }
@@ -446,10 +460,24 @@ extension GeneralPane {
             Text("Version \(version) is out").foregroundStyle(.orange)
         case .failed:
             Text("Could not reach GitHub").foregroundStyle(.secondary)
+        case .downloading(let version, let received, let total):
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Downloading \(version)… \(Self.megabytes(received)) of \(Self.megabytes(total))")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                ProgressView(value: Double(received), total: Double(max(total, 1)))
+                    .progressViewStyle(.linear)
+                    .frame(maxWidth: 260)
+                    .animation(.easeOut(duration: 0.2), value: received)
+            }
+        case .ready(let version):
+            Label("Version \(version) is ready", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .transition(.scale.combined(with: .opacity))
         case .installing(let version):
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Installing \(version)… Diple will restart.").foregroundStyle(.secondary)
+                Text("Updating to \(version) with Homebrew…").foregroundStyle(.secondary)
             }
         case .installFailed(let version, _):
             Text("Version \(version) is out").foregroundStyle(.orange)
@@ -457,7 +485,14 @@ extension GeneralPane {
     }
 
     private var isInstalling: Bool {
-        if case .installing = updates.state { true } else { false }
+        switch updates.state {
+        case .installing, .downloading, .ready: true
+        default: false
+        }
+    }
+
+    static func megabytes(_ bytes: Int64) -> String {
+        String(format: "%.1f MB", Double(bytes) / 1_000_000)
     }
 }
 

@@ -81,6 +81,7 @@ struct DetailView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
+                TrackButton(model: model, pr: pr)
                 FeedbackButton(model: model, feature: .pullRequest)
             }
             HStack(spacing: 8) {
