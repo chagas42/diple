@@ -6,11 +6,15 @@ enum Query {
       title
       url
       updatedAt
+      state
       isDraft
       headRefName
       headRefOid
       baseRefName
-      repository { nameWithOwner }
+      repository { nameWithOwner viewerPermission owner { __typename } }
+      headRepository { nameWithOwner viewerPermission }
+      maintainerCanModify
+      mergeable
       author { login __typename avatarUrl(size: 64) }
       reviewDecision
       reviewRequests(first: 20) {
@@ -70,6 +74,7 @@ enum Query {
       updatedAt
       isDraft
       reviewDecision
+      mergeable
       commits(last: 1) {
         nodes { commit { statusCheckRollup { state } } }
       }
@@ -84,6 +89,26 @@ enum Query {
           viewer { login }
           section: search(query: "\(search)", type: ISSUE, first: 30) {
             nodes { ...beat }
+          }
+          rateLimit { remaining resetAt }
+        }
+        """
+    }
+
+    static func tracked(_ ids: [String]) -> String {
+        let list = ids.map { "\"\($0)\"" }.joined(separator: ", ")
+        return """
+        query Tracked {
+          nodes(ids: [\(list)]) {
+            ... on PullRequest {
+              id
+              updatedAt
+              state
+              headRefOid
+              commits(last: 1) {
+                nodes { commit { statusCheckRollup { state } } }
+              }
+            }
           }
           rateLimit { remaining resetAt }
         }

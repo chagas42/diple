@@ -7,6 +7,7 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
     case checkFailed
     case approved
     case newPullRequest
+    case tracked
 
     var sound: String? {
         switch self {
@@ -16,6 +17,7 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
         case .checkFailed:     "Basso"
         case .approved:       nil
         case .newPullRequest: "Bottle"
+        case .tracked:        "Hero"
         }
     }
 
@@ -29,6 +31,7 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
         case .reviewRequested: 1
         case .approved:        0
         case .newPullRequest:  0
+        case .tracked:         2
         }
     }
 
@@ -45,17 +48,19 @@ enum EventKind: String, Codable, Sendable, CaseIterable {
         case .checkFailed:     "xmark.octagon.fill"
         case .approved:       "checkmark.seal.fill"
         case .newPullRequest: "tray.and.arrow.down.fill"
+        case .tracked:        "scope"
         }
     }
 
     var label: String {
         switch self {
         case .repliedToYou: "replied to you"
-        case .commented:      "commented on your PR"
+        case .commented:      "commented"
         case .reviewRequested:   "requested your review"
         case .checkFailed:     "check failing"
         case .approved:       "approved your PR"
         case .newPullRequest: "opened a pull request"
+        case .tracked:        "PR you track"
         }
     }
 }

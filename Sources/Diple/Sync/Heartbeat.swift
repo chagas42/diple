@@ -5,16 +5,26 @@ struct Beat: Sendable, Equatable {
     let draft: Bool
     let checks: CheckState
     let approved: Bool
+    var mergeable: Mergeable? = nil
 
-    init(updatedAt: Date, draft: Bool, checks: CheckState, approved: Bool) {
+    init(updatedAt: Date, draft: Bool, checks: CheckState, approved: Bool, mergeable: Mergeable? = nil) {
         self.updatedAt = updatedAt
         self.draft = draft
         self.checks = checks
         self.approved = approved
+        self.mergeable = mergeable
     }
 
     init(_ pr: PR) {
-        self.init(updatedAt: pr.updatedAt, draft: pr.draft, checks: pr.checks, approved: pr.approved)
+        self.init(updatedAt: pr.updatedAt, draft: pr.draft, checks: pr.checks, approved: pr.approved,
+                  mergeable: pr.mergeable)
+    }
+
+    func matches(_ fresh: Beat) -> Bool {
+        guard updatedAt == fresh.updatedAt, draft == fresh.draft, checks == fresh.checks, approved == fresh.approved
+        else { return false }
+        guard let now = fresh.mergeable, now != .unknown else { return true }
+        return now == mergeable
     }
 }
 
@@ -37,7 +47,7 @@ struct Heartbeat: Sendable, Equatable {
         var seen = Set<String>()
         return all.compactMap { row in
             guard seen.insert(row.id).inserted else { return nil }
-            guard let known = previous[row.id], Beat(known) == row.beat else { return row.id }
+            guard let known = previous[row.id], Beat(known).matches(row.beat) else { return row.id }
             return nil
         }
     }
@@ -76,6 +86,7 @@ struct RawHeartbeat: Decodable, Sendable {
         let updatedAt: Date
         let isDraft: Bool
         let reviewDecision: String?
+        var mergeable: String? = nil
         let commits: RawPR.RawCommits
 
         var row: Heartbeat.Row {
@@ -83,8 +94,33 @@ struct RawHeartbeat: Decodable, Sendable {
                 updatedAt: updatedAt,
                 draft: isDraft,
                 checks: CheckState(commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state),
-                approved: reviewDecision == "APPROVED"
+                approved: reviewDecision == "APPROVED",
+                mergeable: mergeable.map(Mergeable.init(github:))
             ))
+        }
+    }
+}
+
+struct RawTracked: Decodable, Sendable {
+    let data: Payload?
+    let errors: [GraphQLError]?
+
+    struct Payload: Decodable, Sendable {
+        let nodes: [Node?]
+    }
+
+    struct Node: Decodable, Sendable {
+        let id: String
+        let updatedAt: Date
+        let state: String
+        let headRefOid: String?
+        let commits: RawPR.RawCommits
+
+        var beat: TrackBeat {
+            TrackBeat(
+                id: id, updatedAt: updatedAt, state: PRState(github: state), head: headRefOid,
+                checks: CheckState(commits.nodes.compactMap { $0 }.first?.commit.statusCheckRollup?.state)
+            )
         }
     }
 }
@@ -121,6 +157,14 @@ extension GitHubClient {
         if let errors = body.errors, !errors.isEmpty { throw ClientError.graphql(errors.map(\.message)) }
         guard let d = body.data else { throw ClientError.empty }
         return d
+    }
+
+    func fetchTracked(ids: [String]) async throws -> [String: TrackBeat] {
+        guard !ids.isEmpty else { return [:] }
+        let body: RawTracked = try await send(Query.tracked(ids))
+        if let errors = body.errors, !errors.isEmpty, body.data == nil { throw ClientError.graphql(errors.map(\.message)) }
+        guard let d = body.data else { throw ClientError.empty }
+        return Dictionary(d.nodes.compactMap { $0?.beat }.map { ($0.id, $0) }) { a, _ in a }
     }
 
     static let detailBatch = 10

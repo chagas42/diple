@@ -66,7 +66,7 @@ extension AppModel {
 
     func openInEditor(pr: PR, thread: PR.ReviewThread) {
         guard let editor = Editors.named(settings.editor) else { return }
-        guard let root = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+        guard let root = settings.localPath(pr.repo) else {
             reportOpenFailure("No local checkout for \(pr.repo). Set one in Settings → Claude.")
             return
         }
@@ -89,7 +89,7 @@ extension AppModel {
 
     func openFindingInEditor(_ f: Finding, on pr: PR) {
         guard let editor = Editors.named(settings.editor) else { return }
-        guard let root = Worktree.localPath(pr.repo, configured: settings.repoPaths) else {
+        guard let root = settings.localPath(pr.repo) else {
             reportOpenFailure("No local checkout for \(pr.repo). Set one in Settings → Claude.")
             return
         }

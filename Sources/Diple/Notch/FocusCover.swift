@@ -8,8 +8,8 @@ enum FocusLook: String, Codable, Sendable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .terminal: "Terminal"
-        case .breathing: "Breathing"
-        case .pomodoro: "Pomodoro"
+        case .breathing: "Breathing moon"
+        case .pomodoro: "Pomodoro timer"
         }
     }
 }

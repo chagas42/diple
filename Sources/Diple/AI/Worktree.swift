@@ -38,8 +38,8 @@ enum Worktree {
             .appendingPathComponent(".diple/worktrees", isDirectory: true)
     }
 
-    static func localPath(_ repo: String, configured: [String: String]) -> URL? {
-        if let p = configured[repo] {
+    static func localPath(_ repo: String, configured: [String: String], scanned: [String: String] = [:]) -> URL? {
+        if let p = configured[repo] ?? scanned[repo.lowercased()] {
             return URL(fileURLWithPath: (p as NSString).expandingTildeInPath)
         }
         let name = repo.split(separator: "/").last.map(String.init) ?? repo

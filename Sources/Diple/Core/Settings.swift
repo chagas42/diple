@@ -8,15 +8,22 @@ struct Settings: Codable, Sendable, Equatable {
     var quietFrom = 19
     var quietUntil = 9
     var quietOnWeekends = true
+    var workDays: Set<Int> = Settings.weekdays
+    var primaryOrg: String? = nil
+    var teams: [String] = []
     var stackPerPR = false
 
     var mutedRepos: Set<String> = []
     var interval: TimeInterval = 60
+    var syncsOnPush = true
+    var syncsOnNotifications = true
 
     var aiModel = "opus"
     var reviewLanguage = "Brazilian Portuguese"
 
     var repoPaths: [String: String] = [:]
+    var reposFolders: [String] = []
+    var scannedRepoPaths: [String: String] = [:]
 
     var editor: String? = nil
     var codeTheme: String = "diple-dark"
@@ -28,11 +35,17 @@ struct Settings: Codable, Sendable, Equatable {
     var eyeBlinks = true
     var countSide = CountSide.right
     var liquidNotch = true
+    var hoverOpening = HoverOpening.afterPause
     var fitsMenuBar = false
     var showsReviews = true
     var followsFocus = true
+    var pushesResolvedConflicts = true
     var focusLook = FocusLook.terminal
     var rankingMode = RankingMode.off
+
+    func localPath(_ repo: String) -> URL? {
+        Worktree.localPath(repo, configured: repoPaths, scanned: scannedRepoPaths)
+    }
 
     var openIn: Editor { editor.flatMap(Editor.init(rawValue:)) ?? .vscode }
     var mapAIModel: String { mapModel ?? "sonnet" }
@@ -76,7 +89,7 @@ struct Settings: Codable, Sendable, Equatable {
         if t == .repliedToYou { return true }
 
         let cal = Calendar.current
-        if quietOnWeekends, cal.isDateInWeekend(now) { return false }
+        if !workDays.contains(cal.component(.weekday, from: now)) { return false }
 
         let h = cal.component(.hour, from: now)
 
@@ -84,6 +97,16 @@ struct Settings: Codable, Sendable, Equatable {
             ? (h >= quietFrom || h < quietUntil)
             : (h >= quietFrom && h < quietUntil)
         return !calado
+    }
+
+    static let weekdays: Set<Int> = [2, 3, 4, 5, 6]
+    static let everyDay: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
+
+    func teams(in org: String) -> [String] {
+        teams.compactMap { t in
+            let parts = t.split(separator: "/", maxSplits: 1).map(String.init)
+            return parts.count == 2 && parts[0].lowercased() == org.lowercased() ? parts[1] : nil
+        }
     }
 
     init() {}
@@ -97,12 +120,22 @@ struct Settings: Codable, Sendable, Equatable {
         d.quietFrom = try c.decodeIfPresent(Int.self, forKey: .quietFrom) ?? d.quietFrom
         d.quietUntil = try c.decodeIfPresent(Int.self, forKey: .quietUntil) ?? d.quietUntil
         d.quietOnWeekends = try c.decodeIfPresent(Bool.self, forKey: .quietOnWeekends) ?? d.quietOnWeekends
+        d.workDays = try c.decodeIfPresent(Set<Int>.self, forKey: .workDays)
+            ?? (d.quietOnWeekends ? Settings.weekdays : Settings.everyDay)
+        d.primaryOrg = try c.decodeIfPresent(String.self, forKey: .primaryOrg)
+        d.teams = try c.decodeIfPresent([String].self, forKey: .teams) ?? d.teams
         d.stackPerPR = try c.decodeIfPresent(Bool.self, forKey: .stackPerPR) ?? d.stackPerPR
         d.mutedRepos = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRepos) ?? d.mutedRepos
         d.interval = try c.decodeIfPresent(TimeInterval.self, forKey: .interval) ?? d.interval
+        d.syncsOnPush = try c.decodeIfPresent(Bool.self, forKey: .syncsOnPush) ?? d.syncsOnPush
+        d.syncsOnNotifications = try c.decodeIfPresent(Bool.self, forKey: .syncsOnNotifications) ?? d.syncsOnNotifications
         d.aiModel = try c.decodeIfPresent(String.self, forKey: .aiModel) ?? d.aiModel
         d.reviewLanguage = try c.decodeIfPresent(String.self, forKey: .reviewLanguage) ?? d.reviewLanguage
         d.repoPaths = try c.decodeIfPresent([String: String].self, forKey: .repoPaths) ?? d.repoPaths
+        d.reposFolders = try c.decodeIfPresent([String].self, forKey: .reposFolders)
+            ?? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(String.self, forKey: .reposFolder).map { [$0] }
+            ?? d.reposFolders
+        d.scannedRepoPaths = try c.decodeIfPresent([String: String].self, forKey: .scannedRepoPaths) ?? d.scannedRepoPaths
         d.editor = try c.decodeIfPresent(String.self, forKey: .editor) ?? d.editor
         d.codeTheme = try c.decodeIfPresent(String.self, forKey: .codeTheme) ?? d.codeTheme
         d.attribution = try c.decodeIfPresent(String.self, forKey: .attribution) ?? d.attribution
@@ -113,14 +146,19 @@ struct Settings: Codable, Sendable, Equatable {
         d.eyeBlinks = try c.decodeIfPresent(Bool.self, forKey: .eyeBlinks) ?? d.eyeBlinks
         d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
         d.liquidNotch = try c.decodeIfPresent(Bool.self, forKey: .liquidNotch) ?? d.liquidNotch
+        d.hoverOpening = (try? c.decodeIfPresent(HoverOpening.self, forKey: .hoverOpening)) ?? d.hoverOpening
         d.fitsMenuBar = try c.decodeIfPresent(Bool.self, forKey: .fitsMenuBar) ?? d.fitsMenuBar
         d.showsReviews = try c.decodeIfPresent(Bool.self, forKey: .showsReviews) ?? d.showsReviews
         d.followsFocus = try c.decodeIfPresent(Bool.self, forKey: .followsFocus) ?? d.followsFocus
+        d.pushesResolvedConflicts = try c.decodeIfPresent(Bool.self, forKey: .pushesResolvedConflicts) ?? d.pushesResolvedConflicts
         d.focusLook = (try? c.decodeIfPresent(FocusLook.self, forKey: .focusLook)) ?? d.focusLook
         d.rankingMode = (try? c.decodeIfPresent(RankingMode.self, forKey: .rankingMode)) ?? d.rankingMode
         self = d
     }
 
+    private enum LegacyKeys: String, CodingKey {
+        case reposFolder
+    }
 }
 
 enum Attribution: String, CaseIterable, Identifiable, Sendable {

@@ -131,6 +131,52 @@ struct GitHubClient: Sendable {
         }
     }
 
+    func openPR(repo: String, head: String, etag: String?) async throws -> PullLookup.Result? {
+        let token = try await tokens.current()
+        var req = URLRequest(url: URL(string: "https://api.github.com/\(PullLookup.path(repo: repo, head: head))")!)
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
+        if let etag { req.setValue(etag, forHTTPHeaderField: "If-None-Match") }
+        req.timeoutInterval = 20
+        let (payload, response) = try await transport.send(req)
+        metrics.count(.requests)
+        metrics.count(.bytesIn, by: payload.count)
+        guard let http = response as? HTTPURLResponse else { return nil }
+        return PullLookup.result(status: http.statusCode, body: payload, etag: http.value(forHTTPHeaderField: "ETag"))
+    }
+
+    func notifications(_ feed: ChangeFeed) async throws -> ChangeFeed.Reply {
+        func once() async throws -> ChangeFeed.Reply {
+            let token = try await tokens.current()
+            var req = URLRequest(url: URL(string: "https://api.github.com/\(ChangeFeed.path)")!)
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+            req.setValue("bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            req.setValue("Diple/0.1", forHTTPHeaderField: "User-Agent")
+            for (field, value) in feed.conditionalHeaders { req.setValue(value, forHTTPHeaderField: field) }
+            req.timeoutInterval = 20
+            let (payload, response) = try await metrics.measure(.request) {
+                try await transport.send(req)
+            }
+            metrics.count(.requests)
+            metrics.count(.bytesIn, by: payload.count)
+            let http = response as? HTTPURLResponse
+            return ChangeFeed.Reply(
+                status: http?.statusCode ?? 0,
+                lastModified: http?.value(forHTTPHeaderField: "Last-Modified"),
+                etag: http?.value(forHTTPHeaderField: "ETag"),
+                pollInterval: http?.value(forHTTPHeaderField: "X-Poll-Interval").flatMap(TimeInterval.init),
+                body: payload
+            )
+        }
+        let reply = try await once()
+        guard reply.status == 401 else { return reply }
+        await tokens.invalidate()
+        return try await once()
+    }
+
     func requiredApprovals(repo: String, branch: String) async throws -> RequiredApprovals {
         let parts = repo.split(separator: "/", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return RequiredApprovals(count: nil) }
@@ -277,6 +323,38 @@ extension GitHubClient {
             """,
             ["t": threadId, "b": body]
         )
+    }
+
+    func comment(prId: String, body: String) async throws {
+        let since = Date().addingTimeInterval(-Self.clockSlack)
+        try await landing(check: { try await self.commentedLast(prId: prId, since: since) }) {
+            _ = try await self.mutate(
+                """
+                mutation($s: ID!, $b: String!) {
+                  addComment(input: { subjectId: $s, body: $b }) { commentEdge { node { id } } }
+                }
+                """,
+                ["s": prId, "b": body]
+            )
+        }
+    }
+
+    func commentedLast(prId: String, since: Date) async throws -> Bool {
+        let d = try await check("""
+        node(id: "\(escaped(prId))") { ... on PullRequest {
+          comments(last: 1) { nodes { author { login } createdAt } }
+        } }
+        """)
+        let last = (((d["node"] as? [String: Any])?["comments"] as? [String: Any])?["nodes"] as? [[String: Any]])?.last
+        let author = (last?["author"] as? [String: Any])?["login"] as? String
+        guard let me = Self.login(d), author == me, let at = Self.date(last?["createdAt"]) else { return false }
+        return at >= since
+    }
+
+    static func isOffDiff(_ error: Error) -> Bool {
+        guard case ClientError.graphql(let messages) = error else { return false }
+        let text = messages.joined(separator: " ").lowercased()
+        return ["could not be resolved", "part of the diff", "line must", "position"].contains { text.contains($0) }
     }
 
     func resolve(threadId: String) async throws {

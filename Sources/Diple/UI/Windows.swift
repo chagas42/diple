@@ -9,6 +9,7 @@ final class Windows: NSObject, NSWindowDelegate {
     private var settings: NSWindow?
     private var map: NSWindow?
     private var feedback: NSWindow?
+    private var onboarding: NSWindow?
 
     var mainIsVisible: Bool {
         guard let main, main.isVisible, !main.isMiniaturized else { return false }
@@ -16,21 +17,46 @@ final class Windows: NSObject, NSWindowDelegate {
     }
 
     private func syncDockPolicy() {
-        let anyOpen = [main, settings, map, feedback].contains { $0?.isVisible == true }
+        let anyOpen = [main, settings, map, feedback, onboarding].contains { $0?.isVisible == true }
         NSApp.setActivationPolicy(anyOpen ? .regular : .accessory)
         if anyOpen { NSApp.activate(ignoringOtherApps: true) }
     }
 
     func windowWillClose(_ notification: Notification) {
+        if let closing = notification.object as? NSWindow, closing === onboarding {
+            onboardingShown(false)
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(60))
             self.syncDockPolicy()
         }
     }
 
+    static func fitted(_ frame: NSRect, in visible: NSRect) -> NSRect {
+        var f = frame
+        f.size.width = min(f.width, visible.width)
+        f.size.height = min(f.height, visible.height)
+        f.origin.x = min(max(f.minX, visible.minX), visible.maxX - f.width)
+        f.origin.y = min(max(f.minY, visible.minY), visible.maxY - f.height)
+        return f
+    }
+
+    static func host<C: View>(_ content: C) -> NSHostingController<C> {
+        let host = NSHostingController(rootView: content)
+        host.sizingOptions = [.minSize]
+        return host
+    }
+
+    private func fit(_ j: NSWindow) {
+        guard let visible = (j.screen ?? NSScreen.main)?.visibleFrame else { return }
+        let f = Self.fitted(j.frame, in: visible)
+        if f != j.frame { j.setFrame(f, display: false) }
+    }
+
     func openMain(_ model: AppModel) {
         NSApp.activate(ignoringOtherApps: true)
         if let j = main {
+            fit(j)
             j.makeKeyAndOrderFront(nil)
             syncDockPolicy()
             return
@@ -41,8 +67,45 @@ final class Windows: NSObject, NSWindowDelegate {
             content: MainWindowView(model: model)
         )
         j.setFrameAutosaveName("diple.main")
+        fit(j)
         j.delegate = self
         main = j
+        j.makeKeyAndOrderFront(nil)
+        syncDockPolicy()
+    }
+
+    var onboardingShown: (Bool) -> Void = { _ in }
+
+    func openOnboarding(_ model: AppModel, at step: Onboarding.Step = .welcome, then done: @escaping () -> Void) {
+        NSApp.activate(ignoringOtherApps: true)
+        onboarding?.close()
+        onboardingShown(true)
+        let size = NSSize(width: 720, height: 620)
+        let j = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        let view = OnboardingView(model: model, start: step,
+                                  celebrates: Demo.isOn && CommandLine.arguments.contains("--celebrate")) { [weak self, weak j] in
+            model.finishOnboarding()
+            j?.close()
+            self?.onboarding = nil
+            done()
+        }
+        let host = NSHostingView(rootView: view)
+        host.sizingOptions = []
+        j.contentView = host
+        j.setContentSize(size)
+        j.title = "Welcome to Diple"
+        j.titlebarAppearsTransparent = true
+        j.titleVisibility = .hidden
+        j.isMovableByWindowBackground = true
+        j.isReleasedWhenClosed = false
+        j.delegate = self
+        onboarding = j
+        j.center()
         j.makeKeyAndOrderFront(nil)
         syncDockPolicy()
     }
@@ -65,9 +128,14 @@ final class Windows: NSObject, NSWindowDelegate {
         syncDockPolicy()
     }
 
-    func openSettings(_ model: AppModel) {
+    func openSettings(_ model: AppModel, pane: SettingsPane? = nil) {
         NSApp.activate(ignoringOtherApps: true)
         if let j = settings {
+            if let pane {
+                let frame = j.frame
+                j.contentViewController = Self.host(SettingsView(model: model, pane: pane))
+                j.setFrame(frame, display: true)
+            }
             j.makeKeyAndOrderFront(nil)
             syncDockPolicy()
             return
@@ -75,10 +143,11 @@ final class Windows: NSObject, NSWindowDelegate {
         let j = make(
             title: "Diple Settings",
             size: NSSize(width: 860, height: 620),
-            content: SettingsView(model: model)
+            content: SettingsView(model: model, pane: pane ?? .general)
         )
         j.contentMinSize = SettingsView.minimum
         j.setFrameAutosaveName("diple.settings")
+        fit(j)
         j.delegate = self
         settings = j
         j.makeKeyAndOrderFront(nil)
@@ -91,7 +160,7 @@ final class Windows: NSObject, NSWindowDelegate {
         if let j = map {
             j.title = "Map · \(pr.key)"
             let frame = j.frame
-            j.contentViewController = NSHostingController(rootView: content)
+            j.contentViewController = Self.host(content)
             j.setFrame(frame, display: true)
             j.makeKeyAndOrderFront(nil)
             syncDockPolicy()
@@ -99,6 +168,7 @@ final class Windows: NSObject, NSWindowDelegate {
         }
         let j = make(title: "Map · \(pr.key)", size: NSSize(width: 1280, height: 820), content: content)
         j.setFrameAutosaveName("diple.map")
+        fit(j)
         j.delegate = self
         map = j
         j.makeKeyAndOrderFront(nil)
@@ -122,7 +192,7 @@ final class Windows: NSObject, NSWindowDelegate {
         )
         j.title = title
         j.toolbarStyle = .unified
-        j.contentViewController = NSHostingController(rootView: content)
+        j.contentViewController = resizable ? Self.host(content) : NSHostingController(rootView: content)
         j.setContentSize(size)
         j.isReleasedWhenClosed = false
         j.center()

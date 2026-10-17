@@ -33,6 +33,9 @@ struct DetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 status
+                if model.canResolveConflicts(pr) || model.resolveRun(pr.key) != nil {
+                    ConflictCard(model: model, pr: pr)
+                }
 
                 HStack {
                     Picker("", selection: $section) {
@@ -78,6 +81,7 @@ struct DetailView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
+                TrackButton(model: model, pr: pr)
                 FeedbackButton(model: model, feature: .pullRequest)
             }
             HStack(spacing: 8) {

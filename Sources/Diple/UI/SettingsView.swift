@@ -3,11 +3,16 @@ import AppKit
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var pane: SettingsPane? = .general
+    @State private var pane: SettingsPane?
+
+    init(model: AppModel, pane: SettingsPane = .general) {
+        self.model = model
+        _pane = State(initialValue: pane)
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: $pane) { p in
+            List(SettingsPane.allCases.filter { $0 != .reviews || model.managesRotation }, selection: $pane) { p in
                 Label { Text(p.title) } icon: { SettingsIcon(pane: p) }
                     .tag(p)
             }
@@ -18,6 +23,7 @@ struct SettingsView: View {
             detail
                 .navigationTitle((pane ?? .general).title)
         }
+        .task(id: model.org) { await model.refreshRotationAccess() }
         .frame(minWidth: Self.minimum.width, maxWidth: .infinity,
                minHeight: Self.minimum.height, maxHeight: .infinity)
     }
@@ -26,6 +32,7 @@ struct SettingsView: View {
         switch pane ?? .general {
         case .general:       GeneralPane(model: model)
         case .notifications: NotificationsPane(model: model)
+        case .reviews:       ReviewRotationPane(model: model)
         case .repositories:  ReposPane(model: model)
         case .appearance:    AppearanceSettings(model: model)
         case .claude:        ClaudePane(model: model)
@@ -38,7 +45,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, notifications, repositories, appearance, claude, account, privacy
+    case general, notifications, reviews, repositories, appearance, claude, account, privacy
 
     var id: String { rawValue }
 
@@ -46,6 +53,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       "General"
         case .notifications: "Notifications"
+        case .reviews:       "Reviewers"
         case .repositories:  "Repositories"
         case .appearance:    "Appearance"
         case .claude:        "Claude"
@@ -58,6 +66,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       "gearshape.fill"
         case .notifications: "bell.badge.fill"
+        case .reviews:       "arrow.triangle.2.circlepath"
         case .repositories:  "book.closed.fill"
         case .appearance:    "paintpalette.fill"
         case .claude:        "sparkles"
@@ -70,6 +79,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:       .gray
         case .notifications: .red
+        case .reviews:       .green
         case .repositories:  .indigo
         case .appearance:    .blue
         case .claude:        .orange
@@ -182,6 +192,8 @@ struct NotificationsPane: View {
                     .foregroundStyle(.secondary)
             }
 
+            TrackedSection(model: model)
+
             Section("Your reviews") {
                 Toggle("Show each review you send in the notch", isOn: $model.settings.showsReviews)
                 Text("A thin strip slides out of the notch with the PR, and a sheet drops from "
@@ -222,7 +234,7 @@ struct NotificationsPane: View {
                     Spacer()
                 }
                 .disabled(!model.settings.quietHoursOn)
-                Toggle("Weekends too", isOn: $model.settings.quietOnWeekends)
+                LabeledContent("Work days") { DayPicker(days: $model.settings.workDays) }
                     .disabled(!model.settings.quietHoursOn)
                 Text("A direct reply to you always gets through.")
                     .font(.system(size: 10.5))
@@ -235,11 +247,12 @@ struct NotificationsPane: View {
     private func title(_ t: EventKind) -> String {
         switch t {
         case .repliedToYou: "Someone replied to you in a thread"
-        case .commented:      "Someone commented on your PR"
+        case .commented:      "Someone commented on a PR you're in"
         case .reviewRequested:   "Someone requested your review"
         case .checkFailed:     "A check failed on one of your PRs"
         case .approved:       "Someone approved your PR"
         case .newPullRequest: "A pull request opened in a repository you watch"
+        case .tracked:        "A PR you track changed"
         }
     }
 
@@ -251,6 +264,7 @@ struct NotificationsPane: View {
         case .checkFailed:     "Only on the first failure; retries do not repeat."
         case .approved:       "Usually enough to see when you open the queue."
         case .newPullRequest: "Only repositories you starred, only what opens from now on. A draft waits until it is marked ready."
+        case .tracked:        "Commits, comments, reviews, checks, and the merge that ends tracking."
         }
     }
 }
@@ -274,7 +288,7 @@ struct ReposPane: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(name).font(.system(size: 12.5, design: .monospaced))
-                            Text("\(quantos) na queue")
+                            Text(quantos == 1 ? "1 pull request" : "\(quantos) pull requests")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
                         }
@@ -308,15 +322,26 @@ struct GeneralPane: View {
     var body: some View {
         Form {
             Section("Sync") {
-                Picker("Every", selection: $model.settings.interval) {
-                    Text("30 seconds").tag(TimeInterval(30))
-                    Text("1 minute").tag(TimeInterval(60))
-                    Text("5 minutes").tag(TimeInterval(300))
-                    Text("15 minutes").tag(TimeInterval(900))
+                HStack {
+                    Picker("Every", selection: $model.settings.interval) {
+                        Text("30 seconds").tag(TimeInterval(30))
+                        Text("1 minute").tag(TimeInterval(60))
+                        Text("5 minutes").tag(TimeInterval(300))
+                        Text("15 minutes").tag(TimeInterval(900))
+                    }
+                    Button("Sync Now") { Task { await model.refreshVisible() } }
+                        .disabled(model.loading)
                 }
-                Text("One sync costs 1 point of 5000 per hour.")
+                Text("Each sync spends about \(pointsPerSync) of the 5,000 GitHub API points your account "
+                     + "gets per hour, so \(pointsPerHour) an hour at this interval. "
+                     + "gh and anything else using your token draw from the same budget.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
+                Toggle("Sync early on GitHub notifications", isOn: $model.settings.syncsOnNotifications)
+                Text("Checks your GitHub notifications every minute, which costs no sync points, and syncs right away when one of your pull requests moves.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Toggle("Sync right after you push from this Mac", isOn: $model.settings.syncsOnPush)
             }
 
             Section {
@@ -340,9 +365,13 @@ struct GeneralPane: View {
                 LabeledContent("Version", value: updates.summary)
                 HStack {
                     updateStatus
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: updates.state)
                     Spacer()
                     Button("Release Notes") { NSWorkspace.shared.open(updates.releaseNotes) }
-                    if case .available(_, let page) = updates.state {
+                    if case .ready = updates.state {
+                        Button("Restart and Install") { updates.restartAndInstall() }
+                            .buttonStyle(.borderedProminent)
+                    } else if case .available(_, let page) = updates.state {
                         if updates.canInstall {
                             Button("Update Now") { updates.install() }
                                 .buttonStyle(.borderedProminent)
@@ -398,9 +427,8 @@ struct GeneralPane: View {
 
             Section {
                 HStack {
-                    Button("Sync now") { Task { await model.refreshVisible() } }
-                        .disabled(model.loading)
                     Button("Send feedback…") { Windows.shared.openFeedback(model, feature: .general) }
+                    Button("Show Onboarding") { Windows.shared.openOnboarding(model) {} }
                     Spacer()
                     Button("Quit Diple") { NSApplication.shared.terminate(nil) }
                 }
@@ -418,6 +446,10 @@ struct GeneralPane: View {
 }
 
 extension GeneralPane {
+    private var pointsPerSync: Int { Query.heartbeatSearches.count }
+
+    private var pointsPerHour: Int { pointsPerSync * Int(3600 / model.settings.interval) }
+
     @ViewBuilder private var updateStatus: some View {
         switch updates.state {
         case .idle, .checking:
@@ -428,10 +460,24 @@ extension GeneralPane {
             Text("Version \(version) is out").foregroundStyle(.orange)
         case .failed:
             Text("Could not reach GitHub").foregroundStyle(.secondary)
+        case .downloading(let version, let received, let total):
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Downloading \(version)… \(Self.megabytes(received)) of \(Self.megabytes(total))")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                ProgressView(value: Double(received), total: Double(max(total, 1)))
+                    .progressViewStyle(.linear)
+                    .frame(maxWidth: 260)
+                    .animation(.easeOut(duration: 0.2), value: received)
+            }
+        case .ready(let version):
+            Label("Version \(version) is ready", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .transition(.scale.combined(with: .opacity))
         case .installing(let version):
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Installing \(version)… Diple will restart.").foregroundStyle(.secondary)
+                Text("Updating to \(version) with Homebrew…").foregroundStyle(.secondary)
             }
         case .installFailed(let version, _):
             Text("Version \(version) is out").foregroundStyle(.orange)
@@ -439,7 +485,14 @@ extension GeneralPane {
     }
 
     private var isInstalling: Bool {
-        if case .installing = updates.state { true } else { false }
+        switch updates.state {
+        case .installing, .downloading, .ready: true
+        default: false
+        }
+    }
+
+    static func megabytes(_ bytes: Int64) -> String {
+        String(format: "%.1f MB", Double(bytes) / 1_000_000)
     }
 }
 
@@ -470,6 +523,7 @@ struct AccountPane: View {
 
 struct ClaudePane: View {
     @ObservedObject var model: AppModel
+    @State private var scanning = false
 
     private var repos: [String] {
         Array(Set(model.queue.all.map(\.repo))).sorted()
@@ -523,6 +577,19 @@ struct ClaudePane: View {
             }
 
             Section {
+                Toggle("Push resolved conflicts without asking", isOn: $model.settings.pushesResolvedConflicts)
+                Text("Resolve with Claude merges the base branch into the pull request in its own worktree. "
+                     + "Claude may edit files there and read git; it never commits, pushes or reaches the network. "
+                     + "Diple runs the project's tests, commits the merge and pushes it, never with force. "
+                     + "Turned off, Diple stops before pushing and waits for you.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Resolving conflicts")
+            }
+
+            Section {
                 HStack(spacing: 22) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("ALLOWED")
@@ -568,6 +635,44 @@ struct ClaudePane: View {
             }
 
             Section {
+                HStack {
+                    Text(model.settings.reposFolders.count == 1 ? "Folder with your clones" : "Folders with your clones")
+                    Spacer()
+                    if scanning {
+                        ProgressView().controlSize(.small)
+                    } else if !model.settings.reposFolders.isEmpty {
+                        Button("Rescan") { scan() }
+                    }
+                    if model.settings.reposFolders.isEmpty {
+                        Button("Choose…") { addReposFolders() }
+                            .disabled(scanning)
+                    } else {
+                        Button { addReposFolders() } label: { Image(systemName: "plus") }
+                            .help("Add a folder")
+                            .disabled(scanning)
+                    }
+                }
+                ForEach(model.settings.reposFolders, id: \.self) { folder in
+                    HStack {
+                        Image(systemName: "folder").foregroundStyle(.secondary)
+                        Text(atalho(folder)).font(.system(size: 12, design: .monospaced))
+                        Spacer()
+                        if !scanning {
+                            Text(foundCount(in: folder))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Button { removeReposFolder(folder) } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            .help("Stop scanning this folder")
+                            .disabled(scanning)
+                    }
+                }
+                if !model.settings.reposFolders.isEmpty, !scanning, !repos.isEmpty {
+                    Text(scanSummary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
                 if repos.isEmpty {
                     Text("The queue has not loaded yet.").foregroundStyle(.secondary)
                 }
@@ -575,7 +680,7 @@ struct ClaudePane: View {
                     HStack {
                         Text(r).font(.system(size: 12, design: .monospaced))
                         Spacer()
-                        if let u = Worktree.localPath(r, configured: model.settings.repoPaths) {
+                        if let u = model.settings.localPath(r) {
                             Text(atalho(u.path))
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(.secondary)
@@ -589,7 +694,9 @@ struct ClaudePane: View {
             } footer: {
                 Text("Diple looks in @work, @studies, dev, work, Developer, "
                      + "code and src. Each review runs in a throwaway worktree in "
-                     + "~/.diple/worktrees — your checkout is never touched.")
+                     + "~/.diple/worktrees — your checkout is never touched. "
+                     + "Folders with your clones are searched four levels deep and "
+                     + "each clone is matched by its GitHub remotes; a path you chose by hand always wins.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -601,6 +708,50 @@ struct ClaudePane: View {
 
     private func atalho(_ p: String) -> String {
         p.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
+    }
+
+    private func foundCount(in folder: String) -> String {
+        let found = RepoScan.found(in: folder, scanned: model.settings.scannedRepoPaths)
+        return "\(found) \(found == 1 ? "repository" : "repositories")"
+    }
+
+    private var scanSummary: String {
+        let matched = RepoScan.matched(repos, manual: model.settings.repoPaths,
+                                       scanned: model.settings.scannedRepoPaths)
+        return "\(matched) of the \(repos.count) below matched."
+    }
+
+    private func addReposFolders() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Scan"
+        if let last = model.settings.reposFolders.last {
+            panel.directoryURL = URL(fileURLWithPath: last)
+        }
+        guard panel.runModal() == .OK else { return }
+        let added = panel.urls.map(\.path).filter { !model.settings.reposFolders.contains($0) }
+        guard !added.isEmpty else { return }
+        model.settings.reposFolders += added
+        scan()
+    }
+
+    private func removeReposFolder(_ folder: String) {
+        model.settings.reposFolders.removeAll { $0 == folder }
+        scan()
+    }
+
+    private func scan() {
+        let folders = model.settings.reposFolders.map { URL(fileURLWithPath: $0) }
+        scanning = true
+        Task {
+            let found = await Task.detached(priority: .userInitiated) {
+                RepoScan.scan(folders)
+            }.value
+            model.settings.scannedRepoPaths = found
+            scanning = false
+        }
     }
 
     private func escolher(_ repo: String) {

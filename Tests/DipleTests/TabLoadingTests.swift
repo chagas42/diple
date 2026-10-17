@@ -23,7 +23,7 @@ final class TabsGitHub: @unchecked Sendable {
     static func cutoff(_ p: RankPeriod) -> String { p.startDay() }
 
     static func marker(_ q: String) -> Int {
-        for p in RankPeriod.allCases where q.contains("created:>=\(cutoff(p))") {
+        for p in RankPeriod.allCases where q.contains(RankingPage.query(org: "", login: "", from: p.since).split(separator: " ").last.map(String.init) ?? "-") {
             switch p {
             case .week: return 7
             case .month: return 30
@@ -57,7 +57,11 @@ final class TabsGitHub: @unchecked Sendable {
         if q.contains("issueCount") {
             let n = Self.marker(q)
             var data: [String: Any] = [:]
-            for i in 0..<Self.people.count where q.contains("u\(i):") { data["u\(i)"] = ["issueCount": n] }
+            let now = ISO8601DateFormatter().string(from: Date())
+            let nodes = Array(repeating: ["reviews": ["nodes": [["submittedAt": now]]]], count: max(n, 0))
+            for i in 0..<Self.people.count where q.contains("u\(i):") {
+                data["u\(i)"] = ["issueCount": n, "pageInfo": ["hasNextPage": false], "nodes": nodes]
+            }
             return .init(body: json(["data": data]), delay: ranking)
         }
         return .init(body: json(["data": ["search": ["nodes": []]]]))

@@ -113,14 +113,23 @@ import Testing
         #expect(n.state == .hidden)
     }
 
-    @Test func hoveringTheHiddenNotchStillOpensItAndLeavingHidesItAgain() async throws {
+    @Test func restingOnTheHiddenNotchStillOpensItAndLeavingHidesItAgain() async throws {
         let spot = Spot(Self.away)
+        let clock = Clock()
         let n = notch(fullScreen: Flag(true)) { spot.at }
+        n.clock = { clock.now }
+        n.pressed = { false }
         n.refreshIdle()
+        n.checkPointer()
 
         spot.at = notchCenter
         n.checkPointer()
+        #expect(n.state == .hidden)
+
+        clock.now += HoverIntent.dwell + 0.01
+        n.checkPointer()
         #expect(n.state == .open)
+        n.clock = Date.init
 
         spot.at = Self.away
         for _ in 0..<40 where n.state == .open {
