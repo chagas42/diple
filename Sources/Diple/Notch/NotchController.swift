@@ -54,6 +54,7 @@ final class NotchController: ObservableObject {
     private var wakeTask: Task<Void, Never>?
     private let resting = RestWatcher()
     private var showsEye = true
+    private var showsMark = true
     private var countOnLeft = false
     private var wingSettings: AnyCancellable?
     private var focusWatch: AnyCancellable?
@@ -71,8 +72,8 @@ final class NotchController: ObservableObject {
     func mount(model: AppModel) {
         self.model = model
         wingSettings = model.$settings
-            .removeDuplicates { $0.showsEye == $1.showsEye && $0.countSide == $1.countSide }
-            .sink { [weak self] s in self?.arrange(showsEye: s.showsEye, countOnLeft: s.countSide == .left) }
+            .removeDuplicates { $0.notchMark == $1.notchMark && $0.countSide == $1.countSide }
+            .sink { [weak self] s in self?.arrange(mark: s.notchMark, countOnLeft: s.countSide == .left) }
         focusWatch = model.focus.$byHand.combineLatest(model.focus.$system, model.focus.$setAside)
             .map { $0 || ($1 && !$2) }
             .removeDuplicates()
@@ -123,7 +124,7 @@ final class NotchController: ObservableObject {
 
     private func apply() {
         let g = NotchGeometry.current()
-        wings = g.wings(showsEye: showsEye, countOnLeft: countOnLeft)
+        wings = g.wings(showsMark: showsMark, countOnLeft: countOnLeft)
         shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
@@ -166,8 +167,9 @@ final class NotchController: ObservableObject {
         (underFullScreen || arriving) && !menuBarRevealed ? .hidden : .active
     }
 
-    func arrange(showsEye: Bool, countOnLeft: Bool) {
-        self.showsEye = showsEye
+    func arrange(mark: NotchMark, countOnLeft: Bool) {
+        showsEye = mark == .eye
+        showsMark = mark != .none
         self.countOnLeft = countOnLeft
         if !showsEye { finishWaking() }
         settleIdle()
@@ -452,7 +454,7 @@ final class NotchController: ObservableObject {
     private func settleIdle() {
         guard state == .hidden || state == .active else { return }
         let next = idle()
-        if next != state || NotchGeometry.current().wings(showsEye: showsEye, countOnLeft: countOnLeft) != wings {
+        if next != state || NotchGeometry.current().wings(showsMark: showsMark, countOnLeft: countOnLeft) != wings {
             state = next
             apply()
         }

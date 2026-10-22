@@ -111,7 +111,7 @@ struct NotchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .top) {
-            if let since = sleepingSince, model.settings.showsEye {
+            if let since = sleepingSince, model.settings.showsMark {
                 SleepyZs(start: since, quick: dozesQuickly)
                     .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
                             y: eyeCenter.y - SleepyZs.eye.y)
@@ -181,7 +181,7 @@ struct NotchView: View {
                 activeWings
                 if let t = tick {
                     ReviewStrip(tick: t, start: tickStart, wings: wings, notchWidth: notchWidth,
-                                notchHeight: notchHeight, eyeBesideCount: model.settings.showsEye)
+                                notchHeight: notchHeight, eyeBesideCount: model.settings.showsMark)
                         .transition(.opacity)
                 }
             }
@@ -212,17 +212,28 @@ struct NotchView: View {
 
     private var eyeWing: some View {
         ZStack {
-            if model.settings.showsEye, wings.eye > 0 { wingEye }
+            if model.settings.showsMark, wings.eye > 0 { wingMark }
         }
-        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+        .animation(eyeToggleAnimation, value: model.settings.notchMark)
     }
 
     private var eyeBesideCount: some View {
         HStack(spacing: 6) {
-            if model.settings.showsEye { wingEye }
+            if model.settings.showsMark { wingMark }
             count
         }
-        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+        .animation(eyeToggleAnimation, value: model.settings.notchMark)
+    }
+
+    @ViewBuilder private var wingMark: some View {
+        switch model.settings.notchMark {
+        case .eye:
+            wingEye
+        case .tray:
+            TrayMark(count: shownCount, focused: isFocused).transition(eyeToggle)
+        case .none:
+            EmptyView()
+        }
     }
 
     private var wingEye: some View {
@@ -275,6 +286,13 @@ struct NotchView: View {
                         }
                         .help(eye.focused ? "Focused. Click to stop." : "Click to focus.")
                         .transition(eyeToggle)
+                } else if model.settings.notchMark == .tray {
+                    TrayMark(count: shownCount, focused: isFocused, size: 11.5)
+                        .frame(width: 30, height: 26)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onFocusToggle?() }
+                        .help(isFocused ? "Focused. Click to stop." : "Focus")
+                        .transition(eyeToggle)
                 } else {
                     Image(systemName: isFocused ? "moon.fill" : "moon")
                         .font(.system(size: 11.5, weight: .semibold))
@@ -306,7 +324,7 @@ struct NotchView: View {
             }
             .padding(.leading, 14 + flare)
             .frame(maxWidth: .infinity)
-            .animation(eyeToggleAnimation, value: model.settings.showsEye)
+            .animation(eyeToggleAnimation, value: model.settings.notchMark)
 
             Spacer(minLength: notchWidth).frame(width: notchWidth)
 

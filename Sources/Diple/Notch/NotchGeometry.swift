@@ -31,16 +31,16 @@ struct NotchGeometry {
     static let minWing: CGFloat = 27
     static let eyeBesideCount: CGFloat = 20
 
-    func wings(showsEye: Bool = true, countOnLeft: Bool = false) -> Wings {
-        Self.wings(freeRight: freeRight, full: asa, showsEye: showsEye, countOnLeft: countOnLeft)
+    func wings(showsMark: Bool = true, countOnLeft: Bool = false) -> Wings {
+        Self.wings(freeRight: freeRight, full: asa, showsMark: showsMark, countOnLeft: countOnLeft)
     }
 
-    static func wings(freeRight: CGFloat, full: CGFloat, showsEye: Bool = true, countOnLeft: Bool = false) -> Wings {
+    static func wings(freeRight: CGFloat, full: CGFloat, showsMark: Bool = true, countOnLeft: Bool = false) -> Wings {
         let fits = min(full, freeRight - 6)
         guard fits >= minWing else {
-            return Wings(left: full + (showsEye ? eyeBesideCount : 0), right: 0, countOnLeft: true, crowded: true)
+            return Wings(left: full + (showsMark ? eyeBesideCount : 0), right: 0, countOnLeft: true, crowded: true)
         }
-        let eye = showsEye ? fits : 0
+        let eye = showsMark ? fits : 0
         return countOnLeft
             ? Wings(left: fits, right: eye, countOnLeft: true)
             : Wings(left: eye, right: fits)

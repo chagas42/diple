@@ -24,13 +24,13 @@ struct NotchWingsTests {
     }
 
     @Test func withoutTheEyeATightGapLeavesOnlyTheCount() {
-        let w = NotchGeometry.wings(freeRight: 26.5, full: 42, showsEye: false)
+        let w = NotchGeometry.wings(freeRight: 26.5, full: 42, showsMark: false)
         #expect(w == Wings(left: 42, right: 0, countOnLeft: true, crowded: true))
         #expect(w.shift == -21)
     }
 
     @Test func withoutTheEyeOnlyTheCountWingRemains() {
-        let w = NotchGeometry.wings(freeRight: 60, full: 42, showsEye: false)
+        let w = NotchGeometry.wings(freeRight: 60, full: 42, showsMark: false)
         #expect(w == Wings(left: 0, right: 42))
         #expect(!w.countOnLeft)
         #expect(w.shift == 21)
@@ -44,7 +44,7 @@ struct NotchWingsTests {
     }
 
     @Test func countOnTheLeftWithoutTheEyeDropsTheRightWing() {
-        let w = NotchGeometry.wings(freeRight: 60, full: 42, showsEye: false, countOnLeft: true)
+        let w = NotchGeometry.wings(freeRight: 60, full: 42, showsMark: false, countOnLeft: true)
         #expect(w == Wings(left: 42, right: 0, countOnLeft: true))
         #expect(w.shift == -21)
     }
@@ -53,7 +53,7 @@ struct NotchWingsTests {
         for free in stride(from: CGFloat(0), through: 80, by: 0.5) {
             for eye in [true, false] {
                 for left in [true, false] {
-                    let w = NotchGeometry.wings(freeRight: free, full: 42, showsEye: eye, countOnLeft: left)
+                    let w = NotchGeometry.wings(freeRight: free, full: 42, showsMark: eye, countOnLeft: left)
                     #expect(w.right <= max(0, free - 6))
                 }
             }

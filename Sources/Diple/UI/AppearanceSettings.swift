@@ -21,7 +21,10 @@ struct AppearanceSettings: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show the eye", isOn: $model.settings.showsEye)
+                Picker("Beside the notch", selection: $model.settings.notchMark) {
+                    ForEach(NotchMark.allCases) { Text($0.title).tag($0) }
+                }
+                .help("Eye: a mascot that looks around. Tray: how many pull requests wait on you, and a moon in Focus. Nothing: just the count.")
                 Toggle("Blink", isOn: $model.settings.eyeBlinks)
                     .disabled(!model.settings.showsEye)
                 Toggle("Lean toward the pointer", isOn: $model.settings.liquidNotch)

@@ -255,6 +255,9 @@ enum Demo {
         var state = StoredState()
         state.hasRunBefore = true
         state.settings.rankingMode = .team
+        if let mark = ProcessInfo.processInfo.environment["DIPLE_NOTCH_MARK"].flatMap(NotchMark.init(rawValue:)) {
+            state.settings.notchMark = mark
+        }
         state.unread = unread
         state.watching = watching
         let toReview = Set(queue.toReview.map(\.key))

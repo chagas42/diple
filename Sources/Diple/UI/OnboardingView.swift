@@ -115,7 +115,7 @@ struct OnboardingView: View {
         case .hours: HoursStep(model: model)
         case .ranking: RankingStep(model: model)
         case .extras: ExtrasStep(model: model)
-        case .tryIt: TryItStep(focused: previewFocused)
+        case .tryIt: TryItStep(focused: previewFocused, noun: model.settings.notchMark.noun)
         case .done: DoneStep(model: model)
         }
     }
@@ -183,7 +183,8 @@ struct NotchStage: View {
     static let avatars: [CGFloat] = [284, 322, 360, 398, 436]
 
     private var settings: Settings { model.settings }
-    private var showsEye: Bool { settings.showsEye || step == .tryIt }
+    private var mark: NotchMark { step == .tryIt ? settings.notchMark.clicked : settings.notchMark }
+    private var showsMark: Bool { mark != .none }
     private var eyeOnRight: Bool { settings.countSide == .left && step != .tryIt }
     private var eyeCenter: CGPoint { eyeOnRight ? Self.rightEyeAt : Self.eyeAt }
 
@@ -329,9 +330,9 @@ struct NotchStage: View {
     private var notch: some View {
         let side = settings.countSide
         return HStack(spacing: 0) {
-            wing(showEye: showsEye && !eyeOnRight, showCount: side == .left && step != .tryIt)
+            wing(showMark: showsMark && !eyeOnRight, showCount: side == .left && step != .tryIt)
             Spacer(minLength: 120)
-            wing(showEye: showsEye && eyeOnRight, showCount: side == .right || step == .tryIt)
+            wing(showMark: showsMark && eyeOnRight, showCount: side == .right || step == .tryIt)
         }
         .frame(width: 300, height: 38)
         .background(UnevenRoundedRectangle(bottomLeadingRadius: 14, bottomTrailingRadius: 14).fill(.black))
@@ -344,13 +345,21 @@ struct NotchStage: View {
         .scaleEffect(awake ? 1 : 0.85, anchor: .top)
         .opacity(awake ? 1 : 0)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: settings.countSide)
-        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: settings.showsEye)
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: settings.notchMark)
     }
 
-    private func wing(showEye: Bool, showCount: Bool) -> some View {
+    @ViewBuilder private var markView: some View {
+        if mark == .tray {
+            TrayMark(count: max(count, model.count), focused: focused, size: 15)
+        } else {
+            EyeView(eye: eye, width: 18)
+        }
+    }
+
+    private func wing(showMark: Bool, showCount: Bool) -> some View {
         ZStack {
-            if showEye {
-                EyeView(eye: eye, width: 18)
+            if showMark {
+                markView
                     .frame(width: 26, height: 26)
                     .overlay {
                         if step == .tryIt, !focused {
@@ -360,7 +369,7 @@ struct NotchStage: View {
                                 .opacity(ring ? 0 : 0.9)
                         }
                     }
-                    .overlay(alignment: .topLeading) { Complaint(eye: eye).fixedSize().offset(x: 16, y: 20) }
+                    .overlay(alignment: .topLeading) { if mark == .eye { Complaint(eye: eye).fixedSize().offset(x: 16, y: 20) } }
                     .contentShape(Rectangle().inset(by: -10))
                     .onTapGesture { if step == .tryIt { onPoke() } }
                     .transition(.scale.combined(with: .opacity))
@@ -460,7 +469,7 @@ struct NotchStage: View {
             }
             .frame(height: 30)
         case .tryIt:
-            Text(focused ? "Focus is on. Alerts wait." : "Click the eye.")
+            Text(focused ? "Focus is on. Alerts wait." : "Click the \(mark.noun).")
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
                 .contentTransition(.opacity)
         case .done:
@@ -856,8 +865,11 @@ struct NotchStep: View {
         VStack(spacing: 12) {
             StepHeader(title: "Make the notch yours", detail: "The notch and the code above change as you pick.")
             OnboardingCard {
-                Toggle("Show the eye", isOn: $model.settings.showsEye)
-                Toggle("Let it blink", isOn: $model.settings.eyeBlinks).disabled(!model.settings.showsEye)
+                Picker("Beside the notch", selection: $model.settings.notchMark) {
+                    ForEach(NotchMark.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Toggle("Let the eye blink", isOn: $model.settings.eyeBlinks).disabled(!model.settings.showsEye)
                 Divider()
                 Picker("The count sits on the", selection: $model.settings.countSide) {
                     ForEach(CountSide.allCases) { Text($0.title).tag($0) }
@@ -964,12 +976,13 @@ struct ExtrasStep: View {
 
 struct TryItStep: View {
     let focused: Bool
+    let noun: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             StepHeader(title: "One trick",
-                       detail: "Click the eye in the preview above. In the open notch it works the same way: it turns Focus on, and alerts wait until you click it again.")
-            Label(focused ? "Focus is on. Click the eye again to turn it off." : "Go ahead, click it.",
+                       detail: "Click the \(noun) in the preview above. In the open notch it works the same way: it turns Focus on, and alerts wait until you click it again.")
+            Label(focused ? "Focus is on. Click the \(noun) again to turn it off." : "Go ahead, click it.",
                   systemImage: focused ? "moon.fill" : "hand.point.up.left")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(focused ? FocusCover.indigo : .secondary)

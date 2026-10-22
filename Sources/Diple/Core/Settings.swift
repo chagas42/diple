@@ -31,7 +31,7 @@ struct Settings: Codable, Sendable, Equatable {
     var mapModel: String? = nil
     var shareUsage = true
     var reviewFilter = ReviewFilter.everyone
-    var showsEye = true
+    var notchMark = NotchMark.eye
     var eyeBlinks = true
     var countSide = CountSide.right
     var liquidNotch = true
@@ -42,6 +42,13 @@ struct Settings: Codable, Sendable, Equatable {
     var pushesResolvedConflicts = true
     var focusLook = FocusLook.terminal
     var rankingMode = RankingMode.off
+
+    var showsEye: Bool {
+        get { notchMark == .eye }
+        set { notchMark = newValue ? .eye : (notchMark == .eye ? .tray : notchMark) }
+    }
+
+    var showsMark: Bool { notchMark != .none }
 
     func localPath(_ repo: String) -> URL? {
         Worktree.localPath(repo, configured: repoPaths, scanned: scannedRepoPaths)
@@ -142,7 +149,9 @@ struct Settings: Codable, Sendable, Equatable {
         d.mapModel = try c.decodeIfPresent(String.self, forKey: .mapModel) ?? d.mapModel
         d.shareUsage = try c.decodeIfPresent(Bool.self, forKey: .shareUsage) ?? d.shareUsage
         d.reviewFilter = (try? c.decodeIfPresent(ReviewFilter.self, forKey: .reviewFilter)) ?? d.reviewFilter
-        d.showsEye = try c.decodeIfPresent(Bool.self, forKey: .showsEye) ?? d.showsEye
+        d.notchMark = (try? c.decodeIfPresent(NotchMark.self, forKey: .notchMark))
+            ?? (try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .showsEye))?.map { $0 ? .eye : .tray }
+            ?? d.notchMark
         d.eyeBlinks = try c.decodeIfPresent(Bool.self, forKey: .eyeBlinks) ?? d.eyeBlinks
         d.countSide = (try? c.decodeIfPresent(CountSide.self, forKey: .countSide)) ?? d.countSide
         d.liquidNotch = try c.decodeIfPresent(Bool.self, forKey: .liquidNotch) ?? d.liquidNotch
@@ -157,7 +166,7 @@ struct Settings: Codable, Sendable, Equatable {
     }
 
     private enum LegacyKeys: String, CodingKey {
-        case reposFolder
+        case reposFolder, showsEye
     }
 }
 
@@ -192,6 +201,23 @@ enum Attribution: String, CaseIterable, Identifiable, Sendable {
 
 extension Settings {
     var attributionMode: Attribution { Attribution(rawValue: attribution) ?? .onMyOwn }
+}
+
+enum NotchMark: String, Codable, Sendable, CaseIterable, Identifiable {
+    case eye, tray, none
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .eye:  "Eye"
+        case .tray: "Tray"
+        case .none: "Nothing"
+        }
+    }
+
+    var clicked: NotchMark { self == .none ? .eye : self }
+    var noun: String { clicked == .tray ? "tray" : "eye" }
 }
 
 enum CountSide: String, Codable, Sendable, CaseIterable, Identifiable {
