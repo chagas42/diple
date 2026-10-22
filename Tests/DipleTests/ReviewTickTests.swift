@@ -156,10 +156,8 @@ import Testing
         let notchWidth = CGFloat(notch), notchHeight: CGFloat = 32, sheetHalf: CGFloat = 6.5
         var layouts: [(Wings, Bool)] = []
         for free in [60.0, 44, 38, 33, 29, 20] {
-            for eye in [true, false] {
-                for left in [false, true] {
-                    layouts.append((NotchGeometry.wings(freeRight: free, full: 42, showsMark: eye, countOnLeft: left), eye))
-                }
+            for left in [false, true] {
+                layouts.append((NotchGeometry.wings(freeRight: free, full: 42, countOnLeft: left), true))
             }
         }
         for (wings, eye) in layouts {

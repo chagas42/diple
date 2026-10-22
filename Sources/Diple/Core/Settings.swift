@@ -45,10 +45,8 @@ struct Settings: Codable, Sendable, Equatable {
 
     var showsEye: Bool {
         get { notchMark == .eye }
-        set { notchMark = newValue ? .eye : (notchMark == .eye ? .tray : notchMark) }
+        set { notchMark = newValue ? .eye : .tray }
     }
-
-    var showsMark: Bool { notchMark != .none }
 
     func localPath(_ repo: String) -> URL? {
         Worktree.localPath(repo, configured: repoPaths, scanned: scannedRepoPaths)
@@ -204,7 +202,7 @@ extension Settings {
 }
 
 enum NotchMark: String, Codable, Sendable, CaseIterable, Identifiable {
-    case eye, tray, none
+    case eye, tray
 
     var id: String { rawValue }
 
@@ -212,12 +210,10 @@ enum NotchMark: String, Codable, Sendable, CaseIterable, Identifiable {
         switch self {
         case .eye:  "Eye"
         case .tray: "Tray"
-        case .none: "Nothing"
         }
     }
 
-    var clicked: NotchMark { self == .none ? .eye : self }
-    var noun: String { clicked == .tray ? "tray" : "eye" }
+    var noun: String { self == .tray ? "tray" : "eye" }
 }
 
 enum CountSide: String, Codable, Sendable, CaseIterable, Identifiable {

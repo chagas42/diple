@@ -265,10 +265,10 @@ Recording permission. Items change width as they tick (a meeting countdown),
 so the fit is re-checked every 2 s while idle. When less than 27pt fits, the
 eye would have to shrink against the corner, so the right wing goes away and
 the count moves to a full left wing, with the eye beside it; the shape is then
-shifted left. The eye's place holds a mark: the eye, a tray, or nothing
-(`Settings.notchMark`). Only with nothing is the wing dropped, not left empty;
-the tray keeps the notch even on both sides. The wake-ups are all eye, so they
-play only with the eye; the sleeping Zs come out of the tray too. The left wing is not measured: an app's menus are
+shifted left. The eye's place always holds a mark, the eye or a tray
+(`Settings.notchMark`), so the notch keeps a wing on each side. There is no
+"nothing": without a mark the notch grew on one side only. The wake-ups are all
+eye, so they play only with the eye; the sleeping Zs come out of the tray too. The left wing is not measured: an app's menus are
 drawn inside one full-width menu bar window, and reading their extents takes
 Accessibility permission. `DIPLE_FREE_RIGHT=<points>` overrides the measured
 gap, to see each layout without arranging the menu bar.
@@ -278,9 +278,11 @@ team turned the eye off because it felt like being looked at, and lost what it
 also said: something waits, nothing does, Focus is on. The tray says the same
 without a face: full while something waits on you, empty and dim when nothing
 does, the Focus moon while focused, a small bounce when the count changes
-(none under Reduce Motion), and clicking it in the open notch toggles Focus.
-A saved `showsEye: false` becomes the tray, since those people turned off the
-eye, not the feedback; "Nothing" is still there. `DIPLE_NOTCH_MARK=eye|tray|none`
+(none under Reduce Motion). The open notch shows the Focus moon in its place
+instead: the queue tab there is already a tray, and two trays side by side
+read as a duplicate.
+The eye stays the default. A saved `showsEye: false` becomes the tray, since
+those people turned off the eye, not the feedback. `DIPLE_NOTCH_MARK=eye|tray`
 picks the mark in `--demo`.
 
 **On macOS 27 the status items are not windows any more.** One `MenuBarAgent`

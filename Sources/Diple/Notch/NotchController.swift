@@ -54,7 +54,6 @@ final class NotchController: ObservableObject {
     private var wakeTask: Task<Void, Never>?
     private let resting = RestWatcher()
     private var showsEye = true
-    private var showsMark = true
     private var countOnLeft = false
     private var wingSettings: AnyCancellable?
     private var focusWatch: AnyCancellable?
@@ -124,7 +123,7 @@ final class NotchController: ObservableObject {
 
     private func apply() {
         let g = NotchGeometry.current()
-        wings = g.wings(showsMark: showsMark, countOnLeft: countOnLeft)
+        wings = g.wings(countOnLeft: countOnLeft)
         shift = state == .active ? wings.shift : 0
         let next: CGSize = switch state {
         case .hidden:    g.closed
@@ -169,7 +168,6 @@ final class NotchController: ObservableObject {
 
     func arrange(mark: NotchMark, countOnLeft: Bool) {
         showsEye = mark == .eye
-        showsMark = mark != .none
         self.countOnLeft = countOnLeft
         if !showsEye { finishWaking() }
         settleIdle()
@@ -454,7 +452,7 @@ final class NotchController: ObservableObject {
     private func settleIdle() {
         guard state == .hidden || state == .active else { return }
         let next = idle()
-        if next != state || NotchGeometry.current().wings(showsMark: showsMark, countOnLeft: countOnLeft) != wings {
+        if next != state || NotchGeometry.current().wings(countOnLeft: countOnLeft) != wings {
             state = next
             apply()
         }

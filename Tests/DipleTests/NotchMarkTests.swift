@@ -14,7 +14,7 @@ import Testing
     }
 
     @Test func aPickedMarkWinsOverTheOldSwitch() throws {
-        #expect(try Self.decode(#"{"showsEye": true, "notchMark": "none"}"#).notchMark == .none)
+        #expect(try Self.decode(#"{"showsEye": true, "notchMark": "tray"}"#).notchMark == .tray)
         #expect(try Self.decode(#"{"notchMark": "nonsense"}"#).notchMark == .eye)
     }
 
@@ -28,13 +28,11 @@ import Testing
         #expect(try JSONDecoder().decode(Settings.self, from: data).notchMark == .tray)
     }
 
-    @Test func turningTheEyeOffKeepsATrayButNothingStaysNothing() {
+    @Test func theEyeIsTheDefaultAndTurningItOffLeavesTheTray() {
         var s = Settings()
+        #expect(s.notchMark == .eye)
         s.showsEye = false
         #expect(s.notchMark == .tray)
-        s.notchMark = .none
-        s.showsEye = false
-        #expect(s.notchMark == .none)
         s.showsEye = true
         #expect(s.notchMark == .eye)
     }
@@ -45,8 +43,7 @@ import Testing
         #expect(TrayMark.symbol(count: 3, focused: true) == "moon.fill")
     }
 
-    @Test func theOneTrickNeedsSomethingToClick() {
-        #expect(NotchMark.none.clicked == .eye)
+    @Test func theOneTrickNamesTheMarkToClick() {
         #expect(NotchMark.tray.noun == "tray")
         #expect(NotchMark.eye.noun == "eye")
     }

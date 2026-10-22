@@ -54,7 +54,7 @@ import Testing
 
     @Test func turningTheEyeOffMidWakeEndsIt() async {
         let log = Log()
-        let n = notch(log: log) { n, step in if step == 3 { n.arrange(mark: .none, countOnLeft: false) } }
+        let n = notch(log: log) { n, step in if step == 3 { n.arrange(mark: .tray, countOnLeft: false) } }
         n.settleBeforeFirstFrame()
         n.fallAsleep()
         await n.wake()
@@ -86,7 +86,7 @@ import Testing
     @Test func withTheEyeOffARestShutsNothing() {
         let n = notch(log: Log())
         n.settleBeforeFirstFrame()
-        n.arrange(mark: .none, countOnLeft: false)
+        n.arrange(mark: .tray, countOnLeft: false)
         n.restStarted()
         #expect(!n.waking)
         #expect(n.eye.lid == 1)

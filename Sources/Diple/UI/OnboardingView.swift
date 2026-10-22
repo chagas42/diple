@@ -183,8 +183,7 @@ struct NotchStage: View {
     static let avatars: [CGFloat] = [284, 322, 360, 398, 436]
 
     private var settings: Settings { model.settings }
-    private var mark: NotchMark { step == .tryIt ? settings.notchMark.clicked : settings.notchMark }
-    private var showsMark: Bool { mark != .none }
+    private var mark: NotchMark { settings.notchMark }
     private var eyeOnRight: Bool { settings.countSide == .left && step != .tryIt }
     private var eyeCenter: CGPoint { eyeOnRight ? Self.rightEyeAt : Self.eyeAt }
 
@@ -330,9 +329,9 @@ struct NotchStage: View {
     private var notch: some View {
         let side = settings.countSide
         return HStack(spacing: 0) {
-            wing(showMark: showsMark && !eyeOnRight, showCount: side == .left && step != .tryIt)
+            wing(showMark: !eyeOnRight, showCount: side == .left && step != .tryIt)
             Spacer(minLength: 120)
-            wing(showMark: showsMark && eyeOnRight, showCount: side == .right || step == .tryIt)
+            wing(showMark: eyeOnRight, showCount: side == .right || step == .tryIt)
         }
         .frame(width: 300, height: 38)
         .background(UnevenRoundedRectangle(bottomLeadingRadius: 14, bottomTrailingRadius: 14).fill(.black))

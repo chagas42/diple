@@ -111,7 +111,7 @@ struct NotchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .top) {
-            if let since = sleepingSince, model.settings.showsMark {
+            if let since = sleepingSince {
                 SleepyZs(start: since, quick: dozesQuickly)
                     .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
                             y: eyeCenter.y - SleepyZs.eye.y)
@@ -181,7 +181,7 @@ struct NotchView: View {
                 activeWings
                 if let t = tick {
                     ReviewStrip(tick: t, start: tickStart, wings: wings, notchWidth: notchWidth,
-                                notchHeight: notchHeight, eyeBesideCount: model.settings.showsMark)
+                                notchHeight: notchHeight)
                         .transition(.opacity)
                 }
             }
@@ -212,14 +212,14 @@ struct NotchView: View {
 
     private var eyeWing: some View {
         ZStack {
-            if model.settings.showsMark, wings.eye > 0 { wingMark }
+            if wings.eye > 0 { wingMark }
         }
         .animation(eyeToggleAnimation, value: model.settings.notchMark)
     }
 
     private var eyeBesideCount: some View {
         HStack(spacing: 6) {
-            if model.settings.showsMark { wingMark }
+            wingMark
             count
         }
         .animation(eyeToggleAnimation, value: model.settings.notchMark)
@@ -231,8 +231,6 @@ struct NotchView: View {
             wingEye
         case .tray:
             TrayMark(count: shownCount, focused: isFocused).transition(eyeToggle)
-        case .none:
-            EmptyView()
         }
     }
 
@@ -286,13 +284,6 @@ struct NotchView: View {
                         }
                         .help(eye.focused ? "Focused. Click to stop." : "Click to focus.")
                         .transition(eyeToggle)
-                } else if model.settings.notchMark == .tray {
-                    TrayMark(count: shownCount, focused: isFocused, size: 11.5)
-                        .frame(width: 30, height: 26)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onFocusToggle?() }
-                        .help(isFocused ? "Focused. Click to stop." : "Focus")
-                        .transition(eyeToggle)
                 } else {
                     Image(systemName: isFocused ? "moon.fill" : "moon")
                         .font(.system(size: 11.5, weight: .semibold))
@@ -301,6 +292,7 @@ struct NotchView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { onFocusToggle?() }
                         .help(isFocused ? "Focused. Click to stop." : "Focus")
+                        .transition(eyeToggle)
                 }
                 ForEach(model.notchTabs) { tab in
                     Button { model.notchTab = tab } label: {
