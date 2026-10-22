@@ -33,6 +33,11 @@ final class Updates: ObservableObject {
         .contains { FileManager.default.fileExists(atPath: $0) }
 
     var transport: any Transport = URLSessionTransport()
+    var now: () -> Date = Date.init
+    private(set) var checkedAt: Date?
+
+    static let checkEvery: Duration = .seconds(4 * 60 * 60)
+    static let staleAfter: TimeInterval = 15 * 60
     var fetch: Fetch = Updates.liveFetch
     private var loop: Task<Void, Never>?
     private(set) var asset: Asset?
@@ -60,11 +65,36 @@ final class Updates: ObservableObject {
     }
 
     func install() {
-        guard canInstall, case .available(let version, let page) = state else { return }
+        guard canInstall, case .available = state else { return }
+        Task { await installLatest() }
+    }
+
+    func installLatest() async {
+        guard let (version, page) = await recheck() else { return }
         if viaHomebrew {
             upgradeWithHomebrew(version: version, page: page)
         } else {
-            Task { await download(version: version, page: page) }
+            await download(version: version, page: page)
+        }
+    }
+
+    func recheck() async -> (version: String, page: URL)? {
+        let before = state
+        await check()
+        if state == .failed, case .available = before { state = before }
+        guard case .available(let version, let page) = state else { return nil }
+        return (version, page)
+    }
+
+    var isStale: Bool {
+        checkedAt.map { now().timeIntervalSince($0) > Self.staleAfter } ?? true
+    }
+
+    func checkIfStale() async {
+        guard isStale else { return }
+        switch state {
+        case .idle, .failed, .current, .available: await check()
+        default: return
         }
     }
 
@@ -208,7 +238,7 @@ final class Updates: ObservableObject {
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.check()
-                try? await Task.sleep(for: .seconds(24 * 60 * 60))
+                try? await Task.sleep(for: Self.checkEvery)
             }
         }
     }
@@ -227,6 +257,7 @@ final class Updates: ObservableObject {
             let release = try JSONDecoder().decode(Release.self, from: data)
             let version = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
             asset = release.asset
+            checkedAt = now()
             state = Self.isNewer(version, than: installed)
                 ? .available(version: version, page: release.htmlURL)
                 : .current

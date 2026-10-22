@@ -437,7 +437,7 @@ struct GeneralPane: View {
         .formStyle(.grouped)
         .onAppear {
             login.refresh()
-            if updates.state == .idle || updates.state == .failed { Task { await updates.check() } }
+            Task { await updates.checkIfStale() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             login.refresh()

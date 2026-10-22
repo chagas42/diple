@@ -189,3 +189,65 @@ enum SHA256Hex {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+@MainActor
+struct UpdateRecheckTests {
+    final class Releases: Transport, @unchecked Sendable {
+        private let lock = NSLock()
+        private var tag: String
+        private var failing = false
+        private var asked = 0
+
+        init(_ tag: String) { self.tag = tag }
+
+        func publish(_ next: String) { lock.withLock { tag = next } }
+        func goOffline() { lock.withLock { failing = true } }
+        var requests: Int { lock.withLock { asked } }
+
+        func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
+            let (tag, failing) = lock.withLock { asked += 1; return (self.tag, self.failing) }
+            let body = #"{"tag_name":"\#(tag)","html_url":"https://github.com/chagas42/diple/releases/tag/\#(tag)","assets":[]}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: failing ? 503 : 200, httpVersion: nil, headerFields: nil)!
+            return (Data(body.utf8), response)
+        }
+    }
+
+    @Test func aReleaseOutAfterTheLastCheckIsTheOneUpdateNowGets() async {
+        let updates = Updates()
+        let releases = Releases("v999.0.0")
+        updates.transport = releases
+        await updates.check()
+        releases.publish("v999.1.0")
+        let picked = await updates.recheck()
+        #expect(picked?.version == "999.1.0")
+        #expect(updates.releaseNotes.absoluteString == "https://github.com/chagas42/diple/releases/tag/v999.1.0")
+    }
+
+    @Test func offlineItStillInstallsTheReleaseItKnew() async {
+        let updates = Updates()
+        let releases = Releases("v999.0.0")
+        updates.transport = releases
+        await updates.check()
+        releases.goOffline()
+        #expect(await updates.recheck()?.version == "999.0.0")
+        #expect(updates.state == .available(version: "999.0.0", page: URL(string: "https://github.com/chagas42/diple/releases/tag/v999.0.0")!))
+    }
+
+    @Test func settingsAsksAgainOnlyOnceTheLastAnswerIsOld() async {
+        let updates = Updates()
+        let releases = Releases("v999.0.0")
+        updates.transport = releases
+        var clock = Date(timeIntervalSince1970: 1_790_000_000)
+        updates.now = { clock }
+        await updates.checkIfStale()
+        #expect(releases.requests == 1)
+        clock += 10 * 60
+        await updates.checkIfStale()
+        #expect(releases.requests == 1)
+        clock += 6 * 60
+        releases.publish("v999.1.0")
+        await updates.checkIfStale()
+        #expect(releases.requests == 2)
+        #expect(updates.state == .available(version: "999.1.0", page: URL(string: "https://github.com/chagas42/diple/releases/tag/v999.1.0")!))
+    }
+}
