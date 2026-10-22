@@ -223,7 +223,7 @@ extension Film {
     static let focusMoon = Scene(name: "focus-moon", crop: .panel) { notch, model in [
         Beat(name: "01-open", seconds: 1.2, pointer: still(at: moon, for: 1.2)) {
             model.notchTab = .queue
-            model.settings.showsEye = false
+            model.settings.notchMark = .tray
             model.settings.focusLook = .terminal
             notch.open()
         },
