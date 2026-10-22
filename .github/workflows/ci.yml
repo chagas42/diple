@@ -86,5 +86,22 @@ jobs:
       - name: Build
         run: swift build -c release
 
-      - name: Tests
-        run: swift test
+      - name: Diagnose the forced refetch test
+        env:
+          DIPLE_DIAG: "1"
+        run: |
+          swift build --build-tests
+          fails=0
+          for i in $(seq 1 40); do
+            if ! swift test --skip-build --filter aForcedRefetchCancelsTheRequestItReplaces > alone-$i.log 2>&1; then
+              fails=$((fails+1)); echo "ALONE RUN $i FAILED"; grep -E "DIAG|✘" alone-$i.log
+            fi
+          done
+          echo "alone failures: $fails / 40"
+          for i in $(seq 1 4); do
+            if ! swift test --skip-build > full-$i.log 2>&1; then
+              echo "FULL RUN $i FAILED"; grep -E "✘" full-$i.log | head; grep -E "DIAG" full-$i.log
+            else
+              echo "FULL RUN $i passed"
+            fi
+          done

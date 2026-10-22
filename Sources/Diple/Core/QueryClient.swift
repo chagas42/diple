@@ -148,6 +148,14 @@ private final class AnyEntry {
 
 private struct Superseded: Error {}
 
+enum Diag {
+    nonisolated static func log(_ s: String) {
+        guard ProcessInfo.processInfo.environment["DIPLE_DIAG"] != nil else { return }
+        let t = String(format: "%.3f", Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 1000))
+        FileHandle.standardError.write(Data("DIAG \(t) \(s)\n".utf8))
+    }
+}
+
 @MainActor
 final class QueryClient {
     typealias Answer = @Sendable (QueryKey) async throws -> any Sendable
@@ -333,7 +341,9 @@ final class QueryClient {
         let github = github
         let answer = answer
         let previous = entry.data as? T
+        Diag.log("start version=\(version)")
         let task = Task<any Sendable, Error> { @MainActor [weak self] in
+            Diag.log("task body version=\(version) cancelled=\(Task.isCancelled)")
             do {
                 let value: T = if let answer {
                     try await Self.answered(q.key, by: answer)
@@ -397,9 +407,11 @@ final class QueryClient {
     }
 
     private func expire(_ entry: AnyEntry) {
+        Diag.log("expire version=\(entry.version) hasTask=\(entry.task != nil)")
         entry.version += 1
         entry.invalidated = true
         entry.task?.cancel()
+        Diag.log("expire cancelled=\(entry.task?.isCancelled ?? false)")
         entry.task = nil
     }
 

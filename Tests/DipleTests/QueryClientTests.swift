@@ -208,13 +208,18 @@ final class Source: @unchecked Sendable {
         let calls = Locked(0)
         let q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
             calls.value += 1
-            do { try await Task.sleep(for: .seconds(5)) } catch { cancelled.value = true; throw error }
+            Diag.log("closure call=\(calls.value) cancelled=\(Task.isCancelled) main=\(pthread_main_np() != 0)")
+            do { try await Task.sleep(for: .seconds(5)) } catch { Diag.log("sleep threw \(error)"); cancelled.value = true; throw error }
+            Diag.log("sleep finished")
             return 1
         }
+        Diag.log("test prefetch")
         client.prefetch(q)
         try await Self.until { calls.value == 1 }
-        let forced = Task { try? await client.fetch(q, force: true) }
+        Diag.log("test calls==1")
+        let forced = Task { Diag.log("forced task runs"); _ = try? await client.fetch(q, force: true); Diag.log("forced fetch returned") }
         try await Self.until { cancelled.value }
+        Diag.log("test until cancelled done: \(cancelled.value)")
         #expect(cancelled.value)
         forced.cancel()
     }
