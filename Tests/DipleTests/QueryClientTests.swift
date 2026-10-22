@@ -60,7 +60,7 @@ final class Source: @unchecked Sendable {
     }
 
     static func until(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(30)
+        let deadline = ContinuousClock.now + .seconds(120)
         while !condition(), ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(5))
         }

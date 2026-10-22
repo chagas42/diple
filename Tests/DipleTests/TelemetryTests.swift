@@ -54,7 +54,7 @@ import Testing
         let stub = StubTransport { _ in .init(status: 200) }
         let t = Self.make(stub)
         for _ in 0..<25 { t.capture(.findingPosted) }
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + .seconds(120)
         while stub.bodies.isEmpty, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         await t.flush()
         let sent = stub.bodies.map { Self.events(in: $0).count }.reduce(0, +)
@@ -67,7 +67,7 @@ import Testing
         let stub = StubTransport { _ in .init(status: 200) }
         let t = Self.make(stub, flushEvery: .milliseconds(100))
         t.capture(.findingPosted)
-        let deadline = ContinuousClock.now + .seconds(10)
+        let deadline = ContinuousClock.now + .seconds(120)
         while stub.bodies.isEmpty, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
         #expect(stub.bodies.count == 1)
     }

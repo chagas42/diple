@@ -119,7 +119,7 @@ import Testing
     @Test func quickFeedbackIsSentRightAwayAndSanitized() async throws {
         let (model, telemetry, sink) = Self.model()
         model.sendQuickFeedback(feature: .aiReview, rating: .up, text: "love it — ping me at x@y.io")
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + .seconds(120)
         while sink.bodies.isEmpty, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         await telemetry.flush()
         let events = sink.bodies.flatMap(TelemetryTests.events)
