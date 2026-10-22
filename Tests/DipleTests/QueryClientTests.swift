@@ -208,15 +208,15 @@ final class Source: @unchecked Sendable {
         let calls = Locked(0)
         let q = CacheQuery<Int>(key: .repos, staleAfter: .seconds(60)) { _ in
             calls.value += 1
-            do { try await Task.sleep(for: .seconds(5)) } catch { cancelled.value = true; throw error }
+            guard calls.value == 1 else { return 2 }
+            do { try await Task.sleep(for: .seconds(3600)) } catch { cancelled.value = true; throw error }
             return 1
         }
         client.prefetch(q)
         try await Self.until { calls.value == 1 }
-        let forced = Task { try? await client.fetch(q, force: true) }
+        #expect(try await client.fetch(q, force: true) == 2)
         try await Self.until { cancelled.value }
         #expect(cancelled.value)
-        forced.cancel()
     }
 
     @Test func aForgottenEntryIsStillOnDiskAndComesBack() async throws {
