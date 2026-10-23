@@ -886,6 +886,14 @@ the version on disk decides: newer means relaunch into it, unchanged means
 the install failed and Settings says so, instead of spinning forever. Newer
 now ends as "ready" with a Restart button rather than relaunching on its own.
 
+**Update Now asks GitHub again before installing.** The answer from the last
+check is kept, version, page and zip, and it went stale: with Diple open since
+before a release, Update Now installed the previous one and Release Notes
+opened its page. Installing re-checks first and takes whatever is latest; if
+that check fails, it installs the release it already knew. Diple checks every
+4 hours, not once a day, and Settings asks again whenever the last answer is
+over 15 minutes old. The API allows 60 unauthenticated requests an hour.
+
 **A direct install downloads, verifies, then waits for Restart.** Diple used to
 run `install.sh`, which `pkill`s Diple halfway, so nothing could show progress
 or ask. Now Diple downloads the release zip itself (`URLSession.bytes`, a
