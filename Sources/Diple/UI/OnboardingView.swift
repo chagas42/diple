@@ -183,7 +183,7 @@ struct NotchStage: View {
     static let avatars: [CGFloat] = [284, 322, 360, 398, 436]
 
     private var settings: Settings { model.settings }
-    private var mark: NotchMark { settings.notchMark }
+    private var mark: NotchMark { settings.notchMark == .blank && step == .tryIt ? .tray : settings.notchMark }
     private var eyeOnRight: Bool { settings.countSide == .left && step != .tryIt }
     private var eyeCenter: CGPoint { eyeOnRight ? Self.rightEyeAt : Self.eyeAt }
 
@@ -348,10 +348,10 @@ struct NotchStage: View {
     }
 
     @ViewBuilder private var markView: some View {
-        if mark == .tray {
-            TrayMark(count: max(count, model.count), focused: focused, size: 15)
-        } else {
-            EyeView(eye: eye, width: 18)
+        switch mark {
+        case .eye: EyeView(eye: eye, width: 18)
+        case .tray: TrayMark(count: max(count, model.count), focused: focused, size: 15)
+        case .blank: EmptyView()
         }
     }
 
