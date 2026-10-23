@@ -231,6 +231,8 @@ struct NotchView: View {
             wingEye
         case .tray:
             TrayMark(count: shownCount, focused: isFocused).transition(eyeToggle)
+        case .blank:
+            EmptyView()
         }
     }
 

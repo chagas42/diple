@@ -25,7 +25,7 @@ struct AppearanceSettings: View {
                     ForEach(NotchMark.allCases) { Text($0.title).tag($0) }
                 }
                 .help("Eye: a mascot that looks around. Tray: whether pull requests wait on you, and a moon in Focus.")
-                Toggle("Blink", isOn: $model.settings.eyeBlinks)
+                Toggle("Blink", isOn: $model.settings.eyeBlinks).disabled(!model.settings.showsEye)
                     .disabled(!model.settings.showsEye)
                 Toggle("Lean toward the pointer", isOn: $model.settings.liquidNotch)
                 Picker("Open on hover", selection: $model.settings.hoverOpening) {
