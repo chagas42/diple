@@ -111,7 +111,7 @@ struct NotchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .top) {
-            if let since = sleepingSince, model.settings.showsEye {
+            if let since = sleepingSince {
                 SleepyZs(start: since, quick: dozesQuickly)
                     .offset(x: eyeCenter.x - (SleepyZs.eye.x - SleepyZs.size.width / 2),
                             y: eyeCenter.y - SleepyZs.eye.y)
@@ -181,7 +181,7 @@ struct NotchView: View {
                 activeWings
                 if let t = tick {
                     ReviewStrip(tick: t, start: tickStart, wings: wings, notchWidth: notchWidth,
-                                notchHeight: notchHeight, eyeBesideCount: model.settings.showsEye)
+                                notchHeight: notchHeight)
                         .transition(.opacity)
                 }
             }
@@ -212,17 +212,28 @@ struct NotchView: View {
 
     private var eyeWing: some View {
         ZStack {
-            if model.settings.showsEye, wings.eye > 0 { wingEye }
+            if wings.eye > 0 { wingMark }
         }
-        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+        .animation(eyeToggleAnimation, value: model.settings.notchMark)
     }
 
     private var eyeBesideCount: some View {
         HStack(spacing: 6) {
-            if model.settings.showsEye { wingEye }
+            wingMark
             count
         }
-        .animation(eyeToggleAnimation, value: model.settings.showsEye)
+        .animation(eyeToggleAnimation, value: model.settings.notchMark)
+    }
+
+    @ViewBuilder private var wingMark: some View {
+        switch model.settings.notchMark {
+        case .eye:
+            wingEye
+        case .tray:
+            TrayMark(count: shownCount, focused: isFocused).transition(eyeToggle)
+        case .blank:
+            EmptyView()
+        }
     }
 
     private var wingEye: some View {
@@ -283,6 +294,7 @@ struct NotchView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { onFocusToggle?() }
                         .help(isFocused ? "Focused. Click to stop." : "Focus")
+                        .transition(eyeToggle)
                 }
                 ForEach(model.notchTabs) { tab in
                     Button { model.notchTab = tab } label: {
@@ -306,7 +318,7 @@ struct NotchView: View {
             }
             .padding(.leading, 14 + flare)
             .frame(maxWidth: .infinity)
-            .animation(eyeToggleAnimation, value: model.settings.showsEye)
+            .animation(eyeToggleAnimation, value: model.settings.notchMark)
 
             Spacer(minLength: notchWidth).frame(width: notchWidth)
 
