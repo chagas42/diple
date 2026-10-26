@@ -6,6 +6,7 @@ struct FakeComment {
     var at: Date
     var body: String
     var hunk: String?
+    var pending = false
 }
 
 struct FakeThread {
@@ -29,6 +30,21 @@ struct FakePR {
     var decision: String? = nil
     var conversation: [FakeComment] = []
     var threads: [FakeThread] = []
+    var requests: [FakeRequest] = []
+    var reviews: [FakeReview] = []
+    var committedAt: Date? = nil
+}
+
+struct FakeRequest {
+    var reviewer: String
+    var team = false
+    var at: Date
+}
+
+struct FakeReview {
+    var author: String
+    var state: String
+    var at: Date?
 }
 
 struct FakeWorld {
@@ -139,10 +155,36 @@ struct FakeWorld {
             "bodyText": c.body,
         ]
         if let h = c.hunk { o["diffHunk"] = h }
+        if c.pending { o["state"] = "PENDING" }
         return o
     }
 
     static func json(_ p: FakePR) -> [String: Any] {
+        var o = base(p)
+        if !p.requests.isEmpty {
+            o["timelineItems"] = ["nodes": p.requests.map { r in
+                [
+                    "createdAt": iso(r.at),
+                    "requestedReviewer": r.team ? ["__typename": "Team"] : ["__typename": "User", "login": r.reviewer],
+                ] as [String: Any]
+            }]
+        }
+        if !p.reviews.isEmpty {
+            o["latestReviews"] = ["nodes": p.reviews.map { r in
+                ["state": r.state, "submittedAt": r.at.map { iso($0) as Any } ?? NSNull(),
+                 "author": actor(r.author, bot: false)] as [String: Any]
+            }]
+        }
+        if let at = p.committedAt {
+            o["commits"] = ["nodes": [["commit": [
+                "committedDate": iso(at),
+                "statusCheckRollup": p.checks.map { ["state": $0] as Any } ?? NSNull(),
+            ] as [String: Any]]]]
+        }
+        return o
+    }
+
+    static func base(_ p: FakePR) -> [String: Any] {
         [
             "id": p.id,
             "number": p.number,

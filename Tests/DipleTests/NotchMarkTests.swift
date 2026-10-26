@@ -28,6 +28,15 @@ import Testing
         #expect(try JSONDecoder().decode(Settings.self, from: data).notchMark == .tray)
     }
 
+    @Test func noMarkAtAllSurvivesASaveAndStillTeachesTheTrayInOnboarding() throws {
+        var s = Settings()
+        s.notchMark = .blank
+        let data = try JSONEncoder().encode(s)
+        #expect(try JSONDecoder().decode(Settings.self, from: data).notchMark == .blank)
+        #expect(!s.showsEye)
+        #expect(NotchMark.blank.noun == "tray")
+    }
+
     @Test func theEyeIsTheDefaultAndTurningItOffLeavesTheTray() {
         var s = Settings()
         #expect(s.notchMark == .eye)

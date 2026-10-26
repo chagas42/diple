@@ -202,7 +202,7 @@ extension Settings {
 }
 
 enum NotchMark: String, Codable, Sendable, CaseIterable, Identifiable {
-    case eye, tray
+    case eye, tray, blank
 
     var id: String { rawValue }
 
@@ -210,10 +210,11 @@ enum NotchMark: String, Codable, Sendable, CaseIterable, Identifiable {
         switch self {
         case .eye:  "Eye"
         case .tray: "Tray"
+        case .blank: "None"
         }
     }
 
-    var noun: String { self == .tray ? "tray" : "eye" }
+    var noun: String { self == .eye ? "eye" : "tray" }
 }
 
 enum CountSide: String, Codable, Sendable, CaseIterable, Identifiable {
